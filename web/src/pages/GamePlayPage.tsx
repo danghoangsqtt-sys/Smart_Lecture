@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getSocket, disconnectSocket } from '../realtime/socket';
 import { Button, Card, Input, PageHeader, Select } from '../components/ui';
 import toast from '../stores/toastStore';
@@ -17,9 +17,11 @@ type Mode = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crosswor
 
 export default function GamePlayPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const token = useAuthStore((s) => s.token);
-  const [roomInput, setRoomInput] = useState('');
+  const [roomInput, setRoomInput] = useState(() => (searchParams.get('room') ?? '').replace(/\D/g, '').slice(0, 6));
   const [joined, setJoined] = useState(false);
+  const [autoJoined, setAutoJoined] = useState(false);
   const [gameType, setGameType] = useState<Mode>('quick_quiz');
   const [myTeam, setMyTeam] = useState<'A' | 'B' | undefined>(undefined);
   const [question, setQuestion] = useState<QuestionShow | null>(null);
@@ -88,6 +90,14 @@ export default function GamePlayPage() {
       setCwState(d);
     });
     socket.on('cw:wrong', () => toast.error('Chưa đúng — giáo viên sẽ chọn người khác'));
+    socket.on('you-kicked', (d: { message?: string }) => {
+      setJoined(false);
+      setQuestion(null);
+      setCwState(null);
+      setFinished(null);
+      setError(d.message ?? 'Bạn đã bị loại khỏi phòng');
+      disconnectSocket();
+    });
     socket.on('answer:reveal', (d: { correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number }) => {
       setReveal(d);
     });
@@ -122,14 +132,26 @@ export default function GamePlayPage() {
     return () => clearInterval(t);
   }, []);
 
-  function join() {
-    if (!/^\d{6}$/.test(roomInput)) {
+  function join(code?: string) {
+    const target = (code ?? roomInput).trim();
+    if (!/^\d{6}$/.test(target)) {
       toast.error('Mã phòng gồm 6 chữ số');
       return;
     }
-    socketRef.current?.emit('game:join', { roomCode: roomInput });
+    socketRef.current?.emit('game:join', { roomCode: target });
     setJoined(true);
+    setError('');
   }
+
+  useEffect(() => {
+    if (!token || joined || autoJoined) return;
+    const urlRoom = (searchParams.get('room') ?? '').replace(/\D/g, '').slice(0, 6);
+    if (/^\d{6}$/.test(urlRoom)) {
+      setAutoJoined(true);
+      const t = setTimeout(() => join(urlRoom), 400);
+      return () => clearTimeout(t);
+    }
+  }, [token, joined, autoJoined, searchParams]);
 
   function answer(choiceIdx: number, text?: string) {
     if (!question || myAnswer !== null || reveal) return;
@@ -180,7 +202,7 @@ export default function GamePlayPage() {
             placeholder="Mã phòng 6 số"
             className="mx-auto mt-2 !w-48 text-center !text-3xl font-bold tracking-[0.3em]"
           />
-          <Button className="mt-4 w-full" onClick={join}>Vào phòng</Button>
+          <Button className="mt-4 w-full" onClick={() => join()}>Vào phòng</Button>
           {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
         </Card>
       )}

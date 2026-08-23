@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { api } from '../lib/api';
 import { getSocket, disconnectSocket } from '../realtime/socket';
 import { Button, Card, EmptyState, Input, Label, PageHeader, Select, Spinner } from '../components/ui';
@@ -73,6 +74,7 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
   const [durationSec, setDurationSec] = useState(120);
   const [difficulty, setDifficulty] = useState(1);
   const [pointsPerCorrect, setPointsPerCorrect] = useState<0.25 | 0.5 | 1>(0.5);
+  const [lockOnStart, setLockOnStart] = useState(false);
   const [classId, setClassId] = useState('');
   const classes = useMyClasses();
   const [puzzleKeyword, setPuzzleKeyword] = useState('');
@@ -105,6 +107,7 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
         secondsPerQuestion,
         durationSec,
         difficulty,
+        lockOnStart,
       };
       if (mode === 'hand_raise') {
         body.pointsPerCorrect = pointsPerCorrect;
@@ -264,6 +267,10 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
             {mode === 'tug_of_war' && (
               <p className="mt-3 text-xs text-slate-500">Học viên tự động chia 2 đội xen kẽ khi vào phòng. Mỗi câu, đội có tỷ lệ đúng cao hơn sẽ kéo dây về phía mình.</p>
             )}
+            <label className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+              <input type="checkbox" checked={lockOnStart} onChange={(e) => setLockOnStart(e.target.checked)} />
+              Khóa phòng khi bắt đầu (không nhận người vào trễ)
+            </label>
             {mode === 'quick_quiz' && (
               <p className="mt-3 text-xs text-slate-500">60 điểm nền + tối đa 40 điểm tốc độ cho mỗi câu đúng.</p>
             )}
@@ -283,7 +290,7 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
 function HostConsole({ session }: { session: SessionInfo }) {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'finished'>('lobby');
-  const [players, setPlayers] = useState<{ name: string; score?: number; team?: string }[]>([]);
+  const [players, setPlayers] = useState<{ name: string; score?: number; team?: string; userId?: string }[]>([]);
   const [reveal, setReveal] = useState<{ correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number } | null>(null);
   const [leaderboard, setLeaderboard] = useState<{ name: string; score: number }[]>([]);
   const [ropePos, setRopePos] = useState(0);
@@ -302,6 +309,18 @@ function HostConsole({ session }: { session: SessionInfo }) {
     total: number;
   } | null>(null);
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
+  const [joinQr, setJoinQr] = useState<string | null>(null);
+
+  useEffect(() => {
+    void import('../lib/health').then(({ fetchLanBase }) =>
+      fetchLanBase().then((base) => {
+        if (!base) return;
+        QRCode.toDataURL(`${base}/games/play?room=${session.roomCode}`, { width: 220, margin: 1 })
+          .then(setJoinQr)
+          .catch(() => setJoinQr(null));
+      })
+    );
+  }, [session.roomCode]);
 
   useEffect(() => {
     if (phase !== 'race') return;
@@ -317,12 +336,12 @@ function HostConsole({ session }: { session: SessionInfo }) {
 
     socket.emit('game:host-attach', { sessionId: session.id });
 
-    socket.on('host:sync', (d: { phase: typeof phase; players: { name: string; score: number }[]; ropePos: number }) => {
+    socket.on('host:sync', (d: { phase: typeof phase; players: { name: string; score?: number; team?: string; userId?: string }[]; ropePos: number }) => {
       setPhase(d.phase);
       setPlayers(d.players);
       setRopePos(d.ropePos ?? 0);
     });
-    socket.on('lobby:update', (d: { players: { name: string; team?: string }[] }) => setPlayers(d.players));
+    socket.on('lobby:update', (d: { players: { name: string; team?: string; userId?: string }[] }) => setPlayers(d.players));
     socket.on('question:show', () => { setPhase('question'); setReveal(null); setHrResult(null); });
     socket.on('answer:reveal', (d: { correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number }) => {
       setPhase('leaderboard');
@@ -356,6 +375,7 @@ function HostConsole({ session }: { session: SessionInfo }) {
 
   function hostPick(userId: string) { socketRef.current?.emit('game:host-pick', { userId }); }
   function hostRelease() { socketRef.current?.emit('game:host-release'); }
+  function hostKick(userId: string) { socketRef.current?.emit('game:host-kick', { userId }); }
   function hostVerdict(correct: boolean) {
     if (!picked) return;
     socketRef.current?.emit('game:host-verdict', { userId: picked.userId, correct });
@@ -383,7 +403,11 @@ function HostConsole({ session }: { session: SessionInfo }) {
       <Card className="mb-5 p-6">
         <p className="text-sm text-slate-400">Mã phòng — học viên nhập tại trang Trò chơi</p>
         <div className="my-2 font-mono text-6xl font-bold tracking-widest text-indigo-300">{session.roomCode}</div>
-        <span className="rounded-md bg-indigo-950 px-2 py-1 text-sm text-indigo-300 ring-1 ring-indigo-800">{players.length} học viên trong phòng</span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="rounded-md bg-indigo-950 px-2 py-1 text-sm text-indigo-300 ring-1 ring-indigo-800">👥 {players.length}/60 thiết bị</span>
+          {joinQr && <img src={joinQr} alt="QR vào thẳng trò chơi" className="mt-2 w-40 rounded-xl bg-white p-2" />}
+          {joinQr && <p className="w-full text-center text-xs text-slate-500">Học viên quét mã → tự động vào phòng này</p>}
+        </div>
       </Card>
 
       {phase === 'lobby' && (
@@ -395,7 +419,10 @@ function HostConsole({ session }: { session: SessionInfo }) {
             ) : (
               <div className="flex flex-wrap justify-center gap-2">
                 {players.map((p, i) => (
-                  <span key={i} className={`rounded-full px-3 py-1 text-sm ${p.team === 'A' ? 'bg-blue-900/70' : p.team === 'B' ? 'bg-red-900/70' : 'bg-slate-800'}`}>{p.name}</span>
+                  <span key={i} className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm ${p.team === 'A' ? 'bg-blue-900/70' : p.team === 'B' ? 'bg-red-900/70' : 'bg-slate-800'}`}>
+                    {p.name}
+                    <button onClick={() => hostKick(p.userId ?? '')} className='text-xs text-red-300 hover:text-red-200'>×</button>
+                  </span>
                 ))}
               </div>
             )}

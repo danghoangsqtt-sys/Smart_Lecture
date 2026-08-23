@@ -62,6 +62,9 @@ interface RoomState {
   solvedRows: Set<number>;
   hands: Map<string, string>;
   activePick: { userId: string; name: string } | null;
+  locked: boolean;
+  lockOnStart: boolean;
+  blacklist: Set<string>;
   phase: Phase;
   currentIndex: number;
   questionEndsAt: number;
@@ -72,6 +75,8 @@ interface RoomState {
   raceEndsAt: number;
   timer: NodeJS.Timeout | null;
 }
+
+const MAX_PLAYERS = 60;
 
 const rooms = new Map<string, RoomState>();
 let ioRef: IOServer | null = null;
@@ -453,6 +458,7 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     pointsPerCorrect?: number;
     classId?: string | null;
     puzzle?: PuzzleDef | null;
+    lockOnStart?: boolean;
   };
   const gameType = (['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword'] as const).includes(
     row.game_type as never
@@ -498,6 +504,9 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     solvedRows: new Set<number>(),
     hands: new Map<string, string>(),
     activePick: null,
+    locked: false,
+    lockOnStart: cfg.lockOnStart === true,
+    blacklist: new Set<string>(),
     phase: row.status === 'running' ? (gameType === 'math_race' ? 'race' : 'question') : 'lobby',
     currentIndex: row.current_question_index,
     questionEndsAt: 0,
@@ -547,7 +556,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         currentIndex: room.currentIndex,
         totalQuestions: room.questions.length,
         ropePos: Math.round(room.ropePos),
-        players: [...room.players.values()].map((p) => ({ name: p.displayName, score: p.score })),
+        players: [...room.players.values()].map((p) => ({ name: p.displayName, score: p.score, userId: p.userId })),
         raceRows: [...room.racePlayers.values()].map((r) => ({ name: r.displayName, solved: r.solved })),
       });
     });
@@ -560,9 +569,30 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         socket.emit('game:error', { message: 'Không tìm thấy phòng. Kiểm tra lại mã phòng.' });
         return;
       }
-      const user = getUserById(socket.data.userId);
+      const userId = String(socket.data.userId);
+      if (room.blacklist.has(userId)) {
+        socket.emit('game:error', { message: 'Bạn đã bị giáo viên loại khỏi phiên này.' });
+        return;
+      }
+      const user = getUserById(userId);
       if (!user) return;
       const publicUser = toPublicUser(user);
+
+      const isRejoin =
+        room.players.has(publicUser.id) ||
+        room.racePlayers.has(publicUser.id) ||
+        room.blacklist.has(publicUser.id);
+      if (
+        !isRejoin &&
+        room.players.size + room.racePlayers.size >= MAX_PLAYERS
+      ) {
+        socket.emit('game:error', { message: `Phòng đã đầy (tối đa ${MAX_PLAYERS} thiết bị).` });
+        return;
+      }
+      if (room.locked && !isRejoin) {
+        socket.emit('game:error', { message: 'Phòng đã khóa — không nhận thêm người mới.' });
+        return;
+      }
 
       if (room.gameType === 'math_race') {
         if (!room.racePlayers.has(publicUser.id)) {
@@ -609,9 +639,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       socket.emit('game:joined', { gameType: room.gameType, phase: room.phase, team: player.team });
       io.to(`game:${room.roomCode}`).emit('lobby:update', {
         count: [...room.players.values()].filter((p) => p.online).length,
-        players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team })),
+        players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team, userId: p.userId })),
       });
       if (room.gameType === 'tug_of_war') broadcastRope(room);
+      if (room.gameType === 'crossword') emitCrosswordState(room, socket);
       if (room.phase === 'question') {
         const q = room.questions[room.currentIndex];
         if (q) {
@@ -630,6 +661,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const room = rooms.get(String(socket.data.roomCode));
       if (!room || room.hostId !== socket.data.userId) return;
       if (room.phase !== 'lobby') return;
+      if (room.lockOnStart) room.locked = true;
       db.prepare("UPDATE game_sessions SET status = 'running', started_at = datetime('now') WHERE id = ?").run(room.sessionId);
       if (room.gameType === 'math_race') {
         startRace(room);
@@ -643,6 +675,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         return;
       }
       if (room.gameType === 'tug_of_war') broadcastRope(room);
+      if (room.gameType === 'crossword') emitCrosswordState(room, socket);
       room.currentIndex = 0;
       startQuestion(room);
     });
@@ -744,6 +777,36 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       }
     });
 
+    socket.on('game:host-kick', (raw: unknown) => {
+      const parsed = z.object({ userId: z.string() }).safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.hostId !== socket.data.userId) return;
+      const targetId = parsed.data.userId;
+      room.blacklist.add(targetId);
+      room.players.delete(targetId);
+      room.racePlayers.delete(targetId);
+      room.hands.delete(targetId);
+      if (room.activePick?.userId === targetId) {
+        room.activePick = null;
+        ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
+      }
+      for (const sid of connectedSocketsIn(room.roomCode)) {
+        const s = ioRef?.sockets.sockets.get(sid);
+        if (s && s.data.role === 'student' && s.data.userId === targetId) {
+          s.emit('you-kicked', { message: 'Bạn đã bị giáo viên loại khỏi trò chơi.' });
+          s.leave(`game:${room.roomCode}`);
+          s.disconnect(true);
+        }
+      }
+      broadcastHands(room);
+      broadcastLeaderboard(room);
+      broadcastRace(room);
+      ioRef?.to(`game:${room.roomCode}`).emit('lobby:update', {
+        count: [...room.players.values()].filter((p) => p.online).length,
+        players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team, userId: p.userId })),
+      });
+    });
     socket.on('cw:try', (raw: unknown) => {
       const parsed = zCwTry.safeParse(raw);
       if (!parsed.success || socket.data.role !== 'student') return;
@@ -827,7 +890,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         if (player) player.online = false;
         io.to(`game:${room.roomCode}`).emit('lobby:update', {
           count: [...room.players.values()].filter((p) => p.online).length,
-          players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team })),
+          players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team, userId: p.userId })),
         });
       }
     });

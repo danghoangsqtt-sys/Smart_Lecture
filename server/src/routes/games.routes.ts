@@ -28,6 +28,7 @@ router.post(
         difficulty: z.number().int().min(1).max(3).default(1),
         pointsPerCorrect: z.union([z.literal(0.25), z.literal(0.5), z.literal(1)]).optional(),
         classId: z.string().optional(),
+        lockOnStart: z.boolean().default(false),
         puzzle: z
           .object({
             keyword: z.string().min(2).max(10).regex(/^[A-Za-zÀ-ỹà-ỹ\s]+$/),
@@ -86,6 +87,7 @@ router.post(
         pointsPerCorrect: d.pointsPerCorrect ?? null,
         classId: d.classId ?? null,
         puzzle: d.puzzle ?? null,
+        lockOnStart: d.lockOnStart,
       })
     );
     res.status(201).json({ id, roomCode });
