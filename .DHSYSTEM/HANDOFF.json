@@ -1,0 +1,31 @@
+﻿{
+  "project": "Smart_Lecture",
+  "displayName": "SmartLecture",
+  "version": "0.2.0-phase1-complete",
+  "created": "2026-08-23",
+  "status": "phase-1-in-progress",
+  "phase_current": "P1-done-awaiting-user-review",
+  "workflow_state": "crystallized",
+  "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
+  "artifacts": [
+    ".DHSYSTEM/PROJECT-META.md",
+    ".DHSYSTEM/AI-GUIDE.md",
+    ".DHSYSTEM/ARCHITECTURE.md",
+    ".DHSYSTEM/PROJECT-CONTEXT.md",
+    ".DHSYSTEM/SYSTEM-RULES.md",
+    ".DHSYSTEM/ROADMAP.md",
+    ".DHSYSTEM/TRACKER.md"
+  ],
+  "stacks": ["node-express-ts", "react-vite-tailwind", "sqlite-node"],
+  "decisions_locked": {
+    "host_model": "local node server + web client",
+    "network": "lan-only",
+    "realtime": "socket-io-phase-1",
+    "rag": "self-pipeline-gemini-embeddings",
+    "ai_access": "teacher-and-admin-only",
+    "video": "local-file-http-range",
+    "game_join": "authenticated-students",
+    "user_model": "admin-teachers-students"
+  },
+  "next_action": "User review Phase 1 UI flows in browser; then Phase 2: RAG chatbot + more games + Azota stats"
+}

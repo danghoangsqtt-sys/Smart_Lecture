@@ -1,0 +1,157 @@
+# ARCHITECTURE — Smart_Lecture
+
+## 1. Sơ đồ tổng thể
+
+```
+MÁY GIÁO VIÊN                                THIẾT BỊ HỌC VIÊN / GV KHÁC
+┌────────────────────────────────────┐       ┌──────────────────┐
+│  server/ (Node 24)                  │       │ Browser          │
+│  ├── Express :4000                  │       │ http://<ip>:4000 │
+│  │   ├── REST API /api/*            │◄─────►│ (điện thoại/     │
+│  │   ├── Static web/dist            │WiFi   │  laptop/LAN)     │
+│  │   ├── Media stream (Range)       │ LAN   └──────────────────┘
+│  │   └── node:sqlite (WAL)          │
+│  ├── Socket.IO /game,/live          │
+│  ├── RAG worker (chunk + embed)     │
+│  └── data/                          │
+│      ├── smart-lecture.db           │
+│      ├── media/ (video,pdf,pptx...) │
+│      ├── secret.key                 │
+│      └── backups/                   │
+└────────────────────────────────────┘
+```
+
+- **Dev mode:** Vite dev server :5173 proxy `/api` + `/socket.io` → :4000
+- **Prod mode:** server phục vụ `web/dist` tĩnh → học viên chỉ cần 1 URL duy nhất
+- **Khởi động cùng Windows:** Task Scheduler chạy `npm start` trong thư mục server (roadmap P4)
+
+## 2. Cấu trúc monorepo
+
+```
+Smart_Lecture/
+├── server/            # Backend Node.js + TypeScript (tsx dev, tsc build)
+│   └── src/
+│       ├── index.ts           # bootstrap: express + socket.io + static
+│       ├── config.ts          # port, đường dẫn data, jwt secret loader
+│       ├── db/
+│       │   ├── connection.ts  # node:sqlite DatabaseSync singleton + migrate
+│       │   ├── schema.sql     # DDL toàn bộ bảng
+│       │   └── seed.ts        # tạo admin mặc định lần đầu
+│       ├── middleware/auth.ts # JWT verify + requireRole()
+│       ├── routes/            # auth, users, classes, lectures, materials,
+│       │                      # questions, exams, results, grades, attendance,
+│       │                      # rag, games, settings, backup
+│       ├── services/          # gemini.ts (resilience layer), rag.ts,
+│       │                      # docparse.ts, examEngine.ts, excelExport.ts
+│       └── realtime/          # gameRoom.ts (Socket.IO rooms)
+├── web/               # Frontend React 19 + Vite + TS strict + Tailwind v4
+│   └── src/
+│       ├── pages/             # theo route role-based
+│       ├── components/        # UI dùng chung
+│       ├── stores/            # Zustand: auth, ui
+│       ├── lib/api.ts         # fetch wrapper gắn JWT + refresh lỗi 401
+│       └── realtime/socket.ts # Socket.IO client singleton
+├── data/              # runtime (gitignore): db, media, secret, backups
+└── .DHSYSTEM/         # artifact quản trị dự án
+```
+
+## 3. ERD cơ sở dữ liệu (SQLite)
+
+```mermaid
+erDiagram
+    users ||--o{ classes : "teaches"
+    users ||--o{ enrollments : "is student"
+    classes ||--o{ enrollments : has
+    classes ||--o{ lectures : contains
+    lectures ||--o{ materials : contains
+    users ||--o{ questions : creates
+    folders ||--o{ questions : groups
+    users ||--o{ exams : creates
+    exams ||--o{ exam_results : has
+    users ||--o{ exam_results : attempts
+    classes ||--o{ attendance_sessions : has
+    attendance_sessions ||--o{ attendance_records : has
+    users ||--o{ attendance_records : marked
+    classes ||--o{ grades : tracks
+    users ||--o{ grades : receives
+    users ||--o{ rag_documents : owns
+    rag_documents ||--o{ rag_chunks : chunked_into
+    exams ||--o{ game_rounds : sources
+```
+
+### Schema chính (chi tiết DDL xem `server/src/db/schema.sql`)
+- **users**(id TEXT pk, username UNIQUE, password_hash, role CHECK(admin|teacher|student), display_name, status active|locked, created_at)
+- **classes**(id, name, subject, teacher_id FK→users, academic_year, settings_json) 
+- **enrollments**(class_id, student_id, PK(class_id,student_id))
+- **lectures**(id, class_id, chapter, title, sort_order, description)
+- **materials**(id, lecture_id, type CHECK(pdf|docx|pptx|video|link|image), title, file_path NULL nếu link, link_url, size_bytes, page_count)
+- **folders**(id, owner_id, name, module CHECK(question|exam))
+- **questions**(id, owner_id, type CHECK(mcq|essay), content, options_json, correct_answer, explanation, bloom_level, category, folder_id INDEXED, image_path, is_public_bank, created_at) — *bài học bluebee: bloom/folder/category là cột riêng có index, KHÔNG nhét metadata JSON*
+- **exams**(id, creator_id, title, duration_min, question_ids_json, config_json {start_at,end_at,password,shuffle_q,shuffle_o,max_attempts,purpose online_test|self_study,status draft|published,class_id})
+- **exam_results**(id, exam_id, student_id, status CHECK(in_progress|disconnected|submitted), remaining_sec, saved_answers_json, score REAL, red_flags, answers_detail_json, ai_evaluation, updated_at, UNIQUE(exam_id,student_id))
+- **attendance_sessions**(id, class_id, session_date, periods_total)
+- **attendance_records**(session_id, student_id, status CHECK(present|absent|late), periods_absent, reason)
+- **grades**(class_id, student_id, kttx REAL NULL, process_1 REAL NULL, final_exam REAL NULL, PRIMARY KEY(class_id,student_id))
+- **game_sessions**(id, host_teacher_id, game_type, exam_id NULL, status lobby|running|finished, room_code, started_at)
+- **game_results**(game_session_id, student_id, score, rank, detail_json)
+- **rag_documents**(id, owner_id, filename, file_path, mime, status pending|parsing|ready|error, error_msg, page_count)
+- **rag_chunks**(id, rag_doc_id, seq, heading_path, text, page, embedding BLOB float32[])
+
+## 4. API sketch (REST, tiền tố /api)
+
+| Nhóm | Endpoint chính | Role |
+|---|---|---|
+| Auth | POST /auth/login · GET /auth/me · POST /auth/change-password | all |
+| Users | POST /users (admin→teacher, teacher→student) · POST /users/import-excel · PATCH /users/:id/status | admin, teacher |
+| Classes | CRUD /classes · POST /classes/:id/enroll · GET /classes/mine | teacher, admin |
+| Lectures | CRUD /classes/:cid/lectures → /lectures/:id/materials | teacher |
+| Materials | POST /materials/upload (multipart) · GET /media/:materialId/stream (Range) | theo lớp |
+| Questions | CRUD /questions (+filter type,bloom,folder,q) · POST /questions/bulk · import text | teacher |
+| AI | POST /ai/generate-questions (Bloom matrix) · POST /ai/grade-essay · POST /ai/comment-student | teacher only |
+| Exams | CRUD /exams · POST /exams/:id/publish · GET /exams/available (student) | phân vai |
+| Taking | POST /exams/:id/attempts (tạo/resume attempt) · PUT /attempts/:id/answers · POST /attempts/:id/submit | student |
+| Grades | GET /classes/:cid/gradebook · PUT /grades/:sid/:col | teacher |
+| Attendance | POST /classes/:cid/sessions · PUT /sessions/:sid/records | teacher |
+| RAG | POST /rag/documents (upload) · GET /rag/documents/:id/status · POST /rag/chat (GV) | teacher |
+| System | GET /health · GET /system/info (LAN IP + QR payload) · POST /system/backup | admin |
+
+Quy tắc: mọi mutation có zod validate; lỗi chuẩn `{error: {code, message}}`; phân quyền middleware `requireRole('teacher')`.
+
+## 5. Realtime events (Socket.IO)
+
+Namespace mặc định, phòng theo `game:{sessionId}` và `proctor:{examId}`:
+
+| Event (client→server) | Payload | Mô tả |
+|---|---|---|
+| game:join | {roomCode} | HV vào phòng lobby (yêu cầu JWT) |
+| game:start | {} | GV bấm bắt đầu |
+| game:answer | {questionId, choice, msTaken} | HV trả lời, server tính điểm realtime |
+| game:next | {} | GV chuyển câu tiếp |
+| proctor:watch | {examId} | GV mở màn hình giám thị |
+| proctor:flag | {examId, type} | Server phát khi HV tab-switch |
+
+Server→client: `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `proctor:progress`, `proctor:redflag`.
+Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
+
+## 6. Luồng RAG pipeline (services/rag.ts)
+
+```
+Upload PDF/DOCX/PPTX (multer → data/media/)
+  → docparse: pdfjs-serverless (PDF) · mammoth (DOCX) · unzip+XML parse (PPTX)
+  → chia khối theo heading (Title/Heading path), 500–1000 token, overlap ~15%
+  → metadata: page, heading_path (học thiết kế Chunkr)
+  → Gemini text-embedding-001 (batch 100 chunks/request, retry backoff 429)
+  → Lưu rag_chunks.embedding BLOB float32
+Chat: embed câu hỏi → cosine similarity top-K (in-memory, đủ nhanh ≤50k chunks)
+  → inject context vào systemInstruction + trích dẫn [tên tài liệu, trang X]
+Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guard toàn cục
+```
+
+## 7. Bảo mật
+
+- JWT HS256, secret random 64 bytes sinh 1 lần lưu `data/secret.key` (0600)
+- bcryptjs cost 10; khóa tài khoản sau 10 lần sai liên tiếp (unlock bởi admin/GV chủ lớp)
+- CORS chặn theo cấu hình; helmet headers; rate-limit express-rate-limit 300 req/phút/IP
+- Upload: whitelist mime + extension, giới hạn 500MB/video, quét phần mở rộng kép; filename lưu uuid, giữ tên gốc trong DB
+- SQL: chỉ prepared statements; không bao giờ ghép chuỗi input vào query
+- API key Gemini: nhập trong Settings của GV/admin, mã hóa AES-256-GCM bằng secret.key trước khi lưu DB — không bao giờ trả về client sau khi lưu
