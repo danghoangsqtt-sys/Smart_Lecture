@@ -5,6 +5,7 @@ import { NETWORK_INTERFACES, PORT } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { createBackup, listBackups } from '../services/backup.js';
+import { detectCloudflared, getTunnelUrl, isTunnelRunning, startTunnel, stopTunnel } from '../services/tunnel.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -55,6 +56,8 @@ router.get(
       port: PORT,
       lanUrls: NETWORK_INTERFACES.map((i) => `http://${i.address}:${PORT}`),
       mdnsUrl: mdnsAdvertised ? `http://${mdnsHostname}:${PORT}` : null,
+      tunnelUrl: getTunnelUrl(),
+      cloudflaredAvailable: await detectCloudflared(),
       hostname: os.hostname(),
       platform: `${os.type()} ${os.release()}`,
       doclingAvailable: doclingAvailable ?? false,
@@ -78,6 +81,22 @@ router.get(
   requireRole('teacher', 'admin'),
   h(async (_req, res) => {
     res.json({ backups: listBackups() });
+  })
+);
+
+router.post(
+  '/system/tunnel',
+  requireRole('teacher', 'admin'),
+  h(async (req, res) => {
+    const enable = req.body?.enable === true;
+    if (!enable) {
+      stopTunnel();
+      res.json({ enabled: false });
+      return;
+    }
+    const result = await startTunnel(PORT);
+    if (!result.ok) throw new HttpError(400, 'TUNNEL_FAILED', result.error ?? 'Không mở được tunnel');
+    res.json({ enabled: true, url: result.url });
   })
 );
 

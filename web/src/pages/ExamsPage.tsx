@@ -31,7 +31,75 @@ interface ExamInfo {
   };
 }
 
-const BLOOM_LEVELS = ['Nháº­n biáº¿t', 'ThÃ´ng hiá»ƒu', 'Váº­n dá»¥ng', 'Váº­n dá»¥ng cao'];
+const BLOOM_LEVELS = ['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao'];
+
+interface PrintData {
+  exam: { title: string; durationMin: number };
+  questions: { id: string; type: string; content: string; options?: string[] }[];
+  key: { no: number; type: string; letter: string | null; correctText: string | null }[];
+}
+
+async function printExam(examId: string) {
+  try {
+    const data = await api<PrintData>(`/exams/${examId}/print-data`);
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const qHtml = data.questions
+      .map((q, i) => {
+        const opts =
+          q.options && q.options.length > 0
+            ? `<div class="opts">${q.options.map((o) => `<span class="opt">${esc(o)}</span>`).join('')}</div>`
+            : '';
+        return `<div class="q"><b>Câu ${i + 1}.</b> ${esc(q.content)}${opts}</div>`;
+      })
+      .join('\n');
+    const keyHtml = data.key.map((k) => `<span class="keycell">${k.no}.${k.type === 'mcq' ? k.letter : '…'}</span>`).join('');
+    const essayKeys = data.key
+      .filter((k) => k.type !== 'mcq')
+      .map((k) => `<div class="essaykey"><b>Câu ${k.no}:</b> ${esc(k.correctText ?? '')}</div>`)
+      .join('');
+
+    const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${esc(data.exam.title)}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font-family: 'Times New Roman', serif; font-size: 12.5pt; color: #000; }
+  .header { text-align: center; margin-bottom: 10pt; }
+  .org { display:flex; justify-content:space-between; font-style:italic; font-size:11pt; }
+  .title { font-weight:bold; text-transform:uppercase; margin-top:8pt; font-size:14pt; }
+  .meta { text-align:center; font-style:italic; }
+  .q { break-inside: avoid; margin-top: 9pt; text-align: justify; }
+  .opts { display:grid; grid-template-columns: 1fr 1fr; gap:2pt 16pt; margin-left:14pt; margin-top:3pt; }
+  .opt { break-inside: avoid; }
+  .pagebreak { page-break-before: always; }
+  h2 { text-align:center; font-size:13pt; }
+  .keys { display:grid; grid-template-columns: repeat(8, 1fr); gap:4pt; font-size:11pt; }
+  .keycell { border:1px solid #000; padding:3pt 0; text-align:center; }
+  .essaykey { margin-top:6pt; font-size:11.5pt; }
+</style></head><body>
+<div class="header">
+  <div class="org"><span>SỞ / PHÒNG: ……………………</span><span>TRƯỜNG: ……………………</span></div>
+  <div class="title">ĐỀ KIỂM TRA</div>
+  <div class="meta">Môn: ……………………… — Thời gian: ${data.exam.durationMin} phút</div>
+</div>
+<div class="org" style="margin-bottom:6pt"><span>Họ tên: ……………………………</span><span>Lớp: …………… SBD: ………</span></div>
+${qHtml}
+<div class="pagebreak"></div>
+<h2>BẢNG ĐÁP ÁN (dành cho giáo viên)</h2>
+<div class="keys">${keyHtml}</div>
+${essayKeys}
+<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 400); };</script>
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast.error('Trình duyệt chặn cửa sổ in — cho phép popup rồi thử lại');
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Lỗi lấy dữ liệu đề');
+  }
+}
 
 export default function ExamsPage() {
   const [exams, setExams] = useState<ExamInfo[]>([]);
@@ -79,6 +147,7 @@ export default function ExamsPage() {
                 {e.status === 'published' ? 'Äang phÃ¡t hÃ nh' : 'ÄÃ£ Ä‘Ã³ng'}
               </span>
               <Link to={`/exams/${e.id}/results`} className="rounded-lg bg-indigo-600/90 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Káº¿t quáº£</Link>
+              <button onClick={() => void printExam(e.id)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">🖨 In A4</button>
               <button
                 onClick={async () => {
                   if (!window.confirm(e.status === 'published' ? 'ÄÃ³ng Ä‘á» thi (há»c viÃªn khÃ´ng vÃ o Ä‘Æ°á»£c ná»¯a)?' : 'PhÃ¡t hÃ nh láº¡i Ä‘á» thi?')) return;

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { db, queryAll } from '../db/connection.js';
+import { db, queryAll, tx } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, getClassOrThrow } from '../utils/access.js';
@@ -197,6 +197,71 @@ router.post(
       preferredUnsubmitted: parsed.data.examId ? pool !== students || pool.length < students.length : false,
       question: pendingQuestion,
     });
+  })
+);
+
+router.post(
+  '/games/:id/bonus',
+  requireRole('teacher', 'admin'),
+  h(async (req, res) => {
+    const row = getGameOrThrow(String(req.params.id));
+    assertHost(row, req as AuthedRequest);
+    const parsed = z
+      .object({
+        first: z.number().min(0).max(5).default(0),
+        second: z.number().min(0).max(5).default(0),
+        third: z.number().min(0).max(5).default(0),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Điểm thưởng không hợp lệ (0–5)');
+    if (row.status !== 'finished') throw new HttpError(400, 'NOT_FINISHED', 'Game chưa kết thúc');
+
+    const already = queryAll<{ student_id: string }>(
+      'SELECT student_id FROM game_results WHERE game_session_id = ? AND approved_into_grades = 1',
+      row.id
+    );
+    if (already.length > 0) {
+      throw new HttpError(409, 'ALREADY_APPLIED', 'Đã cộng thưởng cho phiên này trước đó');
+    }
+
+    const cfg = JSON.parse(row.config_json) as { classId?: string | null };
+    const classId = cfg.classId ?? null;
+    if (!classId) throw new HttpError(400, 'NO_CLASS', 'Phiên game không gắn với lớp — không thể cộng điểm KTTX');
+
+    const results = queryAll<{ student_id: string; rank: number }>(
+      'SELECT student_id, rank FROM game_results WHERE game_session_id = ? ORDER BY rank LIMIT 3',
+      row.id
+    );
+    const bonusFor = (rank: number): number => {
+      if (rank === 1) return parsed.data.first ?? 0;
+      if (rank === 2) return parsed.data.second ?? 0;
+      if (rank === 3) return parsed.data.third ?? 0;
+      return 0;
+    };
+
+    let applied = 0;
+    tx(() => {
+      for (const r of results) {
+        const delta = bonusFor(r.rank);
+        if (delta <= 0 || !r.student_id) continue;
+        const cur = db.prepare('SELECT kttx FROM grades WHERE class_id = ? AND student_id = ?').get(classId, r.student_id) as
+          | { kttx: number | null }
+          | undefined;
+        const next = Math.min(10, Math.round(((cur?.kttx ?? 0) + delta) * 100) / 100);
+        db.prepare(
+          `INSERT INTO grades (class_id, student_id, kttx, updated_at) VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(class_id, student_id) DO UPDATE SET kttx = excluded.kttx, updated_at = excluded.updated_at`
+        ).run(classId, r.student_id, next);
+        db.prepare('UPDATE game_results SET approved_into_grades = 1 WHERE game_session_id = ? AND student_id = ? AND rank = ?').run(
+          row.id,
+          r.student_id,
+          r.rank
+        );
+        applied++;
+      }
+    });
+
+    res.json({ ok: true, applied });
   })
 );
 

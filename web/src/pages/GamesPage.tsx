@@ -552,6 +552,10 @@ function HostConsole({ session }: { session: SessionInfo }) {
               </li>
             ))}
           </ol>
+
+          {session.config && session.id && (
+            <BonusPanel sessionId={session.id} />
+          )}
         </Card>
       )}
 
@@ -617,5 +621,52 @@ function RandomPickerTab() {
         </div>
       )}
     </Card>
+  );
+}
+
+function BonusPanel({ sessionId }: { sessionId: string }) {
+  const [vals, setVals] = useState({ first: 1, second: 0.5, third: 0.25 });
+  const [applied, setApplied] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function apply() {
+    setBusy(true);
+    try {
+      await api(`/games/${sessionId}/bonus`, { method: 'POST', body: JSON.stringify(vals) });
+      toast.success('Đã cộng thưởng vào cột KTTX cho top 3');
+      setApplied(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (applied) return <p className="mt-4 text-sm text-emerald-400">✓ Đã cộng thưởng KTTX cho top 3</p>;
+
+  return (
+    <div className="mt-5 rounded-xl bg-slate-950/50 p-4 ring-1 ring-slate-800">
+      <h4 className="mb-2 text-sm font-semibold text-slate-300">Cộng điểm KTTX thưởng cho top 3</h4>
+      <div className="flex items-end justify-center gap-3">
+        {([['first', '🥇'], ['second', '🥈'], ['third', '🥉']] as const).map(([key, medal]) => (
+          <div key={key} className="text-center">
+            <Label>{medal}</Label>
+            <Select
+              value={String(vals[key])}
+              onChange={(e) => setVals((v) => ({ ...v, [key]: Number(e.target.value) }))}
+              className="!w-20 !py-1.5 text-center"
+            >
+              <option value={0}>—</option>
+              <option value={0.25}>+0.25</option>
+              <option value={0.5}>+0.5</option>
+              <option value={1}>+1</option>
+            </Select>
+          </div>
+        ))}
+      </div>
+      <Button className="mt-3" onClick={() => void apply()} disabled={busy}>
+        Cộng vào sổ điểm
+      </Button>
+    </div>
   );
 }

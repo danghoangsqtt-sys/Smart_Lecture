@@ -42,10 +42,32 @@ export default function SettingsPage() {
     platform: string;
     lanUrls: string[];
     mdnsUrl: string | null;
+    tunnelUrl: string | null;
+    cloudflaredAvailable: boolean;
     doclingAvailable: boolean;
     uptimeSec: number;
     backups: { name: string; size: number; createdAt: string }[];
   }
+
+  async function toggleTunnel(enable: boolean) {
+    setTunnelBusy(true);
+    try {
+      const res = await api<{ enabled: boolean; url?: string }>('/system/tunnel', {
+        method: 'POST',
+        body: JSON.stringify({ enable }),
+      });
+      if (enable && res.url) toast.success(`Tunnel mở: ${res.url}`);
+      else if (!enable) toast.info('Đã đóng tunnel');
+      const s = await api<SystemInfo>('/system/info');
+      setSys(s);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lỗi tunnel');
+    } finally {
+      setTunnelBusy(false);
+    }
+  }
+
+  const [tunnelBusy, setTunnelBusy] = useState(false);
 
   const [quota, setQuota] = useState<{ feature: string; used: number; limit: number }[]>([]);
 
@@ -143,6 +165,28 @@ export default function SettingsPage() {
               </li>
               <li>• Docling (PDF scan): {sys.doclingAvailable ? '✓ có sẵn — sẽ tự dùng cho PDF không có text' : 'chưa cài (tùy chọn)'}</li>
             </ul>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-medium text-slate-300">Truy cập từ nhà (cho BTVN)</span>
+                {sys.tunnelUrl ? (
+                  <Button variant="danger" onClick={() => void toggleTunnel(false)} disabled={tunnelBusy}>Đóng tunnel</Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => void toggleTunnel(true)} disabled={tunnelBusy}>
+                    {tunnelBusy ? 'Đang mở…' : 'Mở tunnel công khai'}
+                  </Button>
+                )}
+              </div>
+              {sys.tunnelUrl ? (
+                <code className="block rounded-lg bg-emerald-950 px-3 py-2 text-emerald-300 ring-1 ring-emerald-800">{sys.tunnelUrl}</code>
+              ) : (
+                <p className="text-xs text-slate-500">
+                  {sys.cloudflaredAvailable
+                    ? 'Mở kênh công khai tạm thời (trycloudflare) để học viên làm BTVN từ Internet. CẢNH BÁO: toàn bộ hệ thống sẽ truy cập được công khai — tắt ngay sau khi giao bài.'
+                    : 'Cần cài cloudflared (miễn phí) và có trong PATH. Chỉ bật khi giao BTVN, tắt ngay sau đó.'}
+                </p>
+              )}
+            </div>
 
             <div>
               <div className="mb-2 flex items-center justify-between">

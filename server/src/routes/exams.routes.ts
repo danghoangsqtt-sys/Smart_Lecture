@@ -210,6 +210,36 @@ router.get(
 );
 
 router.get(
+  '/exams/:id/print-data',
+  h(async (req, res) => {
+    const authed = req as AuthedRequest;
+    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
+    const ids = JSON.parse(exam.question_ids_json) as string[];
+    if (ids.length === 0) {
+      res.json({ exam: { title: exam.title, durationMin: exam.duration_min }, questions: [], key: [] });
+      return;
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = queryAll<BankQuestion>(`SELECT * FROM questions WHERE id IN (${placeholders})`, ...ids);
+    const orderMap = new Map(ids.map((qid, i) => [qid, i]));
+    const sorted = [...rows].sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+    const paper = generatePaper(sorted, { shuffleQuestions: false, shuffleOptions: false });
+    res.json({
+      exam: { title: exam.title, durationMin: exam.duration_min },
+      questions: paper.questions,
+      key: Object.entries(paper.key).map(([qid, k]) => ({
+        no: paper.questions.findIndex((q) => q.id === qid) + 1,
+        type: k.type,
+        letter: k.letter,
+        correctText: k.correctText,
+      })),
+    });
+  })
+);
+
+router.get(
   '/my-results',
   h(async (req, res) => {
     const authed = req as AuthedRequest;

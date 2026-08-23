@@ -284,7 +284,7 @@ Check "RAG delete doc" ($delDoc.ok)
 # --- P2: new game types REST creation ---
 $tugGame = Req POST "/games" $teacherToken @{ gameType = "tug_of_war"; questionIds = @($q1); secondsPerQuestion = 15 }
 Check "Tug of war room created" ($tugGame.ok -and $tugGame.data.roomCode -match '^\d{6}$')
-$mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationSec = 90; difficulty = 2 }
+$mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationSec = 90; difficulty = 2; classId = $cid }
 Check "Math race room created" ($mathGame.ok -and $mathGame.data.roomCode -match '^\d{6}$')
 # --- P3: system info + manual backup ---
 $sysInfo = Req GET "/system/info" $teacherToken
@@ -341,6 +341,26 @@ Check "Crossword valid created" ($cwOk.ok)
 $gbBefore = (Req GET "/classes/$cid/gradebook" $teacherToken).data.rows | Where-Object { $_.studentId -eq $sids[3] }
 # simulate: directly call gradebook PUT as server would via verdict — instead verify via grades endpoint baseline only
 Check "Gradebook baseline readable" ($null -ne $gbBefore)
+# --- P5: print data + podium bonus -> KTTX ---
+$pd = Req GET "/exams/$($hw.data.id)/print-data" $teacherToken
+Check "Print-data returns questions+key" ($pd.ok -and $pd.data.questions.Count -eq 2 -and $pd.data.key.Count -eq 2)
+$pdStu = Req GET "/exams/$($hw.data.id)/print-data" $anToken
+Check "Student blocked from print-data" ($pdStu.status -eq 403)
+
+# Finish math race session directly in DB, insert fake results, then apply bonus
+$mathId = $mathGame.data.id
+node "$PSScriptRoot/seed-finished-game.mjs" $mathId $sids[0] $sids[1] $sids[2] | Out-Null
+
+$bonus = Req POST "/games/$mathId/bonus" $teacherToken @{ first=1; second=0.5; third=0.25 }
+if (-not $bonus.ok) { Write-Host ("   DEBUG bonus: {0} {1}" -f $bonus.status, $bonus.message) -ForegroundColor Yellow }
+Check "Bonus applied to top3" ($bonus.ok -and $bonus.data.applied -eq 3)
+
+$gbAfter = Req GET "/classes/$cid/gradebook" $teacherToken
+$r1Row = $gbAfter.data.rows | Where-Object { $_.studentId -eq $sids[0] }
+Check ("Top1 KTTX now = {0} (expect 9.5)" -f $r1Row.kttx) ([Math]::Abs($r1Row.kttx - 9.5) -lt 0.01)
+
+$dup = Req POST "/games/$mathId/bonus" $teacherToken @{ first=1; second=0.5; third=0.25 }
+Check ("Double-apply rejected ({0})" -f $dup.code) ($dup.ok -eq $false -and $dup.code -eq "ALREADY_APPLIED")
 # --- Lockout ---
 for ($i = 0; $i -lt 10; $i++) { Req POST "/auth/login" $null @{ username = "cuong"; password = "saibietnaodo" } | Out-Null }
 $cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = "Hocvien@123" }
