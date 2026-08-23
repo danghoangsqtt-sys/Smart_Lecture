@@ -1,7 +1,7 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { tx, db, toPublicUser } from '../db/connection.js';
+import { tx, db, queryAll, toPublicUser } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '../utils/access.js';
@@ -30,6 +30,7 @@ function classWithMeta(cls: ClassRow) {
     subject: cls.subject,
     teacherId: cls.teacher_id,
     academicYear: cls.academic_year,
+    archived: (cls as unknown as { archived?: number }).archived === 1,
     studentCount: counts.students,
     lectureCount: counts.lectures,
   };
@@ -38,19 +39,44 @@ function classWithMeta(cls: ClassRow) {
 router.get(
   '/classes/mine',
   h(async (req, res) => {
+    const includeArchived = req.query.includeArchived === '1';
+    const yearFilter = typeof req.query.year === 'string' ? req.query.year : '';
     const authed = req as AuthedRequest;
     const user = authed.user!;
     let rows: ClassRow[];
+    const filterRows = (list: ClassRow[]): ClassRow[] =>
+      list
+        .filter((r) => (includeArchived ? true : (r as unknown as { archived?: number }).archived !== 1))
+        .filter((r) => (yearFilter ? r.academic_year === yearFilter : true));
+
     if (user.role === 'admin') {
-      rows = db.prepare('SELECT * FROM classes ORDER BY created_at DESC').all() as unknown as ClassRow[];
+      rows = filterRows(queryAll<ClassRow>('SELECT * FROM classes ORDER BY created_at DESC'));
     } else if (user.role === 'teacher') {
-      rows = db.prepare('SELECT * FROM classes WHERE teacher_id = ? ORDER BY created_at DESC').all(user.id) as unknown as ClassRow[];
+      rows = filterRows(queryAll<ClassRow>('SELECT * FROM classes WHERE teacher_id = ? ORDER BY created_at DESC', user.id));
     } else {
-      rows = db
-        .prepare('SELECT c.* FROM classes c JOIN enrollments e ON e.class_id = c.id WHERE e.student_id = ?')
-        .all(user.id) as unknown as ClassRow[];
+      rows = filterRows(
+        queryAll<ClassRow>(
+          'SELECT c.* FROM classes c JOIN enrollments e ON e.class_id = c.id WHERE e.student_id = ?',
+          user.id
+        )
+      );
     }
     res.json({ classes: rows.map(classWithMeta) });
+  })
+);
+
+router.patch(
+  '/classes/:id/archive',
+  h(async (req, res) => {
+    const cls = getClassOrThrow(String(req.params.id));
+    if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
+    const target = req.body?.archived ? 1 : 0;
+    db.prepare('UPDATE classes SET archived = ?, archived_at = CASE WHEN ? = 1 THEN datetime(\'now\') ELSE NULL END WHERE id = ?').run(
+      target,
+      target,
+      cls.id
+    );
+    res.json({ archived: target === 1 });
   })
 );
 

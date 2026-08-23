@@ -18,8 +18,10 @@ import gradesRoutes from './routes/grades.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import ragRoutes from './routes/rag.routes.js';
+import systemRoutes, { advertiseMdns, detectDocling } from './routes/system.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import { initGameEngine } from './realtime/gameRoom.js';
+import { startBackupScheduler } from './services/backup.js';
 import { errorHandler } from './utils/errors.js';
 
 migrate();
@@ -54,6 +56,7 @@ app.use('/api', gradesRoutes);
 app.use('/api', attendanceRoutes);
 app.use('/api', aiRoutes);
 app.use('/api', ragRoutes);
+app.use('/api', systemRoutes);
 app.use('/api', settingsRoutes);
 
 if (existsSync(WEB_DIST_DIR)) {
@@ -62,6 +65,10 @@ if (existsSync(WEB_DIST_DIR)) {
     res.sendFile(path.join(WEB_DIST_DIR, 'index.html'));
   });
 }
+
+void detectDocling();
+advertiseMdns();
+startBackupScheduler();
 
 const httpServer = createServer(app);
 initGameEngine(httpServer);

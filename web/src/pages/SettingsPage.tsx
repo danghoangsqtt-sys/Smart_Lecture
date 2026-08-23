@@ -10,14 +10,42 @@ export default function SettingsPage() {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [keyInput, setKeyInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sys, setSys] = useState<SystemInfo | null>(null);
+  const [backing, setBacking] = useState(false);
 
   useEffect(() => {
     if (!isStaff) return;
-    api<{ hasKey: boolean }>('/settings/gemini-key').then((r) => setHasKey(r.hasKey)).catch(() => setHasKey(false));
-    api<{ quota: { feature: string; used: number; limit: number }[] }>('/ai/quota')
+    void api<{ hasKey: boolean }>('/settings/gemini-key').then((r) => setHasKey(r.hasKey)).catch(() => setHasKey(false));
+    void api<{ quota: { feature: string; used: number; limit: number }[] }>('/ai/quota')
       .then((r) => setQuota(r.quota))
       .catch(() => undefined);
+    void api<SystemInfo>('/system/info').then(setSys).catch(() => undefined);
   }, [isStaff]);
+
+  async function backupNow() {
+    setBacking(true);
+    try {
+      const res = await api<{ name: string }>('/system/backup', { method: 'POST' });
+      toast.success(`Đã tạo ${res.name}`);
+      const s = await api<SystemInfo>('/system/info');
+      setSys(s);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
+    } finally {
+      setBacking(false);
+    }
+  }
+
+  interface SystemInfo {
+    appVersion: string;
+    hostname: string;
+    platform: string;
+    lanUrls: string[];
+    mdnsUrl: string | null;
+    doclingAvailable: boolean;
+    uptimeSec: number;
+    backups: { name: string; size: number; createdAt: string }[];
+  }
 
   const [quota, setQuota] = useState<{ feature: string; used: number; limit: number }[]>([]);
 
@@ -92,6 +120,52 @@ export default function SettingsPage() {
           )}
         </Card>
       )}
+
+      <Card className="p-5">
+        <h3 className="mb-2 font-medium text-slate-200">Hệ thống & sao lưu</h3>
+        {sys === null ? (
+          <p className="text-sm text-slate-500">Đang tải thông tin hệ thống…</p>
+        ) : (
+          <div className="space-y-3 text-sm">
+            <ul className="space-y-1 text-slate-400">
+              <li>• Phiên bản: <b className="text-slate-300">{sys.appVersion}</b> · máy: {sys.hostname} ({sys.platform})</li>
+              <li>• Đã chạy: {Math.floor(sys.uptimeSec / 3600)}h {Math.floor((sys.uptimeSec % 3600) / 60)}m</li>
+              <li>
+                • Truy cập LAN:
+                {sys.lanUrls.map((u) => (
+                  <code key={u} className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-indigo-300">{u}</code>
+                ))}
+                {sys.mdnsUrl && (
+                  <>
+                    {' '}· mDNS: <code className="rounded bg-slate-800 px-1.5 py-0.5 text-emerald-400">{sys.mdnsUrl}</code>
+                  </>
+                )}
+              </li>
+              <li>• Docling (PDF scan): {sys.doclingAvailable ? '✓ có sẵn — sẽ tự dùng cho PDF không có text' : 'chưa cài (tùy chọn)'}</li>
+            </ul>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="font-medium text-slate-300">Bản sao lưu ({sys.backups.length}/7)</span>
+                <Button onClick={() => void backupNow()} disabled={backing}>Tạo bản sao lưu ngay</Button>
+              </div>
+              {sys.backups.length === 0 ? (
+                <p className="text-xs text-slate-500">Chưa có bản nào. Tự động chạy lúc {String(2).padStart(2, '0')}:00 hằng ngày, giữ 7 bản gần nhất.</p>
+              ) : (
+                <ul className="space-y-1 text-xs text-slate-400">
+                  {sys.backups.map((b) => (
+                    <li key={b.name} className="flex justify-between rounded-lg bg-slate-950/50 px-3 py-2 ring-1 ring-slate-800">
+                      <span className="font-mono">{b.name}</span>
+                      <span>{(b.size / 1024 / 1024).toFixed(2)} MB</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-xs text-slate-600">Khôi phục: giải nén file zip → thay thế data/smart-lecture.db rồi khởi động lại server.</p>
+            </div>
+          </div>
+        )}
+      </Card>
 
       <Card className="p-5">
         <h3 className="mb-2 font-medium text-slate-200">Về SmartLecture</h3>

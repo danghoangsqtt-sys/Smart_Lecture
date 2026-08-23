@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/genai": "^1.30.0",
     "bcryptjs": "^3.0.2",
+    "bonjour-service": "^1.4.4",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",

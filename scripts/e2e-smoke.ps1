@@ -286,6 +286,31 @@ $tugGame = Req POST "/games" $teacherToken @{ gameType = "tug_of_war"; questionI
 Check "Tug of war room created" ($tugGame.ok -and $tugGame.data.roomCode -match '^\d{6}$')
 $mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationSec = 90; difficulty = 2 }
 Check "Math race room created" ($mathGame.ok -and $mathGame.data.roomCode -match '^\d{6}$')
+# --- P3: system info + manual backup ---
+$sysInfo = Req GET "/system/info" $teacherToken
+Check "System info accessible" ($sysInfo.ok -and $sysInfo.data.appVersion -eq "0.3.0")
+Check "System info has lanUrls array" ($null -ne $sysInfo.data.lanUrls)
+
+$bak = Req POST "/system/backup" $teacherToken @{ }
+if (-not $bak.ok) { Write-Host ("   DEBUG backup: status={0} msg={1}" -f $bak.status, $bak.message) -ForegroundColor Yellow }
+Check ("Backup created: {0}" -f $bak.data.name) ($bak.ok -and $bak.data.name -match '^backup-.*manual\.zip$')
+
+$bkList = Req GET "/system/backups" $teacherToken
+Check "Backups list has >= 1" ($bkList.data.backups.Count -ge 1)
+
+$sec4 = Req GET "/system/info" $anToken
+Check "Student blocked from system info" ($sec4.status -eq 403)
+
+# --- P3: class archive toggle ---
+$arc = Req PATCH "/classes/$cid/archive" $teacherToken @{ archived = $true }
+Check "Archive class OK" ($arc.ok -and $arc.data.archived -eq $true)
+$listActive = Req GET "/classes/mine" $teacherToken
+$stillThere = $listActive.data.classes | Where-Object { $_.id -eq $cid }
+Check "Archived class hidden by default" ($null -eq $stillThere)
+$listAll = Req GET "/classes/mine?includeArchived=1" $teacherToken
+$visibleAll = $listAll.data.classes | Where-Object { $_.id -eq $cid }
+Check ("Archived visible with flag (archived={0})" -f $visibleAll.archived) ($null -ne $visibleAll -and $visibleAll.archived -eq $true)
+Req PATCH "/classes/$cid/archive" $teacherToken @{ archived = $false } | Out-Null
 # --- Lockout ---
 for ($i = 0; $i -lt 10; $i++) { Req POST "/auth/login" $null @{ username = "cuong"; password = "saibietnaodo" } | Out-Null }
 $cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = "Hocvien@123" }

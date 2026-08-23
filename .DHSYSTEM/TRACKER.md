@@ -46,3 +46,11 @@
 - Game mới: Kéo co (2 đội auto-chia, dây ±100, thắng tuyệt đối), Đua toán (bài riêng từng HV, 3 độ khó, đếm bài giải), loại câu hỏi 'fill' (migration v2, chấm tự động so khớp chuẩn hóa).
 - QR code LAN trên dashboard GV; GitHub Actions CI (typecheck+build).
 - Verify: typecheck strict PASS; build PASS; E2E mở rộng 50/50 PASS.
+### 2026-08-23 (buổi 4 — Phase 3)
+- Auto-backup: VACUUM INTO snapshot nhất quán → zip db + media ≤20MB + manifest.json → data/backups, giữ 7 bản; scheduler 02:00 hằng ngày (BACKUP_HOUR env) + nút backup thủ công.
+- mDNS bonjour-service quảng bá smart-lecture.local (graceful nếu thiếu Bonjour).
+- /api/system/info: version, LAN URLs, mDNS, hostname, uptime, doclingAvailable, backups.
+- Docling sidecar: PDF text <200 ký tự → tự gọi docling CLI (--to plain-text); không có CLI thì fallback thông báo.
+- Lưu trữ lớp học: migration v3 (classes.archived/archived_at) + PATCH archive + filter includeArchived/year; UI toggle + badge.
+- Autostart scripts: install/uninstall Scheduled Task Windows.
+- Verify: typecheck PASS; build PASS; E2E 58/58 PASS.

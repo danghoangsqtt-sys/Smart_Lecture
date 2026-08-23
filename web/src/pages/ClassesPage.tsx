@@ -8,6 +8,7 @@ interface ClassInfo {
   name: string;
   subject: string;
   academicYear: string;
+  archived: boolean;
   studentCount: number;
   lectureCount: number;
 }
@@ -24,18 +25,19 @@ export default function ClassesPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api<{ classes: ClassInfo[] }>('/classes/mine');
+      const res = await api<{ classes: ClassInfo[] }>(`/classes/mine?includeArchived=${showArchived ? '1' : '0'}`);
       setClasses(res.classes);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi tải lớp học');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     void load();
@@ -46,7 +48,15 @@ export default function ClassesPage() {
       <PageHeader
         title="Lớp học"
         subtitle="Quản lý các lớp bạn đảm nhiệm / tham gia"
-        actions={<Button onClick={() => setCreateOpen(true)}>Tạo lớp mới</Button>}
+        actions={
+          <>
+            <label className="flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-slate-300 ring-1 ring-slate-800">
+              <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              Kể cả lưu trữ
+            </label>
+            <Button onClick={() => setCreateOpen(true)}>Tạo lớp mới</Button>
+          </>
+        }
       />
       {loading ? (
         <Spinner />
@@ -58,7 +68,7 @@ export default function ClassesPage() {
             <Card key={c.id} className="p-5 transition hover:ring-indigo-700/60">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-semibold text-slate-100">{c.name}</h3>
+                  <h3 className="font-semibold text-slate-100">{c.name} {c.archived && <span className="ml-1 rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-normal text-slate-300">ĐÃ LƯU TRỮ</span>}</h3>
                   <p className="mt-0.5 text-sm text-slate-400">{c.subject || 'Không phân môn'}{c.academicYear ? ` · ${c.academicYear}` : ''}</p>
                 </div>
               </div>
@@ -68,6 +78,21 @@ export default function ClassesPage() {
               </div>
               <div className="mt-4 flex gap-2">
                 <Button variant="secondary" className="flex-1 !py-1.5" onClick={() => setDetailId(c.id)}>Học viên</Button>
+                <Button
+                  variant="ghost"
+                  className={`!py-1.5 ${c.archived ? 'text-emerald-400 hover:bg-emerald-950/40' : 'text-slate-400 hover:bg-slate-800'}`}
+                  onClick={async () => {
+                    try {
+                      await api(`/classes/${c.id}/archive`, { method: 'PATCH', body: JSON.stringify({ archived: !c.archived }) });
+                      toast.success(c.archived ? 'Đã khôi phục lớp' : 'Đã lưu trữ lớp');
+                      await load();
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : 'Lỗi');
+                    }
+                  }}
+                >
+                  {c.archived ? 'Khôi phục' : 'Lưu trữ'}
+                </Button>
                 <Button
                   variant="ghost"
                   className="!py-1.5 text-red-400 hover:bg-red-950/40"

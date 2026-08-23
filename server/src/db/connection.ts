@@ -53,6 +53,15 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 3,
+    up: () => {
+      db.exec(`
+        ALTER TABLE classes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE classes ADD COLUMN archived_at TEXT;
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;
