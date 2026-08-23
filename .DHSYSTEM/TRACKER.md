@@ -40,3 +40,9 @@
 - Sửa 3 bug quan trọng phát hiện qua E2E: (1) router.use(requireRole) toàn cục chặn HV trên mọi /api path → scoped theo prefix; (2) gradeAttempt chuẩn hóa thang 10 + provisional trên phần đã chấm; (3) zod parse sai tầng body trong essay-scores.
 - Parser đề Mau: cho phép từ khóa không dấu (Cau/Dap an/Phan).
 - Verify: typecheck strict PASS cả 2 workspace; build production PASS; E2E smoke 43/43 PASS (scripts/e2e-smoke.ps1).
+### 2026-08-23 (buổi 3 — Phase 2)
+- RAG đầy đủ: docparse (PDF per-page qua pdf-parse v2 / DOCX mammoth / PPTX jszip / TXT) → chunk heading-aware 900/120 → Gemini embedding batch (fallback keyword khi không có key — offline-first) → cosine search.
+- Chatbot trợ giảng: trích dẫn [Nguồn X, trang Y], history ≤8 lượt, chế độ ngoại tuyến tự trích đoạn.
+- Game mới: Kéo co (2 đội auto-chia, dây ±100, thắng tuyệt đối), Đua toán (bài riêng từng HV, 3 độ khó, đếm bài giải), loại câu hỏi 'fill' (migration v2, chấm tự động so khớp chuẩn hóa).
+- QR code LAN trên dashboard GV; GitHub Actions CI (typecheck+build).
+- Verify: typecheck strict PASS; build PASS; E2E mở rộng 50/50 PASS.

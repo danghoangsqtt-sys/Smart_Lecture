@@ -389,7 +389,18 @@ function gradeAttempt(detail: AttemptDetail): { score: number | null; provisiona
         earned += (manualScore / 10) * share;
         gradedShares += share;
         if (state) state.k = true;
-      } else {
+    } else if (entry.type === 'fill') {
+      gradedShares += share;
+      const given = (detail.answers[qid] ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const expected = (entry.correctText ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const correct = given.length > 0 && given === expected;
+      if (state) {
+        state.s = detail.answers[qid] ?? null;
+        state.c = expected || null;
+        state.k = correct;
+      }
+      if (correct) earned += share;
+    } else {
         if (state) {
           state.k = 'pending';
           state.s = detail.answers[qid] ?? null;

@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner, Textarea } from '../components/ui';
 import toast from '../stores/toastStore';
@@ -6,7 +6,7 @@ import toast from '../stores/toastStore';
 interface Question {
   id: string;
   ownerId: string;
-  type: 'mcq' | 'essay';
+  type: 'mcq' | 'essay' | 'fill';
   content: string;
   options: string[];
   correctAnswer: string;
@@ -124,7 +124,7 @@ function BankTab() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Input placeholder="TÃ¬m ná»™i dungâ€¦" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="max-w-36">
-            <option value="">Má»i loáº¡i</option><option value="mcq">Tráº¯c nghiá»‡m</option><option value="essay">Tá»± luáº­n</option>
+            <option value="">Mọi loại</option><option value="mcq">Trắc nghiệm</option><option value="fill">Điền chỗ trống</option><option value="essay">Tự luận</option>
           </Select>
           <Select value={bloomFilter} onChange={(e) => setBloomFilter(e.target.value)} className="max-w-44">
             <option value="">Má»i má»©c Bloom</option>
@@ -226,9 +226,9 @@ function EditQuestionModal({ question, folders, onClose, onSaved }: { question: 
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <Label>Loáº¡i</Label>
-            <Select value={form.type} onChange={(e) => set('type', e.target.value as 'mcq' | 'essay')}>
-              <option value="mcq">Tráº¯c nghiá»‡m</option><option value="essay">Tá»± luáº­n</option>
+            <Label>Loại</Label>
+            <Select value={form.type} onChange={(e) => set('type', e.target.value as 'mcq' | 'essay' | 'fill')}>
+              <option value="mcq">Trắc nghiệm</option><option value="fill">Điền chỗ trống</option><option value="essay">Tự luận</option>
             </Select>
           </div>
           <div>
@@ -258,8 +258,10 @@ function EditQuestionModal({ question, folders, onClose, onSaved }: { question: 
             ))}
           </div>
         )}
-        {form.type === 'essay' && (
-          <div><Label>ÄÃ¡p Ã¡n / dÃ n Ã½ tham kháº£o</Label><Textarea rows={3} value={form.correctAnswer ?? ''} onChange={(e) => set('correctAnswer', e.target.value)} /></div>
+        {(form.type === 'essay' || form.type === 'fill') && (
+          <div><Label>{form.type === 'fill' ? 'Đáp án đúng (so khớp chính xác, không phân biệt hoa/thường)' : 'Đáp án / dàn ý tham khảo'}</Label>
+            <Textarea rows={form.type === 'fill' ? 1 : 3} value={form.correctAnswer ?? ''} onChange={(e) => set('correctAnswer', e.target.value)} />
+          </div>
         )}
         <div><Label>Lá»i giáº£i</Label><Textarea rows={2} value={form.explanation ?? ''} onChange={(e) => set('explanation', e.target.value)} /></div>
         <div>

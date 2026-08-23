@@ -76,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_folders_owner ON folders(owner_id, module);
 CREATE TABLE IF NOT EXISTS questions (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('mcq', 'essay')),
+  type TEXT NOT NULL CHECK (type IN ('mcq', 'essay', 'fill')),
   content TEXT NOT NULL,
   options_json TEXT NOT NULL DEFAULT '[]',
   correct_answer TEXT NOT NULL DEFAULT '',

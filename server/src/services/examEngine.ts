@@ -97,8 +97,8 @@ export function generatePaper(
       });
       key[q.id] = { type: 'mcq', letter, correctText: options[correctIdx] ?? null, explanation: q.explanation };
     } else {
-      questions.push({ id: q.id, type: 'essay', content: q.content, image_path: q.image_path });
-      key[q.id] = { type: 'essay', letter: null, correctText: q.correct_answer || null, explanation: q.explanation };
+      questions.push({ id: q.id, type: q.type, content: q.content, image_path: q.image_path });
+      key[q.id] = { type: q.type, letter: null, correctText: q.correct_answer || null, explanation: q.explanation };
     }
   }
   return { questions, key };

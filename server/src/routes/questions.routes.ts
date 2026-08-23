@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { db, tx, queryOne } from '../db/connection.js';
@@ -82,7 +82,7 @@ router.get(
 );
 
 const upsertSchema = z.object({
-  type: z.enum(['mcq', 'essay']),
+  type: z.enum(['mcq', 'essay', 'fill']),
   content: z.string().min(3).max(5000),
   options: z.array(z.string().max(1000)).max(4).optional(),
   correctAnswer: z.string().max(3000).default(''),
@@ -100,8 +100,11 @@ router.post(
     if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', parsed.success ? '?' : (parsed.error.issues[0]?.message ?? 'Dá»¯ liá»‡u khÃ´ng há»£p lá»‡'));
     const data = parsed.data;
     if (data.type === 'mcq') {
-      if (!data.options || data.options.length !== 4) throw new HttpError(400, 'BAD_INPUT', 'CÃ¢u tráº¯c nghiá»‡m cáº§n Ä‘Ãºng 4 phÆ°Æ¡ng Ã¡n');
-      if (!/^[A-D]$/.test(data.correctAnswer)) throw new HttpError(400, 'BAD_INPUT', 'ÄÃ¡p Ã¡n Ä‘Ãºng pháº£i lÃ  A/B/C/D');
+      if (!data.options || data.options.length !== 4) throw new HttpError(400, 'BAD_INPUT', 'Câu trắc nghiệm cần đúng 4 phương án');
+      if (!/^[A-D]$/.test(data.correctAnswer)) throw new HttpError(400, 'BAD_INPUT', 'Đáp án đúng phải là A/B/C/D');
+    }
+    if (data.type === 'fill' && !data.correctAnswer.trim()) {
+      throw new HttpError(400, 'BAD_INPUT', 'Câu điền chỗ trống cần có đáp án');
     }
     const id = randomUUID();
     db.prepare(

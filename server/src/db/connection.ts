@@ -12,7 +12,48 @@ export function migrate(): void {
   const schemaSql = readFileSync(fileURLToPath(new URL('./schema.sql', import.meta.url)), 'utf-8');
   db.exec(schemaSql);
   db.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(1);
+
+  const current = (db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations').get() as { v: number }).v;
+  for (const migration of MIGRATIONS) {
+    if (migration.version <= current) continue;
+    tx(() => {
+      migration.up();
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(migration.version);
+    });
+    console.log(`[db] applied migration v${migration.version}`);
+  }
 }
+
+const MIGRATIONS: { version: number; up: () => void }[] = [
+  {
+    version: 2,
+    up: () => {
+      db.exec(`
+        CREATE TABLE questions_new (
+          id TEXT PRIMARY KEY,
+          owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK (type IN ('mcq', 'essay', 'fill')),
+          content TEXT NOT NULL,
+          options_json TEXT NOT NULL DEFAULT '[]',
+          correct_answer TEXT NOT NULL DEFAULT '',
+          explanation TEXT NOT NULL DEFAULT '',
+          bloom_level TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT '',
+          folder_id TEXT REFERENCES folders(id) ON DELETE SET NULL,
+          image_path TEXT,
+          is_public_bank INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT INTO questions_new SELECT * FROM questions;
+        DROP TABLE questions;
+        ALTER TABLE questions_new RENAME TO questions;
+        CREATE INDEX IF NOT EXISTS idx_questions_owner ON questions(owner_id, type);
+        CREATE INDEX IF NOT EXISTS idx_questions_bloom ON questions(bloom_level);
+        CREATE INDEX IF NOT EXISTS idx_questions_folder ON questions(folder_id);
+      `);
+    },
+  },
+];
 
 type SqlParam = string | number | bigint | null;
 

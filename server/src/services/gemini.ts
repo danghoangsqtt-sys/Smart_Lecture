@@ -21,7 +21,7 @@ function isOverload(message: string): boolean {
   return /503|UNAVAILABLE|overloaded/i.test(message);
 }
 
-async function callModel(model: string, prompt: string, schema: Schema, temperature: number): Promise<string> {
+async function callModel(model: string, prompt: string, schema: Schema | null, temperature: number): Promise<string> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw new HttpError(
@@ -34,11 +34,13 @@ async function callModel(model: string, prompt: string, schema: Schema, temperat
   const response = await ai.models.generateContent({
     model,
     contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      temperature,
-    },
+    config: schema
+      ? {
+          responseMimeType: 'application/json',
+          responseSchema: schema,
+          temperature,
+        }
+      : { temperature },
   });
   return response.text ?? '';
 }
@@ -83,4 +85,18 @@ export async function generateJSON<T>(options: GenerateJSONOptions): Promise<T> 
   const result = queueTail.then(run, run) as Promise<T>;
   queueTail = result.catch(() => undefined).then(() => sleep(QUEUE_GAP_MS));
   return result;
+}
+
+export interface GenerateTextOptions {
+  prompt: string;
+  temperature?: number;
+  feature: string;
+}
+
+export async function generateText(options: GenerateTextOptions): Promise<string> {
+  consumeQuota(options.feature);
+  return queueTail.then(
+    () => callModel(MODEL_CHAIN[0]!, options.prompt, null, options.temperature ?? 0.5),
+    () => callModel(MODEL_CHAIN[0]!, options.prompt, null, options.temperature ?? 0.5)
+  );
 }

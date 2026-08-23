@@ -20,15 +20,17 @@ router.post(
     const authed = req as AuthedRequest;
     const parsed = z
       .object({
-        gameType: z.enum(['quick_quiz', 'random_picker']),
-        title: z.string().max(200).default('Tráº¯c nghiá»‡m nhanh'),
+        gameType: z.enum(['quick_quiz', 'tug_of_war', 'math_race']),
+        title: z.string().max(200).default('Trò chơi'),
         questionIds: z.array(z.string()).min(1).max(50).optional(),
         secondsPerQuestion: z.number().int().min(5).max(120).default(20),
+        durationSec: z.number().int().min(30).max(600).default(120),
+        difficulty: z.number().int().min(1).max(3).default(1),
       })
       .safeParse(req.body);
-    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Cáº¥u hÃ¬nh game khÃ´ng há»£p lá»‡');
-    if (parsed.data.gameType === 'quick_quiz' && (!parsed.data.questionIds || parsed.data.questionIds.length === 0)) {
-      throw new HttpError(400, 'BAD_INPUT', 'Game tráº¯c nghiá»‡m nhanh cáº§n Ã­t nháº¥t 1 cÃ¢u há»i');
+    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Cấu hình game không hợp lệ');
+    if (parsed.data.gameType !== 'math_race' && (!parsed.data.questionIds || parsed.data.questionIds.length === 0)) {
+      throw new HttpError(400, 'BAD_INPUT', 'Game này cần ít nhất 1 câu hỏi');
     }
     let roomCode = generateRoomCode();
     while (db.prepare('SELECT 1 FROM game_sessions WHERE room_code = ? AND status != ?').get(roomCode, 'finished')) {
@@ -44,7 +46,12 @@ router.post(
       parsed.data.gameType,
       roomCode,
       JSON.stringify(parsed.data.questionIds ?? []),
-      JSON.stringify({ secondsPerQuestion: parsed.data.secondsPerQuestion, title: parsed.data.title })
+      JSON.stringify({
+        secondsPerQuestion: parsed.data.secondsPerQuestion,
+        durationSec: parsed.data.durationSec,
+        difficulty: parsed.data.difficulty,
+        title: parsed.data.title,
+      })
     );
     res.status(201).json({ id, roomCode });
   })

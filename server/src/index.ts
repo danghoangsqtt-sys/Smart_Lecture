@@ -17,6 +17,7 @@ import gamesRoutes from './routes/games.routes.js';
 import gradesRoutes from './routes/grades.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import aiRoutes from './routes/ai.routes.js';
+import ragRoutes from './routes/rag.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
 import { initGameEngine } from './realtime/gameRoom.js';
 import { errorHandler } from './utils/errors.js';
@@ -52,6 +53,7 @@ app.use('/api', gamesRoutes);
 app.use('/api', gradesRoutes);
 app.use('/api', attendanceRoutes);
 app.use('/api', aiRoutes);
+app.use('/api', ragRoutes);
 app.use('/api', settingsRoutes);
 
 if (existsSync(WEB_DIST_DIR)) {

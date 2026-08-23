@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
 import { Toaster } from './components/ui';
@@ -9,6 +9,7 @@ import ClassesPage from './pages/ClassesPage';
 import LecturesPage from './pages/LecturesPage';
 import MyLearningPage from './pages/MyLearningPage';
 import QuestionsPage from './pages/QuestionsPage';
+import RagPage from './pages/RagPage';
 import ExamsPage from './pages/ExamsPage';
 import ExamResultsPage from './pages/ExamResultsPage';
 import MyExamsPage, { ExamRoomPage } from './pages/MyExamsPage';
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/lectures" element={<LecturesPage />} />
           <Route path="/learning" element={<MyLearningPage />} />
           <Route path="/questions" element={<QuestionsPage />} />
+          <Route path="/rag" element={<RagPage />} />
           <Route path="/exams" element={<ExamsPage />} />
           <Route path="/exams/:examId/results" element={<ExamResultsPage />} />
           <Route path="/my-exams" element={<MyExamsPage />} />

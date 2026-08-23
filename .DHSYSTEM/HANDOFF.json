@@ -1,10 +1,10 @@
 ﻿{
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.2.0-phase1-complete",
+  "version": "0.3.0-phase2-complete",
   "created": "2026-08-23",
   "status": "phase-1-in-progress",
-  "phase_current": "P1-done-awaiting-user-review",
+  "phase_current": "P2-done-awaiting-user-review",
   "workflow_state": "crystallized",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "User review Phase 1 UI flows in browser; then Phase 2: RAG chatbot + more games + Azota stats"
+  "next_action": "User review; then Phase 3: auto-backup, Windows autostart, mDNS hostname, Docling sidecar"
 }

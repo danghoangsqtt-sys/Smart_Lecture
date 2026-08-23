@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
 import { Card, PageHeader } from '../components/ui';
@@ -12,10 +13,22 @@ interface HealthInfo {
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     api<HealthInfo>('/health').then(setHealth).catch(() => setHealth(null));
   }, []);
+
+  async function showQr() {
+    const ip = health?.interfaces[0]?.address;
+    if (!ip) return;
+    try {
+      const url = await QRCode.toDataURL(`http://${ip}:4000`, { width: 320, margin: 1 });
+      setQrDataUrl(url);
+    } catch {
+      setQrDataUrl(null);
+    }
+  }
 
   return (
     <div>
@@ -50,14 +63,26 @@ export default function DashboardPage() {
         <Card className="mt-6 p-5">
           <h3 className="mb-2 text-sm font-semibold text-slate-300">🔗 Chia sẻ cho học viên trong mạng WiFi</h3>
           {health.interfaces.length > 0 ? (
-            <ul className="space-y-1.5">
-              {health.interfaces.map((i) => (
-                <li key={i.address} className="flex items-center gap-2 text-sm">
-                  <span className="text-slate-500">{i.name}</span>
-                  <code className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-base text-indigo-300">http://{i.address}:4000</code>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-1.5">
+                {health.interfaces.map((i) => (
+                  <li key={i.address} className="flex items-center gap-2 text-sm">
+                    <span className="text-slate-500">{i.name}</span>
+                    <code className="rounded-lg bg-slate-800 px-3 py-1.5 font-mono text-base text-indigo-300">http://{i.address}:4000</code>
+                  </li>
+                ))}
+              </ul>
+              {!qrDataUrl ? (
+                <button onClick={() => void showQr()} className="mt-3 rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700">
+                  📱 Hiện mã QR cho học viên
+                </button>
+              ) : (
+                <div className="mt-3 flex items-center gap-4">
+                  <img src={qrDataUrl} alt="QR truy cập" className="w-40 rounded-xl bg-white p-2" />
+                  <button onClick={() => setQrDataUrl(null)} className="text-xs text-slate-500 hover:text-slate-300">Ẩn QR</button>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-sm text-slate-500">Chưa phát hiện mạng LAN — học viên kết nối cùng WiFi với máy này rồi truy cập địa chỉ trên.</p>
           )}

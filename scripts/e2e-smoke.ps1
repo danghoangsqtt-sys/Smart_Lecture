@@ -242,6 +242,50 @@ Check "Student blocked from results mgmt" ($sec2.ok -eq $false -and $sec2.status
 $sec3 = Req GET "/users?role=admin" $anToken
 Check "Student blocked from user list" ($sec3.ok -eq $false)
 
+# --- P2: Fill question + auto grading ---
+$fillR = Req POST "/questions" $teacherToken @{ type = "fill"; content = "Don vi do dien the la ___."; correctAnswer = "von"; explanation = ""; bloomLevel = "Nhan biet"; folderId = $null; options = @() }
+Check "Create fill question" ($fillR.ok -and $fillR.data.question.id.Length -gt 10)
+
+# --- P2: RAG upload txt -> ready (keyword mode, khong can API key) ---
+$ragTxt = @"
+Chuong 1: Nguon dien
+Nguon dien la thiet bi tao ra dong dien trong mach dien. Pin va may phat dien la cac nguon dien thong dung.
+An toan dien yeu cau cat nguon truoc khi thao tac.
+"@
+$tmpFile = "$env:TEMP\rag-test-$([guid]::NewGuid().ToString('N').Substring(0,6)).txt"
+[System.IO.File]::WriteAllText($tmpFile, $ragTxt, (New-Object System.Text.UTF8Encoding $false))
+
+$boundary = [guid]::NewGuid().ToString()
+$hc = New-Object System.Net.Http.HttpClient
+$hc.BaseAddress = "http://localhost:4100"
+$hc.DefaultRequestHeaders.Authorization = New-Object System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", $teacherToken)
+$content = New-Object System.Net.Http.MultipartFormDataContent
+$fileBytes = [System.IO.File]::ReadAllBytes($tmpFile)
+$fileContent = New-Object System.Net.Http.ByteArrayContent(,$fileBytes)
+$content.Add($fileContent, "file", "chuong1.txt")
+$upResp = $hc.PostAsync("/api/rag/documents", $content).GetAwaiter().GetResult()
+$ragOk = [int]$upResp.StatusCode -eq 201
+$ragBody = $upResp.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+$ragId = $ragBody.id
+Check "RAG upload txt (201)" $ragOk
+
+Start-Sleep -Seconds 2
+$docs = Req GET "/rag/documents" $teacherToken
+$docRow = $docs.data.documents | Where-Object { $_.id -eq $ragId }
+Check ("RAG doc status = {0}" -f $docRow.status) ($docRow.status -eq "ready")
+
+$chat = Req POST "/rag/chat" $teacherToken @{ question = "Nguon dien la gi? Cac loai nao thong dung?" }
+if (-not $chat.ok) { Write-Host ("   DEBUG chat: status={0} msg={1}" -f $chat.status, $chat.message) -ForegroundColor Yellow }
+Check "RAG chat returns answer with source" ($chat.ok -and $chat.data.answer.Length -gt 10 -and $chat.data.sources.Count -ge 1)
+
+$delDoc = Req DELETE "/rag/documents/$ragId" $teacherToken
+Check "RAG delete doc" ($delDoc.ok)
+
+# --- P2: new game types REST creation ---
+$tugGame = Req POST "/games" $teacherToken @{ gameType = "tug_of_war"; questionIds = @($q1); secondsPerQuestion = 15 }
+Check "Tug of war room created" ($tugGame.ok -and $tugGame.data.roomCode -match '^\d{6}$')
+$mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationSec = 90; difficulty = 2 }
+Check "Math race room created" ($mathGame.ok -and $mathGame.data.roomCode -match '^\d{6}$')
 # --- Lockout ---
 for ($i = 0; $i -lt 10; $i++) { Req POST "/auth/login" $null @{ username = "cuong"; password = "saibietnaodo" } | Out-Null }
 $cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = "Hocvien@123" }
