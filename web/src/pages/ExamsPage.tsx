@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
@@ -67,7 +67,7 @@ export default function ExamsPage() {
                 <p className="mt-0.5 text-xs text-slate-400">
                   {e.questionCount} cÃ¢u Â· {e.durationMin} phÃºt Â· tá»‘i Ä‘a {e.config.maxAttempts} lÆ°á»£t
                   {e.config.hasPassword && ' Â· ðŸ”’ cÃ³ máº­t kháº©u'}
-                  {e.config.purpose === 'self_study' ? ' Â· tá»± Ã´n' : ''}
+                  {e.config.purpose === 'homework' ? ' · BTVN' : ''}
                 </p>
                 <p className="text-xs text-slate-500">
                   Lá»›p: {classes.find((c) => c.id === e.config.classId)?.name ?? 'â€”'}
@@ -257,8 +257,7 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
           <div><Label>Má»¥c Ä‘Ã­ch</Label>
             <Select value={config.purpose} onChange={(e) => setConfig((c) => ({ ...c, purpose: e.target.value }))}>
               <option value="online_test">Kiá»ƒm tra online</option>
-              <option value="self_study">Tá»± Ã´n táº­p</option>
-              <option value="both">Cáº£ hai</option>
+              <option value="homework">Bài tập về nhà</option>
             </Select>
           </div>
           <div className="flex items-end space-x-4 text-sm text-slate-300">

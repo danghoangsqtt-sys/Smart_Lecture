@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button, Card, PageHeader, Spinner, Badge, Modal, Label, Textarea } from '../components/ui';
@@ -21,6 +21,8 @@ interface ResultRow {
 
 interface Stats {
   submittedCount: number;
+  notSubmittedCount?: number;
+  classSize?: number;
   avgScore: number;
   buckets: { range: string; count: number }[];
   wrongAnalysis: { id: string; content: string; wrong: number; total: number }[];

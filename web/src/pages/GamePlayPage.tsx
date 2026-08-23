@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSocket, disconnectSocket } from '../realtime/socket';
-import { Button, Card, Input, PageHeader } from '../components/ui';
+import { Button, Card, Input, PageHeader, Select } from '../components/ui';
 import toast from '../stores/toastStore';
 import { useAuthStore } from '../stores/authStore';
 
@@ -13,7 +13,7 @@ interface QuestionShow {
   durationSec: number;
 }
 
-type Mode = 'quick_quiz' | 'tug_of_war' | 'math_race';
+type Mode = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword';
 
 export default function GamePlayPage() {
   const navigate = useNavigate();
@@ -36,6 +36,17 @@ export default function GamePlayPage() {
   const [finished, setFinished] = useState<{ rank: number; name: string; score: number }[] | null>(null);
   const [error, setError] = useState('');
   const [nowTick, setNowTick] = useState(Date.now());
+  const [iRaised, setIRaised] = useState(false);
+  const [pickedMe, setPickedMe] = useState(false);
+  const [pickedName, setPickedName] = useState<string | null>(null);
+  const [cwState, setCwState] = useState<{
+    keywordRevealed: string[];
+    rows: { index: number; clue: string; wordLen: number; solved: boolean; word: string | null }[];
+    solvedCount: number;
+    total: number;
+  } | null>(null);
+  const [cwRow, setCwRow] = useState(0);
+  const [cwWord, setCwWord] = useState('');
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
 
   useEffect(() => {
@@ -54,7 +65,31 @@ export default function GamePlayPage() {
       setReveal(null);
       setMyAnswer(null);
       setFillText('');
+      setIRaised(false);
+      setPickedMe(false);
+      setPickedName(null);
       setNowTick(Date.now());
+    });
+    socket.on('hr:hands-update', (d: { hands: { userId: string; name: string }[]; picked: { userId: string; name: string } | null }) => {
+      const me = String(useAuthStore.getState().user?.id ?? '');
+      if (!d.picked) {
+        setPickedMe(false);
+        setPickedName(null);
+        setIRaised(d.hands.some((h) => h.userId === me));
+      }
+    });
+    socket.on('hr:selected', (d: { userId: string; name: string }) => {
+      setPickedName(d.name);
+      setPickedMe(d.userId === String(useAuthStore.getState().user?.id ?? ''));
+    });
+    socket.on('hr:you-picked', () => setPickedMe(true));
+    socket.on('hr:released', () => { setPickedMe(false); setPickedName(null); });
+    socket.on('cw:state', (d: { keywordRevealed: string[]; rows: { index: number; clue: string; wordLen: number; solved: boolean; word: string | null }[]; solvedCount: number; total: number }) => {
+      setCwState(d);
+    });
+    socket.on('cw:wrong', () => toast.error('Chưa đúng — giáo viên sẽ chọn người khác'));
+    socket.on('answer:reveal', (d: { correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number }) => {
+      setReveal(d);
     });
     socket.on('answer:reveal', (d: { correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number }) => {
       setReveal(d);
@@ -109,6 +144,23 @@ export default function GamePlayPage() {
     setMathSolved((s) => s + 1);
   }
 
+  function raiseHand() {
+    if (pickedMe) return;
+    socketRef.current?.emit('hr:hand');
+  }
+
+  function cwSubmit() {
+    if (!pickedMe || !cwState) return;
+    const row = cwState.rows[cwRow];
+    if (!row || row.solved || !cwWord.trim()) return;
+    socketRef.current?.emit('cw:try', { rowIndex: row.index, word: cwWord.trim() });
+    setCwWord('');
+    setCwRow((r) => {
+      const nextUnsolved = cwState.rows.findIndex((x) => !x.solved && x.index !== row.index);
+      return nextUnsolved >= 0 ? nextUnsolved : r;
+    });
+  }
+
   if (!token) {
     void navigate('/login');
     return null;
@@ -150,6 +202,80 @@ export default function GamePlayPage() {
             ))}
           </ol>
         </Card>
+      )}
+
+      {/* ===== GIƠ TAY TRẢ LỜI ===== */}
+      {joined && !finished && gameType === 'hand_raise' && question && (
+        <>
+          {pickedMe && (
+            <div className="mb-4 animate-pulse rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-500 p-5 text-center text-xl font-bold text-white ring-2 ring-indigo-300">
+              🎯 Giáo viên chọn BẠN trả lời! Hãy đứng lên nói câu trả lời…
+            </div>
+          )}
+          {!pickedMe && pickedName && (
+            <p className="mb-3 rounded-xl bg-slate-900 px-4 py-2.5 text-center text-sm text-slate-400">🙋 {pickedName} đang trả lời…</p>
+          )}
+          <Card className="p-6">
+            <p className="mb-1 text-xs text-slate-500">Câu {question.index + 1}/{question.total}</p>
+            <p className="whitespace-pre-wrap leading-relaxed">{question.question.content}</p>
+          </Card>
+          {!pickedMe && !pickedName && (
+            <Button
+              className={`mt-5 w-full !py-5 !text-xl ${iRaised ? '!bg-emerald-600' : ''}`}
+              onClick={raiseHand}
+            >
+              {iRaised ? '✋ Đã giơ tay — chờ giáo viên…' : '✋ GIƠ TAY TRẢ LỜI'}
+            </Button>
+          )}
+        </>
+      )}
+
+      {/* ===== Ô CHỮ ===== */}
+      {joined && !finished && gameType === 'crossword' && cwState && (
+        <>
+          {pickedMe ? (
+            <Card className="mb-4 p-5 ring-2 ring-indigo-400">
+              <h3 className="mb-3 font-semibold text-indigo-300">🎯 Bạn được chọn! Chọn hàng và nhập đáp án:</h3>
+              <div className="space-y-3">
+                <Select value={cwRow} onChange={(e) => setCwRow(Number(e.target.value))}>
+                  {cwState.rows.filter((r) => !r.solved).map((r) => (
+                    <option key={r.index} value={r.index}>Hàng {r.index + 1}: {r.clue}</option>
+                  ))}
+                </Select>
+                <form onSubmit={(e) => { e.preventDefault(); cwSubmit(); }} className="flex gap-2">
+                  <Input autoFocus value={cwWord} onChange={(e) => setCwWord(e.target.value)} placeholder="Từ khóa hàng ngang…" className="!py-3" />
+                  <Button type="submit" disabled={!cwWord.trim()}>Gửi</Button>
+                </form>
+              </div>
+            </Card>
+          ) : pickedName ? (
+            <p className="mb-4 rounded-xl bg-slate-900 px-4 py-2.5 text-center text-sm text-slate-400">🙋 {pickedName} đang giải…</p>
+          ) : (
+            <Button className="mb-4 w-full !py-4" onClick={raiseHand}>
+              ✋ GIƠ TAY — Xin trả lời ô chữ
+            </Button>
+          )}
+
+          <Card className="p-5">
+            <div className="mb-4 flex justify-center gap-1.5">
+              {cwState.keywordRevealed.map((ch, i) => (
+                <span key={i} className={`flex h-9 w-9 items-center justify-center rounded-lg text-lg font-extrabold ${ch !== '_' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-600'}`}>
+                  {ch}
+                </span>
+              ))}
+            </div>
+            <ul className="space-y-2">
+              {cwState.rows.map((r, i) => (
+                <li key={r.index} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${r.solved ? 'bg-emerald-950/40 ring-1 ring-emerald-800' : i === cwRow && pickedMe ? 'ring-2 ring-indigo-500 bg-slate-900' : 'bg-slate-950/50 ring-1 ring-slate-800'}`}>
+                  <span className="font-mono font-bold text-indigo-400">{r.index + 1}</span>
+                  <span className="min-w-0 flex-1">{r.solved ? <b className="tracking-wide text-emerald-300">{r.word}</b> : r.clue}</span>
+                  {!r.solved && <span className="text-xs text-slate-600">{r.wordLen} chữ</span>}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-center text-xs text-slate-500">Đã giải {cwState.solvedCount}/{cwState.total} hàng</p>
+          </Card>
+        </>
       )}
 
       {/* ===== ĐUA TOÁN ===== */}

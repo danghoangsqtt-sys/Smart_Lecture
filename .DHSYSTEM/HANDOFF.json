@@ -1,10 +1,10 @@
 ﻿{
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.4.0-phase3-complete",
+  "version": "0.5.0-classroom-interaction",
   "created": "2026-08-23",
   "status": "phase-1-in-progress",
-  "phase_current": "P3-done-awaiting-user-review",
+  "phase_current": "classroom-scope-done-awaiting-review",
   "workflow_state": "crystallized",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [

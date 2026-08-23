@@ -1,4 +1,4 @@
-﻿import type { Server as HttpServer } from 'node:http';
+import type { Server as HttpServer } from 'node:http';
 import { Server as IOServer, type Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -8,6 +8,15 @@ import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js
 const zRoom = z.object({ roomCode: z.string().length(6) });
 const zAnswer = z.object({ choiceIdx: z.number().int().min(-1).max(9).default(-1), text: z.string().max(500).optional() });
 const zMathAnswer = z.object({ answer: z.union([z.string().max(50), z.number()]) });
+const zVerdict = z.object({ userId: z.string(), correct: z.boolean() });
+const zCwTry = z.object({ rowIndex: z.number().int().min(0).max(9), word: z.string().min(1).max(60) });
+
+interface PuzzleDef {
+  keyword: string;
+  rows: { clue: string; word: string }[];
+}
+
+type GameType = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword';
 
 interface GameQuestion {
   id: string;
@@ -36,17 +45,23 @@ interface RacePlayer {
   startedAt: number;
 }
 
-type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'finished';
+type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'finished';
 
 interface RoomState {
   sessionId: string;
   hostId: string;
   roomCode: string;
-  gameType: 'quick_quiz' | 'tug_of_war' | 'math_race';
+  gameType: GameType;
   questions: GameQuestion[];
   secondsPerQuestion: number;
   raceDurationSec: number;
   raceDifficulty: number;
+  pointsPerCorrect: number;
+  classId: string | null;
+  puzzle: PuzzleDef | null;
+  solvedRows: Set<number>;
+  hands: Map<string, string>;
+  activePick: { userId: string; name: string } | null;
   phase: Phase;
   currentIndex: number;
   questionEndsAt: number;
@@ -171,6 +186,46 @@ function generateMathProblem(difficulty: number): { text: string; answer: string
   return { text, answer: String(answer) };
 }
 
+function addKttx(classId: string | null, userId: string, delta: number): number {
+  if (!classId || delta === 0) return 0;
+  const row = db.prepare('SELECT kttx FROM grades WHERE class_id = ? AND student_id = ?').get(classId, userId) as
+    | { kttx: number | null }
+    | undefined;
+  const current = row?.kttx ?? 0;
+  const next = Math.min(10, Math.round((current + delta) * 100) / 100);
+  db.prepare(
+    `INSERT INTO grades (class_id, student_id, kttx, updated_at) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(class_id, student_id) DO UPDATE SET kttx = excluded.kttx, updated_at = excluded.updated_at`
+  ).run(classId, userId, next);
+  return next;
+}
+
+function broadcastHands(room: RoomState): void {
+  ioRef?.to(`game:${room.roomCode}`).emit('hr:hands-update', {
+    hands: [...room.hands.entries()].map(([userId, name]) => ({ userId, name })),
+    picked: room.activePick,
+  });
+}
+
+function emitCrosswordState(room: RoomState, target?: Socket): void {
+  if (!room.puzzle) return;
+  const payload = {
+    keywordLength: room.puzzle.keyword.length,
+    keywordRevealed: [...room.puzzle.keyword].map((ch, i) => (room.solvedRows.has(i) ? ch.toUpperCase() : '_')),
+    rows: room.puzzle.rows.map((r, i) => ({
+      index: i,
+      clue: r.clue,
+      wordLen: r.word.length,
+      solved: room.solvedRows.has(i),
+      word: room.solvedRows.has(i) ? r.word.toUpperCase() : null,
+    })),
+    solvedCount: room.solvedRows.size,
+    total: room.puzzle.rows.length,
+  };
+  if (target) target.emit('cw:state', payload);
+  else ioRef?.to(`game:${room.roomCode}`).emit('cw:state', payload);
+}
+
 function startQuestion(room: RoomState): void {
   if (room.currentIndex >= room.questions.length) {
     finishGame(room);
@@ -188,6 +243,12 @@ function startQuestion(room: RoomState): void {
     endsAt: room.questionEndsAt,
     durationSec: room.secondsPerQuestion,
   });
+  if (room.gameType === 'hand_raise') {
+    room.hands.clear();
+    room.activePick = null;
+    broadcastHands(room);
+    return;
+  }
   if (room.timer) clearTimeout(room.timer);
   room.timer = setTimeout(() => revealAnswer(room), room.secondsPerQuestion * 1000 + 400);
 }
@@ -339,6 +400,12 @@ function startRace(room: RoomState): void {
   room.timer = setTimeout(() => finishGame(room), room.raceDurationSec * 1000 + 500);
 }
 
+function applyCorrectPoints(room: RoomState, userId: string, name: string): number {
+  const player = room.players.get(userId);
+  if (player) player.score += room.pointsPerCorrect;
+  return addKttx(room.classId, userId, room.pointsPerCorrect);
+}
+
 const socketRoomsIndex = new Map<string, Set<string>>();
 
 function connectedSocketsIn(roomCode: string): string[] {
@@ -379,9 +446,18 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     | undefined;
   if (!row || row.status === 'finished') return null;
 
-  const cfg = JSON.parse(row.config_json) as { secondsPerQuestion?: number; durationSec?: number; difficulty?: number };
-  const gameType = (['quick_quiz', 'tug_of_war', 'math_race'] as const).includes(row.game_type as never)
-    ? (row.game_type as RoomState['gameType'])
+  const cfg = JSON.parse(row.config_json) as {
+    secondsPerQuestion?: number;
+    durationSec?: number;
+    difficulty?: number;
+    pointsPerCorrect?: number;
+    classId?: string | null;
+    puzzle?: PuzzleDef | null;
+  };
+  const gameType = (['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword'] as const).includes(
+    row.game_type as never
+  )
+    ? (row.game_type as GameType)
     : 'quick_quiz';
 
   let questions: GameQuestion[] = [];
@@ -416,6 +492,12 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     secondsPerQuestion: Math.min(Math.max(cfg.secondsPerQuestion ?? 20, 5), 120),
     raceDurationSec: Math.min(Math.max(cfg.durationSec ?? 120, 30), 600),
     raceDifficulty: Math.min(Math.max(cfg.difficulty ?? 1, 1), 3),
+    pointsPerCorrect: cfg.pointsPerCorrect ?? 0.5,
+    classId: cfg.classId ?? null,
+    puzzle: cfg.puzzle ?? null,
+    solvedRows: new Set<number>(),
+    hands: new Map<string, string>(),
+    activePick: null,
     phase: row.status === 'running' ? (gameType === 'math_race' ? 'race' : 'question') : 'lobby',
     currentIndex: row.current_question_index,
     questionEndsAt: 0,
@@ -553,6 +635,13 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         startRace(room);
         return;
       }
+      if (room.gameType === 'crossword' && room.puzzle) {
+        room.phase = 'crossword';
+        room.solvedRows.clear();
+        emitCrosswordState(room);
+        broadcastHands(room);
+        return;
+      }
       if (room.gameType === 'tug_of_war') broadcastRope(room);
       room.currentIndex = 0;
       startQuestion(room);
@@ -566,6 +655,16 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         finishGame(room);
         return;
       }
+      if (room.gameType === 'hand_raise') {
+        if (room.activePick) {
+          ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
+          room.activePick = null;
+        }
+        room.currentIndex += 1;
+        if (room.currentIndex >= room.questions.length) finishGame(room);
+        else startQuestion(room);
+        return;
+      }
       if (room.phase === 'question' && room.timer) {
         clearTimeout(room.timer);
         revealAnswer(room);
@@ -574,11 +673,114 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (room.phase === 'leaderboard') nextStep(room);
     });
 
+    socket.on('hr:hand', () => {
+      if (socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || !('hands' in room)) return;
+      if (room.gameType !== 'hand_raise' && room.gameType !== 'crossword') return;
+      if (room.phase !== 'question' && room.phase !== 'crossword') return;
+      if (room.activePick) return;
+      const userId = String(socket.data.userId);
+      const user = getUserById(userId);
+      const name = user ? toPublicUser(user).displayName : 'Học viên';
+      if (room.hands.has(userId)) room.hands.delete(userId);
+      else room.hands.set(userId, name);
+      broadcastHands(room);
+    });
+
+    socket.on('game:host-pick', (raw: unknown) => {
+      const parsed = z.object({ userId: z.string() }).safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.hostId !== socket.data.userId || room.activePick) return;
+      const target = room.players.get(parsed.data.userId);
+      const raceTarget = room.racePlayers.get(parsed.data.userId);
+      const name = target?.displayName ?? raceTarget?.displayName ?? room.hands.get(parsed.data.userId) ?? 'Học viên';
+      room.activePick = { userId: parsed.data.userId, name };
+      ioRef?.to(`game:${room.roomCode}`).emit('hr:selected', { userId: parsed.data.userId, name });
+      const pickedSocket = connectedSocketsIn(room.roomCode)
+        .map((id) => ioRef?.sockets.sockets.get(id))
+        .find((s) => s && s.data.role === 'student' && s.data.userId === parsed.data.userId);
+      pickedSocket?.emit('hr:you-picked', { gameType: room.gameType });
+    });
+
+    socket.on('game:host-release', () => {
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || socket.data.role === 'student') return;
+      room.activePick = null;
+      ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
+    });
+
+    socket.on('game:host-verdict', (raw: unknown) => {
+      const parsed = zVerdict.safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.hostId !== socket.data.userId || !room.activePick) return;
+      const { userId, correct } = parsed.data;
+      const player = room.players.get(userId);
+      const racePlayer = room.racePlayers.get(userId);
+      const name = player?.displayName ?? racePlayer?.displayName ?? room.activePick.name;
+
+      let newTotal: number | null = null;
+      if (correct) {
+        newTotal = applyCorrectPoints(room, userId, name);
+      }
+
+      ioRef?.to(`game:${room.roomCode}`).emit('hr:result', {
+        name,
+        correct,
+        delta: correct ? room.pointsPerCorrect : 0,
+        newKttx: newTotal,
+      });
+      broadcastLeaderboard(room);
+
+      room.activePick = null;
+      room.hands.delete(userId);
+      ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
+      broadcastHands(room);
+
+      if (room.gameType === 'crossword' && room.solvedRows.size >= (room.puzzle?.rows.length ?? Infinity)) {
+        finishGame(room);
+      }
+    });
+
+    socket.on('cw:try', (raw: unknown) => {
+      const parsed = zCwTry.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'crossword' || !room.puzzle) return;
+      if (!room.activePick || room.activePick.userId !== String(socket.data.userId)) return;
+      const { rowIndex, word } = parsed.data;
+      const rowDef = room.puzzle.rows[rowIndex];
+      if (!rowDef || room.solvedRows.has(rowIndex)) return;
+
+      const normalizedGiven = word.trim().toUpperCase().replace(/\s+/g, '');
+      const normalizedExpected = rowDef.word.toUpperCase().replace(/\s+/g, '');
+      if (normalizedGiven === normalizedExpected) {
+        room.solvedRows.add(rowIndex);
+        const newKttx = applyCorrectPoints(room, String(socket.data.userId), room.activePick.name);
+        ioRef?.to(`game:${room.roomCode}`).emit('cw:solved', {
+          rowIndex,
+          name: room.activePick.name,
+          delta: room.pointsPerCorrect,
+          newKttx,
+        });
+        emitCrosswordState(room);
+        broadcastLeaderboard(room);
+        room.activePick = null;
+        ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
+        if (room.solvedRows.size >= room.puzzle.rows.length) finishGame(room);
+      } else {
+        socket.emit('cw:wrong', { rowIndex });
+      }
+    });
+
     socket.on('game:answer', (raw: unknown) => {
       const parsed = zAnswer.safeParse(raw ?? {});
       if (!parsed.success || socket.data.role !== 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || (room.phase !== 'question')) return;
+      if (!room || room.phase !== 'question') return;
+      if (room.gameType === 'hand_raise' || room.gameType === 'crossword') return;
       const player = room.players.get(String(socket.data.userId));
       if (!player) return;
       if (player.answers.has(room.currentIndex)) return;

@@ -26,7 +26,7 @@ interface ExamConfig {
   shuffle_questions?: boolean;
   shuffle_options?: boolean;
   max_attempts?: number;
-  purpose?: 'online_test' | 'self_study' | 'both';
+  purpose?: 'online_test' | 'homework';
   class_id?: string | null;
 }
 
@@ -104,7 +104,7 @@ const upsertSchema = z.object({
       shuffle_questions: z.boolean().optional(),
       shuffle_options: z.boolean().optional(),
       max_attempts: z.number().int().min(1).max(99).optional(),
-      purpose: z.enum(['online_test', 'self_study', 'both']).optional(),
+      purpose: z.enum(['online_test', 'homework']).optional(),
       class_id: z.string().nullable().optional(),
     })
     .default({}),
@@ -179,6 +179,37 @@ router.delete(
 );
 
 router.get(
+  '/exams/:id/board-questions',
+  h(async (req, res) => {
+    const authed = req as AuthedRequest;
+    const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
+    const ids = JSON.parse(exam.question_ids_json) as string[];
+    if (ids.length === 0) {
+      res.json({ questions: [] });
+      return;
+    }
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = queryAll<{ id: string; type: string; content: string; options_json: string }>(
+      `SELECT id, type, content, options_json FROM questions WHERE id IN (${placeholders})`,
+      ...ids
+    );
+    res.json({
+      questions: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        content: r.content,
+        options:
+          r.type === 'mcq'
+            ? (JSON.parse(r.options_json) as string[]).map((o) => o.replace(/^([A-D])[\.\:\)]\s+/, ''))
+            : [],
+      })),
+    });
+  })
+);
+
+router.get(
   '/my-results',
   h(async (req, res) => {
     const authed = req as AuthedRequest;
@@ -206,7 +237,7 @@ router.get(
     const authed = req as AuthedRequest;
     const user = authed.user!;
     if (user.role !== 'student') throw new HttpError(403, 'FORBIDDEN', 'Chỉ học viên mới có danh sách này');
-    const purposeFilter = req.query.purpose === 'self_study' ? ['self_study', 'both'] : ['online_test', 'both'];
+    const wantedPurpose = req.query.purpose === 'homework' ? 'homework' : 'online_test';
     const enrolledIds = (
       queryAll<{ class_id: string }>('SELECT class_id FROM enrollments WHERE student_id = ?', user.id)
     ).map((e) => e.class_id);
@@ -214,7 +245,7 @@ router.get(
     const now = Date.now();
     const visible = rows.filter((r) => {
       const cfg = getConfig(r);
-      if (!purposeFilter.includes(cfg.purpose ?? 'online_test')) return false;
+      if ((cfg.purpose ?? 'online_test') !== wantedPurpose) return false;
       if (!cfg.class_id || !enrolledIds.includes(cfg.class_id)) return false;
       if (cfg.end_at && new Date(cfg.end_at).getTime() < now) return false;
       return true;
@@ -265,7 +296,7 @@ router.post(
     }
 
     const purpose = cfg.purpose ?? 'online_test';
-    const maxAttempts = purpose === 'self_study' ? 9999 : (cfg.max_attempts ?? 1);
+    const maxAttempts = cfg.max_attempts ?? 1;
     const submittedCount = db
       .prepare("SELECT COUNT(*) AS c FROM exam_results WHERE exam_id = ? AND student_id = ? AND status = 'submitted'")
       .get(exam.id, user.id) as { c: number };
@@ -467,7 +498,15 @@ router.get(
       };
     });
 
-    const stats = { submittedCount: results.filter((r) => r.status === 'submitted').length };
+    const cfg0 = getConfig(exam);
+    const classSize = cfg0.class_id
+      ? (db.prepare('SELECT COUNT(*) AS c FROM enrollments WHERE class_id = ?').get(cfg0.class_id) as { c: number }).c
+      : results.length;
+    const stats = {
+      submittedCount: results.filter((r) => r.status === 'submitted').length,
+      notSubmittedCount: Math.max(0, classSize - results.length),
+      classSize,
+    };
     const firstDetail = rows[0] ? (JSON.parse(rows[0].answers_detail_json) as AttemptDetail) : null;
     const essayQuestions = (firstDetail?.questions ?? [])
       .filter((q) => q.type === 'essay')

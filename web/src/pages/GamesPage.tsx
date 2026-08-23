@@ -7,7 +7,7 @@ import toast from '../stores/toastStore';
 import { useAuthStore } from '../stores/authStore';
 import { useMyClasses } from './LecturesPage';
 
-type GameMode = 'quick_quiz' | 'tug_of_war' | 'math_race';
+type GameMode = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword';
 
 interface Question {
   id: string;
@@ -34,6 +34,8 @@ const MODE_META: Record<GameMode, { label: string; desc: string; icon: string }>
   quick_quiz: { label: 'Trắc nghiệm nhanh', desc: 'Cả lớp cùng câu, điểm thưởng tốc độ', icon: '⚡' },
   tug_of_war: { label: 'Kéo co', desc: '2 đội giằng dây bằng câu trả lời đúng', icon: '🪢' },
   math_race: { label: 'Đua toán', desc: 'Mỗi HV giải càng nhiều càng tốt trong thời gian', icon: '🏁' },
+  hand_raise: { label: 'Giơ tay trả lời', desc: 'HV giơ tay → GV chọn người trả lời → chấm đúng/sai → tự cộng điểm KTTX', icon: '✋' },
+  crossword: { label: 'Ô chữ', desc: 'Giải từng hàng ngang mở dần từ khóa dọc — mỗi ô đúng cộng điểm KTTX', icon: '🧩' },
 };
 
 export default function GamesPage() {
@@ -70,31 +72,53 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
   const [secondsPerQuestion, setSeconds] = useState(20);
   const [durationSec, setDurationSec] = useState(120);
   const [difficulty, setDifficulty] = useState(1);
+  const [pointsPerCorrect, setPointsPerCorrect] = useState<0.25 | 0.5 | 1>(0.5);
+  const [classId, setClassId] = useState('');
+  const classes = useMyClasses();
+  const [puzzleKeyword, setPuzzleKeyword] = useState('');
+  const [puzzleRows, setPuzzleRows] = useState<{ clue: string; word: string }[]>([
+    { clue: '', word: '' },
+    { clue: '', word: '' },
+  ]);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [loading, setLoading] = useState(mode !== 'math_race');
 
   useEffect(() => {
-    if (mode === 'math_race') { setLoading(false); return; }
+    if (mode === 'math_race' || mode === 'crossword') { setLoading(false); return; }
     setLoading(true);
-    api<{ questions: Question[] }>('/questions?type=mcq&limit=500')
+    api<{ questions: Question[] }>('/questions?limit=500')
       .then((r) => setQuestions(r.questions))
       .catch(() => undefined)
       .finally(() => setLoading(false));
     return () => disconnectSocket();
   }, [mode]);
 
+  useEffect(() => {
+    if (!classId && classes.length > 0) setClassId(classes[0].id);
+  }, [classes, classId]);
+
   async function create() {
     try {
-      const res = await api<{ id: string; roomCode: string }>('/games', {
-        method: 'POST',
-        body: JSON.stringify({
-          gameType: mode,
-          questionIds: mode === 'math_race' ? undefined : [...selectedIds],
-          secondsPerQuestion,
-          durationSec,
-          difficulty,
-        }),
-      });
+      const body: Record<string, unknown> = {
+        gameType: mode,
+        questionIds: mode === 'math_race' ? undefined : [...selectedIds],
+        secondsPerQuestion,
+        durationSec,
+        difficulty,
+      };
+      if (mode === 'hand_raise') {
+        body.pointsPerCorrect = pointsPerCorrect;
+        body.classId = classId || undefined;
+      }
+      if (mode === 'crossword') {
+        body.pointsPerCorrect = pointsPerCorrect;
+        body.classId = classId || undefined;
+        body.puzzle = {
+          keyword: puzzleKeyword.trim(),
+          rows: puzzleRows.map((r) => ({ clue: r.clue.trim(), word: r.word.trim() })),
+        };
+      }
+      const res = await api<{ id: string; roomCode: string }>('/games', { method: 'POST', body: JSON.stringify(body) });
       toast.success(`Đã tạo phòng ${res.roomCode}`);
       setSession({ id: res.id, roomCode: res.roomCode, gameType: mode, status: 'lobby', questionCount: selectedIds.size, config: { title: '', secondsPerQuestion } });
     } catch (e) {
@@ -106,7 +130,7 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      {mode !== 'math_race' && (
+      {mode !== 'math_race' && mode !== 'crossword' && (
         <Card className="p-5">
           <h3 className="mb-3 font-medium text-slate-200">Chọn câu hỏi ({selectedIds.size} đã chọn)</h3>
           {loading ? <Spinner /> : questions.length === 0 ? (
@@ -135,6 +159,59 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
           )}
         </Card>
       )}
+      {(mode === 'crossword') && (
+        <Card className="p-5 lg:col-span-2">
+          <h3 className="mb-3 font-medium text-slate-200">🧩 Thiết kế ô chữ</h3>
+          <div className="grid gap-4 md:grid-cols-[240px_1fr]">
+            <div>
+              <Label>Từ khóa dọc ({puzzleKeyword.trim().length} chữ cái)</Label>
+              <Input
+                value={puzzleKeyword}
+                onChange={(e) => setPuzzleKeyword(e.target.value.toUpperCase().replace(/[^A-Za-zÀ-ỹà-ỹ\s]/g, '').slice(0, 10))}
+                placeholder="VD: ĐIỆN"
+                className="!text-lg font-bold tracking-widest"
+              />
+              <div className="mt-3 flex flex-col items-center gap-1 rounded-xl bg-slate-950/60 p-3 ring-1 ring-slate-800">
+                {[...(puzzleKeyword || ' '.repeat(4))].slice(0, 10).map((ch, i) => (
+                  <span key={i} className={`flex h-7 w-7 items-center justify-center rounded ${/\S/.test(ch) ? 'bg-indigo-600 font-bold text-white' : 'bg-slate-800 text-slate-600'}`}>
+                    {/\S/.test(ch) ? ch : i + 1}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Hàng ngang — chữ thứ {`i`} của hàng phải trùng chữ thứ {`i`} của từ khóa</Label>
+              <ul className="space-y-2">
+                {puzzleRows.map((row, i) => {
+                  const expected = puzzleKeyword[i]?.toUpperCase() ?? '?';
+                  const given = row.word.toUpperCase().replace(/\s+/g, '');
+                  const ok = given[i] === expected;
+                  return (
+                    <li key={i} className="flex items-start gap-2 rounded-xl p-2.5 ring-1 ring-slate-800">
+                      <span className={`mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${ok ? 'bg-emerald-700' : 'bg-slate-700'}`}>
+                        {expected}
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <Input value={row.clue} onChange={(e) => setPuzzleRows((rs) => rs.map((r, ri) => (ri === i ? { ...r, clue: e.target.value } : r)))} placeholder={`Gợi ý hàng ${i + 1}…`} className="!py-1.5 text-sm" />
+                        <Input
+                          value={row.word}
+                          onChange={(e) => setPuzzleRows((rs) => rs.map((r, ri) => (ri === i ? { ...r, word: e.target.value } : r)))}
+                          placeholder="Từ khóa hàng ngang…"
+                          className={`!py-1.5 text-sm ${given && !ok ? '!border-red-600' : ''}`}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-2 flex gap-2">
+                <Button variant="secondary" onClick={() => setPuzzleRows((rs) => [...rs, { clue: '', word: '' }])} disabled={puzzleRows.length >= 10}>+ Hàng</Button>
+                <Button variant="ghost" onClick={() => setPuzzleRows((rs) => rs.slice(0, -1))} disabled={puzzleRows.length <= 2}>− Bớt</Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
       <Card className={`h-fit p-5 ${mode === 'math_race' ? 'lg:col-span-2 max-w-md mx-auto w-full' : ''}`}>
         {mode === 'math_race' ? (
           <>
@@ -149,8 +226,39 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
             </div>
             <p className="mt-3 text-xs text-slate-500">Mỗi học viên nhận bài toán riêng, giải liên tục cho đến hết giờ. Ai giải nhiều nhất thắng.</p>
           </>
+        ) : mode === 'crossword' ? (
+          <div className="space-y-3">
+            <div><Label>Lớp (để tự cộng điểm KTTX)</Label>
+              <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </div>
+            <div><Label>Điểm mỗi ô đúng</Label>
+              <Select value={pointsPerCorrect} onChange={(e) => setPointsPerCorrect(Number(e.target.value) as 0.25 | 0.5 | 1)}>
+                <option value={0.25}>+0.25</option><option value={0.5}>+0.5</option><option value={1}>+1</option>
+              </Select>
+            </div>
+            <Button className="w-full" onClick={() => void create()}
+              disabled={!puzzleKeyword.trim() || puzzleRows.some((r) => !r.clue.trim() || !r.word.trim())}>
+              Tạo phòng ô chữ
+            </Button>
+          </div>
         ) : (
           <>
+            {mode === 'hand_raise' && (
+              <div className="mb-3 space-y-3">
+                <div><Label>Lớp (để tự cộng điểm KTTX)</Label>
+                  <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+                    {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </div>
+                <div><Label>Điểm mỗi câu đúng → cột KTTX</Label>
+                  <Select value={pointsPerCorrect} onChange={(e) => setPointsPerCorrect(Number(e.target.value) as 0.25 | 0.5 | 1)}>
+                    <option value={0.25}>+0.25</option><option value={0.5}>+0.5</option><option value={1}>+1</option>
+                  </Select>
+                </div>
+              </div>
+            )}
             <Label>Giây mỗi câu (5–120)</Label>
             <Input type="number" min={5} max={120} value={secondsPerQuestion} onChange={(e) => setSeconds(Math.min(120, Math.max(5, Number(e.target.value))))} />
             {mode === 'tug_of_war' && (
@@ -159,9 +267,12 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
             {mode === 'quick_quiz' && (
               <p className="mt-3 text-xs text-slate-500">60 điểm nền + tối đa 40 điểm tốc độ cho mỗi câu đúng.</p>
             )}
+            {mode === 'hand_raise' && (
+              <p className="mt-3 text-xs text-slate-500">Không tính giờ. HV giơ tay trên máy → GV bấm chọn người → HS trả lời miệng → GV bấm Đúng/Sai. Đúng sẽ tự cộng vào cột KTTX của sổ điểm.</p>
+            )}
           </>
         )}
-        <Button className="mt-4 w-full" onClick={() => void create()} disabled={mode !== 'math_race' && selectedIds.size === 0}>
+        <Button className="mt-4 w-full" onClick={() => void create()} disabled={mode !== 'math_race' && mode !== 'crossword' && selectedIds.size === 0}>
           Tạo phòng game
         </Button>
       </Card>
@@ -171,7 +282,7 @@ function CreateGameTab({ mode }: { mode: GameMode }) {
 
 function HostConsole({ session }: { session: SessionInfo }) {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<'lobby' | 'question' | 'leaderboard' | 'race' | 'finished'>('lobby');
+  const [phase, setPhase] = useState<'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'finished'>('lobby');
   const [players, setPlayers] = useState<{ name: string; score?: number; team?: string }[]>([]);
   const [reveal, setReveal] = useState<{ correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number } | null>(null);
   const [leaderboard, setLeaderboard] = useState<{ name: string; score: number }[]>([]);
@@ -181,6 +292,15 @@ function HostConsole({ session }: { session: SessionInfo }) {
   const [raceRows, setRaceRows] = useState<{ name: string; solved: number }[]>([]);
   const [raceEndsAt, setRaceEndsAt] = useState(0);
   const [tick, setTick] = useState(0);
+  const [hands, setHands] = useState<{ userId: string; name: string }[]>([]);
+  const [picked, setPicked] = useState<{ userId: string; name: string } | null>(null);
+  const [hrResult, setHrResult] = useState<{ name: string; correct: boolean; delta: number; newKttx: number | null } | null>(null);
+  const [cwState, setCwState] = useState<{
+    keywordRevealed: string[];
+    rows: { index: number; clue: string; wordLen: number; solved: boolean; word: string | null }[];
+    solvedCount: number;
+    total: number;
+  } | null>(null);
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
 
   useEffect(() => {
@@ -203,7 +323,7 @@ function HostConsole({ session }: { session: SessionInfo }) {
       setRopePos(d.ropePos ?? 0);
     });
     socket.on('lobby:update', (d: { players: { name: string; team?: string }[] }) => setPlayers(d.players));
-    socket.on('question:show', () => { setPhase('question'); setReveal(null); });
+    socket.on('question:show', () => { setPhase('question'); setReveal(null); setHrResult(null); });
     socket.on('answer:reveal', (d: { correctIdx: number; correctText?: string; counts: number[]; correctCount: number; playerCount: number }) => {
       setPhase('leaderboard');
       setReveal(d);
@@ -219,8 +339,27 @@ function HostConsole({ session }: { session: SessionInfo }) {
     socket.on('game:finished', () => setPhase('finished'));
     socket.on('game:error', (d: { message: string }) => toast.error(d.message));
 
+    socket.on('hr:hands-update', (d: { hands: { userId: string; name: string }[] }) => setHands(d.hands));
+    socket.on('hr:selected', (d: { userId: string; name: string }) => setPicked(d));
+    socket.on('hr:released', () => setPicked(null));
+    socket.on('hr:result', (d: { name: string; correct: boolean; delta: number; newKttx: number | null }) => {
+      setHrResult(d);
+      setTimeout(() => setHrResult(null), 4000);
+    });
+    socket.on('cw:state', (d: { keywordRevealed: string[]; rows: { index: number; clue: string; wordLen: number; solved: boolean; word: string | null }[]; solvedCount: number; total: number }) => {
+      setCwState(d);
+      setPhase('crossword');
+    });
+
     return () => { socket.off(); };
   }, [session.id]);
+
+  function hostPick(userId: string) { socketRef.current?.emit('game:host-pick', { userId }); }
+  function hostRelease() { socketRef.current?.emit('game:host-release'); }
+  function hostVerdict(correct: boolean) {
+    if (!picked) return;
+    socketRef.current?.emit('game:host-verdict', { userId: picked.userId, correct });
+  }
 
   function hostNext() { socketRef.current?.emit('game:host-next'); }
   function hostStart() { socketRef.current?.emit('game:start'); socketRef.current?.emit('game:host-start'); }
@@ -263,6 +402,72 @@ function HostConsole({ session }: { session: SessionInfo }) {
           </Card>
           <Button className="!px-8 !py-3 !text-base" onClick={hostStart} disabled={players.length === 0 && session.gameType !== 'math_race'}>▶ Bắt đầu</Button>
         </>
+      )}
+
+      {session.gameType === 'hand_raise' && phase !== 'lobby' && phase !== 'finished' && (
+        <Card className="mb-4 p-5 text-left">
+          {hrResult && (
+            <div className={`mb-3 rounded-xl px-4 py-2.5 text-center text-sm font-semibold ring-1 ${hrResult.correct ? 'bg-emerald-950 text-emerald-300 ring-emerald-800' : 'bg-red-950 text-red-300 ring-red-800'}`}>
+              {hrResult.correct ? `✅ ${hrResult.name} đúng — +${hrResult.delta} điểm KTTX${hrResult.newKttx !== null ? ` (KTTX hiện tại: ${hrResult.newKttx})` : ''}` : `❌ ${hrResult.name} chưa đúng`}
+            </div>
+          )}
+          {picked ? (
+            <div className="rounded-xl bg-indigo-950/60 p-4 text-center ring-1 ring-indigo-700">
+              🙋 <b className="text-lg">{picked.name}</b> đang trả lời…
+              <div className="mt-3 flex justify-center gap-3">
+                <Button className="!px-6" onClick={() => hostVerdict(true)}>✓ Đúng</Button>
+                <Button variant="danger" className="!px-6" onClick={() => hostVerdict(false)}>✗ Sai</Button>
+                <Button variant="ghost" onClick={hostRelease}>Bỏ qua</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <h4 className="mb-2 text-sm font-semibold text-slate-300">🙋 Đang giơ tay ({hands.length})</h4>
+              {hands.length === 0 ? (
+                <p className="py-3 text-center text-sm text-slate-500">Chưa ai giơ tay…</p>
+              ) : (
+                <div className="flex flex-wrap justify-center gap-2">
+                  {hands.map((h) => (
+                    <button key={h.userId} onClick={() => hostPick(h.userId)} className="rounded-full bg-emerald-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-600">
+                      ✋ {h.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      )}
+
+      {session.gameType === 'crossword' && cwState && phase !== 'lobby' && phase !== 'finished' && (
+        <Card className="mb-4 p-5 text-left">
+          {hrResult && (
+            <div className={`mb-3 rounded-xl px-4 py-2.5 text-center text-sm font-semibold ring-1 ${hrResult.correct ? 'bg-emerald-950 text-emerald-300 ring-emerald-800' : 'bg-red-950 text-red-300 ring-red-800'}`}>
+              {hrResult.correct ? `🎉 ${hrResult.name} mở được hàng ô chữ — +${hrResult.delta}đ KTTX` : `❌ ${hrResult.name} chưa đúng`}
+            </div>
+          )}
+          <div className="mb-4 flex justify-center gap-1.5">
+            {cwState.keywordRevealed.map((ch, i) => (
+              <span key={i} className={`flex h-10 w-10 items-center justify-center rounded-lg text-xl font-extrabold ${ch !== '_' ? 'bg-indigo-600 text-white animate-pop' : 'bg-slate-800 text-slate-600'}`}>
+                {ch}
+              </span>
+            ))}
+          </div>
+          <ul className="space-y-2">
+            {cwState.rows.map((r) => (
+              <li key={r.index} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm ${r.solved ? 'bg-emerald-950/40 ring-1 ring-emerald-800' : 'bg-slate-950/50 ring-1 ring-slate-800'}`}>
+                <span className={`font-mono font-bold ${r.solved ? 'text-emerald-400' : 'text-indigo-400'}`}>{r.index + 1}</span>
+                <span className="min-w-0 flex-1">
+                  {r.solved ? <b className="tracking-wide text-emerald-300">{r.word}</b> : r.clue}
+                </span>
+                {!r.solved && <span className="text-xs text-slate-600">{r.wordLen} chữ</span>}
+              </li>
+            ))}
+          </ul>
+          {picked && (
+            <p className="mt-3 rounded-lg bg-indigo-950/60 px-3 py-2 text-center text-sm text-indigo-200">🙋 <b>{picked.name}</b> đang trả lời trên máy của bạn ấy…</p>
+          )}
+        </Card>
       )}
 
       {session.gameType === 'tug_of_war' && phase !== 'lobby' && teams && (

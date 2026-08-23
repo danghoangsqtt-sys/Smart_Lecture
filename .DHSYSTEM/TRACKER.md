@@ -54,3 +54,11 @@
 - Lưu trữ lớp học: migration v3 (classes.archived/archived_at) + PATCH archive + filter includeArchived/year; UI toggle + badge.
 - Autostart scripts: install/uninstall Scheduled Task Windows.
 - Verify: typecheck PASS; build PASS; E2E 58/58 PASS.
+### 2026-08-23 (buổi 5 — Định vị lại phạm vi + tương tác lớp học)
+- PHẠM VI MỚI (chốt với người dùng): Smart_Lecture = hệ thống TƯƠNG TÁC TRÊN LỚP; việc ôn tập của HV thuộc hệ thống riêng.
+- Gỡ hoàn toàn self-study: purpose chỉ còn online_test | homework; xóa tab tự ôn phía HV.
+- Game GIƠ TAY TRẢ LỜI (hand_raise): HV bấm giơ tay → GV chọn người → chấm Đúng/Sai → tự cộng điểm KTTX (0.25/0.5/1 tùy cấu hình) ghi thẳng gradebook, không tính giờ.
+- Game Ô CHỮ (crossword): builder từ khóa dọc + hàng ngang có validation chữ cái trùng vị trí; chơi bằng cơ chế giơ tay; giải đúng mở hàng + chữ từ khóa; đủ hàng → kết thúc.
+- BTVN (homework): giao bài có hạn nộp, làm tại lớp/về nhà; thống kê đã/chưa nộp; board-questions endpoint (ẩn đáp án) phục vụ chiếu lên bảng; random-pick nhận examId → ưu tiên gọi HV CHƯA NỘP + trả về câu hỏi ngẫu nhiên không đáp án để HS lên bảng làm.
+- Phòng lab ảo (/lab): mạch logic 4 preset (half/full adder, đa số, khóa NOT-AND) đánh giá biểu thức live; mạch DC Ohm nối tiếp/song song tính I/U/P realtime + đèn phát sáng theo công suất.
+- Verify: typecheck strict PASS; build PASS; E2E mở rộng 66/66 PASS.

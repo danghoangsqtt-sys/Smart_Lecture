@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Badge, Button, Card, EmptyState, Modal, PageHeader, Spinner } from '../components/ui';
@@ -16,7 +16,7 @@ interface AvailableExam {
 
 export default function MyExamsPage() {
   const [exams, setExams] = useState<AvailableExam[]>([]);
-  const [purpose, setPurpose] = useState<'online_test' | 'self_study'>('online_test');
+  const [purpose, setPurpose] = useState<'online_test' | 'homework'>('online_test');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,11 +30,11 @@ export default function MyExamsPage() {
   return (
     <div>
       <PageHeader
-        title={purpose === 'self_study' ? 'Tá»± Ã´n táº­p' : 'BÃ i thi cá»§a tÃ´i'}
-        subtitle={purpose === 'self_study' ? 'LÃ m láº¡i khÃ´ng giá»›i háº¡n sá»‘ lÆ°á»£t' : 'CÃ¡c bÃ i kiá»ƒm tra giÃ¡o viÃªn giao cho lá»›p báº¡n'}
+        title={purpose === 'homework' ? 'Tá»± Ã´n táº­p' : 'BÃ i thi cá»§a tÃ´i'}
+        subtitle={purpose === 'homework' ? 'LÃ m láº¡i khÃ´ng giá»›i háº¡n sá»‘ lÆ°á»£t' : 'CÃ¡c bÃ i kiá»ƒm tra giÃ¡o viÃªn giao cho lá»›p báº¡n'}
         actions={
           <div className="flex gap-1 rounded-xl bg-slate-900 p-1 ring-1 ring-slate-800">
-            {([['online_test', 'Kiá»ƒm tra'], ['self_study', 'Tá»± Ã´n']] as const).map(([k, l]) => (
+            {([['online_test', 'Kiá»ƒm tra'], ['homework', 'Tá»± Ã´n']] as const).map(([k, l]) => (
               <button key={k} onClick={() => setPurpose(k)} className={`rounded-lg px-3 py-1.5 text-sm ${purpose === k ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>{l}</button>
             ))}
           </div>
@@ -61,7 +61,7 @@ export default function MyExamsPage() {
                   <Badge>Háº¿t lÆ°á»£t</Badge>
                 ) : (
                   <Link to={`/my-exams/${e.id}`} state={{ resume: e.resumableAttemptId }}>
-                    <Button>{e.resumableAttemptId ? 'Tiáº¿p tá»¥c bÃ i dá»Ÿ' : purpose === 'self_study' ? 'Ã”n ngay' : 'VÃ o thi'}</Button>
+                    <Button>{e.resumableAttemptId ? 'Tiáº¿p tá»¥c bÃ i dá»Ÿ' : purpose === 'homework' ? 'Ã”n ngay' : 'VÃ o thi'}</Button>
                   </Link>
                 )}
               </Card>

@@ -10,6 +10,7 @@ import LecturesPage from './pages/LecturesPage';
 import MyLearningPage from './pages/MyLearningPage';
 import QuestionsPage from './pages/QuestionsPage';
 import RagPage from './pages/RagPage';
+import LabPage from './pages/LabPage';
 import ExamsPage from './pages/ExamsPage';
 import ExamResultsPage from './pages/ExamResultsPage';
 import MyExamsPage, { ExamRoomPage } from './pages/MyExamsPage';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/learning" element={<MyLearningPage />} />
           <Route path="/questions" element={<QuestionsPage />} />
           <Route path="/rag" element={<RagPage />} />
+          <Route path="/lab" element={<LabPage />} />
           <Route path="/exams" element={<ExamsPage />} />
           <Route path="/exams/:examId/results" element={<ExamResultsPage />} />
           <Route path="/my-exams" element={<MyExamsPage />} />
