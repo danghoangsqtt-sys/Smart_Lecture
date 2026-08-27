@@ -43,6 +43,12 @@
 | T-801 | React accessibility, correctness và bundle code-splitting | P8 | done | Doctor 47 changed / 42 full + typecheck + production build |
 | T-802 | Tách component/reducer và chuẩn hóa Socket disposer cho game | P8 | done | Doctor full 100 + E2E + commit `9428836` pushed |
 
+## Phase 9 — Teaching Session v1
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-901 | Phiên dạy liền mạch: lifecycle, telemetry nội dung, điểm danh/game và tổng kết | P9 | done | typecheck + E2E 86/86 + regression 14/14 + Socket 10/10 + restore restart |
+
 ## Session log
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
 - `CircuitCanvas` publish thay đổi theo event, tách editor engine/render và ổn định callback cho component memo.

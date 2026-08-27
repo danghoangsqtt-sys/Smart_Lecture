@@ -81,6 +81,29 @@ if (classId) {
   });
   check('valid recurring date and time accepted', validRecurring.status === 201 && validRecurring.data?.createdCount === 1);
 
+  const noActiveSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
+  check('no active teaching session before start', noActiveSession.status === 200 && noActiveSession.data?.log === null);
+  const invalidTeachingSession = await request('POST', '/teaching-logs/start', teacherToken, {
+    classId, subjectId, curriculumItemId: 'missing-item',
+  });
+  check('teaching session rejects unrelated curriculum item', invalidTeachingSession.status === 400);
+  const teachingSession = await request('POST', '/teaching-logs/start', teacherToken, {
+    classId, subjectId, curriculumItemId: item.data?.id,
+  });
+  const sessionId = teachingSession.data?.id;
+  const resumedTeachingSession = await request('POST', '/teaching-logs/start', teacherToken, {
+    classId, subjectId, curriculumItemId: item.data?.id,
+  });
+  check('teaching session starts and resumes idempotently', teachingSession.status === 201 && resumedTeachingSession.status === 200 && resumedTeachingSession.data?.id === sessionId && resumedTeachingSession.data?.resumed === true);
+  await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'slide', id: lecture.data?.id });
+  const repeatedAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'slide', id: lecture.data?.id });
+  await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: 'game-dock' });
+  const activeTeachingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
+  check('teaching actions persist without duplicates', repeatedAction.status === 200 && activeTeachingSession.data?.log?.slidesShown?.length === 1 && activeTeachingSession.data?.log?.gamesRun?.includes('game-dock'));
+  const closedTeachingSession = await request('PATCH', `/teaching-logs/${sessionId}`, teacherToken, { endedAt: new Date().toISOString(), notes: 'Regression session' });
+  const afterClosingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
+  check('teaching session closes and clears active session', closedTeachingSession.status === 200 && afterClosingSession.data?.log === null);
+
   const traversal = await request('POST', `/subjects/${subjectId}/pending-files/ingest`, teacherToken, {
     filenames: ['../../package.json'], mode: 'new-lecture-per-file',
   });

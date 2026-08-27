@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Teaching Session v1
+
+- Bổ sung lifecycle phiên dạy được lưu, tiếp tục sau refresh và tổng kết sau tiết.
+- Liên kết an toàn giáo án, điểm danh, nội dung trình chiếu và game với nhật ký giảng dạy.
+
 ## 2026-08-27 — UI quality checkpoint 5
 
 - Chuẩn hóa lifecycle Socket và state reducer cho host/player; tách các view game và cấu hình theo domain.

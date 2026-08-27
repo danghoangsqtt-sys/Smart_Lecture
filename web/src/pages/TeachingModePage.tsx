@@ -57,6 +57,21 @@ interface TeachingLecture {
   materials: unknown[];
 }
 
+interface TeachingLog {
+  id: string;
+  classId: string;
+  subjectId: string | null;
+  curriculumItemId: string | null;
+  attendanceSessionId: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  slidesShown: string[];
+  videosPlayed: string[];
+  gamesRun: string[];
+  attendanceTaken: boolean;
+  notes: string;
+}
+
 type ContentMode = 'slides' | 'video' | 'links' | 'game';
 
 const CONTENT_MODE_LABELS: Record<ContentMode, string> = {
@@ -104,6 +119,8 @@ export default function TeachingModePage() {
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [gameDockOpen, setGameDockOpen] = useState(false);
   const [gameDockMinimized, setGameDockMinimized] = useState(false);
+  const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
+  const [finishModalOpen, setFinishModalOpen] = useState(false);
 
   const canManage = !!user && (user.role === 'admin' || user.role === 'teacher');
 
@@ -111,22 +128,24 @@ export default function TeachingModePage() {
     if (!classId || !subjectId) return;
     setLoading(true);
     try {
-      const [subjectsRes, plansRes, lecturesRes] = await Promise.all([
+      const [subjectsRes, plansRes, lecturesRes, activeLogRes] = await Promise.all([
         api<{ subjects: Subject[] }>(`/classes/${classId}/subjects`),
         api<{ plans: TeachingPlan[] }>(`/classes/${classId}/teaching-plans`),
         api<{ lectures: TeachingLecture[] }>(`/classes/${classId}/lectures`),
+        canManage ? api<{ log: TeachingLog | null }>(`/classes/${classId}/teaching-logs/active`) : Promise.resolve({ log: null }),
       ]);
       setSubject(subjectsRes.subjects.find((s) => s.id === subjectId) ?? null);
       const subjectPlans = plansRes.plans.filter((p) => p.subjectId === subjectId);
       setPlans(subjectPlans);
       setLectures(lecturesRes.lectures.filter((l) => l.subjectId === subjectId));
+      setActiveLog(activeLogRes.log);
       setSelectedPlanId((prev) => (prev && subjectPlans.some((p) => p.id === prev) ? prev : subjectPlans[0]?.id ?? null));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi tải dữ liệu');
     } finally {
       setLoading(false);
     }
-  }, [classId, subjectId]);
+  }, [canManage, classId, subjectId]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -136,6 +155,60 @@ export default function TeachingModePage() {
       await loadData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi');
+    }
+  }
+
+  async function startTeachingSession() {
+    const item = getSelectedItem();
+    const selectedPlan = getSelectedPlan();
+    if (!item || !selectedPlan) {
+      toast.error('Chọn mục chương trình trước khi bắt đầu tiết học');
+      return;
+    }
+    try {
+      const result = await api<{ id: string; resumed: boolean; log?: TeachingLog }>('/teaching-logs/start', {
+        method: 'POST',
+        body: JSON.stringify({ classId, subjectId, curriculumItemId: item.id }),
+      });
+      if (result.log) setActiveLog(result.log);
+      else {
+        const current = await api<{ log: TeachingLog | null }>(`/classes/${classId}/teaching-logs/active`);
+        setActiveLog(current.log);
+      }
+      if (item.status === 'pending') await updateItemStatus(item.id, 'in_progress');
+      toast.success(result.resumed ? 'Đã tiếp tục phiên dạy đang mở' : 'Đã bắt đầu phiên dạy');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể bắt đầu phiên dạy');
+    }
+  }
+
+  async function recordTeachingAction(kind: 'slide' | 'video' | 'game', id: string) {
+    if (!activeLog) return;
+    try {
+      const result = await api<{ values: string[] }>(`/teaching-logs/${activeLog.id}/actions`, {
+        method: 'POST', body: JSON.stringify({ kind, id }),
+      });
+      setActiveLog((current) => current ? {
+        ...current,
+        slidesShown: kind === 'slide' ? result.values : current.slidesShown,
+        videosPlayed: kind === 'video' ? result.values : current.videosPlayed,
+        gamesRun: kind === 'game' ? result.values : current.gamesRun,
+      } : current);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể ghi nhận hoạt động');
+    }
+  }
+
+  async function linkAttendanceToSession(attendanceSessionId: string) {
+    if (!activeLog) return;
+    try {
+      await api(`/teaching-logs/${activeLog.id}`, {
+        method: 'PATCH', body: JSON.stringify({ attendanceSessionId, attendanceTaken: true }),
+      });
+      setActiveLog((current) => current ? { ...current, attendanceSessionId, attendanceTaken: true } : current);
+      toast.success('Đã liên kết điểm danh vào phiên dạy');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể liên kết điểm danh');
     }
   }
 
@@ -171,6 +244,7 @@ export default function TeachingModePage() {
         onExit={() => navigate('/teaching')}
         onPlanChange={(nextPlanId) => { setSelectedPlanId(nextPlanId); setSelectedItemId(null); }}
       />
+      <TeachingSessionStrip log={activeLog} onStart={() => void startTeachingSession()} onFinish={() => setFinishModalOpen(true)} />
       <div className="flex flex-1 overflow-hidden">
         <CurriculumSidebar plan={plan} selectedItemId={selectedItemId} onSelect={setSelectedItemId} />
         <main className="flex flex-1 flex-col overflow-hidden">
@@ -193,7 +267,13 @@ export default function TeachingModePage() {
             selectedItem={selectedItem}
             canManage={canManage}
             onModeChange={(nextMode) => {
-              if (nextMode === 'game') { setGameDockOpen(true); setGameDockMinimized(false); return; }
+              if (nextMode === 'game') {
+                setGameDockOpen(true); setGameDockMinimized(false);
+                void recordTeachingAction('game', 'game-dock');
+                return;
+              }
+              const actionKind = nextMode === 'slides' ? 'slide' : nextMode === 'video' ? 'video' : null;
+              if (actionKind) teachingMaterials.forEach((material) => void recordTeachingAction(actionKind, material.id));
               setContentMode(nextMode);
             }}
             onStatusChange={(status) => selectedItem && void updateItemStatus(selectedItem.id, status)}
@@ -206,7 +286,10 @@ export default function TeachingModePage() {
           classId={classId}
           initialTeachingPlanItemId={selectedItem.id}
           onClose={() => setSessionModalOpen(false)}
-          onCreated={async () => { toast.success('Đã tạo buổi điểm danh — chuyển sang tab Điểm danh để ghi nhận'); }}
+          onCreated={async (attendanceSessionId) => {
+            await linkAttendanceToSession(attendanceSessionId);
+            toast.success('Đã tạo buổi điểm danh — chuyển sang tab Điểm danh để ghi nhận');
+          }}
         />
       )}
       {gameDockOpen && (
@@ -215,6 +298,18 @@ export default function TeachingModePage() {
           minimized={gameDockMinimized}
           onToggleMinimized={() => setGameDockMinimized((value) => !value)}
           onClose={() => setGameDockOpen(false)}
+        />
+      )}
+      {finishModalOpen && activeLog && (
+        <FinishSessionModal
+          log={activeLog}
+          onClose={() => setFinishModalOpen(false)}
+          onFinish={async (notes) => {
+            await api(`/teaching-logs/${activeLog.id}`, { method: 'PATCH', body: JSON.stringify({ endedAt: new Date().toISOString(), notes }) });
+            setActiveLog(null);
+            setFinishModalOpen(false);
+            toast.success('Đã kết thúc và lưu tổng kết phiên dạy');
+          }}
         />
       )}
     </div>
@@ -249,6 +344,30 @@ function TeachingHeader({
         <option value="">— Chọn chương trình —</option>
         {plans.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
       </Select>
+    </div>
+  );
+}
+
+function TeachingSessionStrip({ log, onStart, onFinish }: { log: TeachingLog | null; onStart: () => void; onFinish: () => void }) {
+  if (!log) {
+    return (
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-700/40 bg-amber-950/40 px-4 py-2 text-sm text-amber-100">
+        <span><i className="fas fa-circle-info mr-2" />Chưa có phiên dạy đang mở. Bắt đầu để lưu tiến độ, tài liệu và điểm danh.</span>
+        <Button variant="primary" className="!py-1.5" onClick={onStart}>Bắt đầu phiên dạy</Button>
+      </div>
+    );
+  }
+  const started = new Date(log.startedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-emerald-700/40 bg-emerald-950/35 px-4 py-2 text-sm text-emerald-100">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-bold"><i className="fas fa-circle-play mr-2 text-emerald-400" />Đang dạy từ {started}</span>
+        <span>{log.slidesShown.length} nội dung trình chiếu</span>
+        <span>{log.videosPlayed.length} video</span>
+        <span>{log.gamesRun.length} hoạt động game</span>
+        <span>{log.attendanceTaken ? 'Đã liên kết điểm danh' : 'Chưa điểm danh'}</span>
+      </div>
+      <Button variant="secondary" className="!py-1.5" onClick={onFinish}>Kết thúc & tổng kết</Button>
     </div>
   );
 }
@@ -417,6 +536,31 @@ function TeachingGameDock({ classId, minimized, onToggleMinimized, onClose }: { 
   );
 }
 
+function FinishSessionModal({ log, onClose, onFinish }: { log: TeachingLog; onClose: () => void; onFinish: (notes: string) => Promise<void> }) {
+  const [notes, setNotes] = useState(log.notes);
+  const [busy, setBusy] = useState(false);
+  async function finish() {
+    setBusy(true);
+    try { await onFinish(notes); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể kết thúc phiên dạy'); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Modal open onClose={onClose} title="Tổng kết phiên dạy">
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
+          <span>Trình chiếu: <b>{log.slidesShown.length}</b></span>
+          <span>Video: <b>{log.videosPlayed.length}</b></span>
+          <span>Game: <b>{log.gamesRun.length}</b></span>
+          <span>Điểm danh: <b>{log.attendanceTaken ? 'Đã liên kết' : 'Chưa có'}</b></span>
+        </div>
+        <div><Label>Ghi chú sau tiết học</Label><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nội dung đã hoàn thành, điểm cần ôn tập, việc cần theo dõi…" maxLength={5000} /></div>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Hủy</Button><Button onClick={() => void finish()} disabled={busy}>{busy ? 'Đang lưu…' : 'Kết thúc phiên'}</Button></div>
+      </div>
+    </Modal>
+  );
+}
+
 function CreateSessionModal({
   classId,
   initialTeachingPlanItemId,
@@ -426,7 +570,7 @@ function CreateSessionModal({
   classId: string;
   initialTeachingPlanItemId?: string;
   onClose: () => void;
-  onCreated: () => Promise<void>;
+  onCreated: (attendanceSessionId: string) => Promise<void>;
 }) {
   const today = toISODate(new Date());
   const [date, setDate] = useState(today);
@@ -438,7 +582,7 @@ function CreateSessionModal({
   async function submit() {
     setBusy(true);
     try {
-      await api(`/classes/${classId}/attendance/sessions`, {
+      const created = await api<{ id: string }>(`/classes/${classId}/attendance/sessions`, {
         method: 'POST',
         body: JSON.stringify({
           date,
@@ -450,7 +594,7 @@ function CreateSessionModal({
       });
       toast.success('Đã tạo buổi học');
       onClose();
-      await onCreated();
+      await onCreated(created.id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi');
     } finally {

@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+.verify-dist/
 *.tsbuildinfo
 
 # Runtime data (database, media, secrets, backups)

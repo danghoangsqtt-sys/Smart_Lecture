@@ -84,3 +84,11 @@
 - [x] Xử lý cảnh báo accessibility và iframe sandbox/autoplay trong React Doctor (full-scan còn 0 accessibility/security).
 - [x] Code-split bundle chính: entry 528.06 kB → 209.53 kB; SheetJS tải theo chunk riêng.
 - [x] Cổng ổn định UI đạt React Doctor full-scan 100/100; có thể lập milestone mở rộng game/UI tiếp theo sau persistence review.
+
+## Phase 9 — Teaching Session v1 ✅
+
+- [x] Phiên dạy có thể bắt đầu, tiếp tục sau refresh và kết thúc có ghi chú.
+- [x] Liên kết một phiên với lớp, môn, mục giáo án và buổi điểm danh; chặn liên kết sai lớp.
+- [x] Tự ghi nhận nội dung đã trình chiếu, video/tài liệu đã mở và game đã mở từ chế độ giảng dạy.
+- [x] Hiển thị tiến độ và tổng kết phiên gần nhất ngay trên màn hình giảng dạy.
+- [x] Regression E2E cho lifecycle phiên dạy và quyền truy cập.
