@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Post-lesson Insights v1
+
+- Thêm tổng quan theo lớp/môn từ nhật ký dạy, học liệu, game, điểm danh và tiến độ chương trình.
+
 ## Unreleased — Teaching Session v1
 
 - Bổ sung lifecycle phiên dạy được lưu, tiếp tục sau refresh và tổng kết sau tiết.

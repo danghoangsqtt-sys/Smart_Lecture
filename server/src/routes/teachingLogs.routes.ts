@@ -112,6 +112,72 @@ router.get(
 );
 
 router.get(
+  '/classes/:classId/teaching-logs/summary',
+  h(async (req, res) => {
+    const cls = getClassOrThrowLocal(String(req.params.classId));
+    const user = (req as AuthedRequest).user!;
+    if (!canManageLog(user, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem tổng quan giảng dạy');
+    const subjectId = typeof req.query.subjectId === 'string' ? req.query.subjectId : undefined;
+    if (subjectId) assertLogReferencesBelongToClass(cls.id, { subjectId });
+    let sql = `SELECT l.*, ci.topic AS curriculum_topic, s.name AS subject_name
+      FROM teaching_logs l
+      LEFT JOIN curriculum_items ci ON ci.id = l.curriculum_item_id
+      LEFT JOIN subjects s ON s.id = l.subject_id
+      WHERE l.class_id = ?`;
+    const params: string[] = [cls.id];
+    if (subjectId) { sql += ' AND l.subject_id = ?'; params.push(subjectId); }
+    sql += ' ORDER BY l.started_at DESC LIMIT 200';
+    const logs = db.prepare(sql).all(...params) as unknown as Array<TeachingLogRow & { curriculum_topic: string | null; subject_name: string | null }>;
+    const slideIds = new Set<string>();
+    const videoIds = new Set<string>();
+    const gameIds = new Set<string>();
+    const attendanceIds = new Set<string>();
+    let totalDurationMinutes = 0;
+    let completedSessions = 0;
+    for (const log of logs) {
+      for (const id of JSON.parse(log.slides_shown || '[]') as string[]) slideIds.add(id);
+      for (const id of JSON.parse(log.videos_played || '[]') as string[]) videoIds.add(id);
+      for (const id of JSON.parse(log.games_run || '[]') as string[]) gameIds.add(id);
+      if (log.attendance_session_id) attendanceIds.add(log.attendance_session_id);
+      if (log.ended_at) {
+        completedSessions += 1;
+        totalDurationMinutes += Math.max(0, Math.round((new Date(log.ended_at).getTime() - new Date(log.started_at).getTime()) / 60_000));
+      }
+    }
+    let progressSql = `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN ci.status = 'completed' THEN 1 ELSE 0 END), 0) AS completed
+      FROM curriculum_items ci JOIN teaching_plans tp ON tp.id = ci.teaching_plan_id WHERE tp.class_id = ?`;
+    const progressParams: string[] = [cls.id];
+    if (subjectId) { progressSql += ' AND tp.subject_id = ?'; progressParams.push(subjectId); }
+    const progress = db.prepare(progressSql).get(...progressParams) as { total: number; completed: number };
+    res.json({
+      summary: {
+        sessionCount: logs.length,
+        activeSessionCount: logs.length - completedSessions,
+        completedSessionCount: completedSessions,
+        totalDurationMinutes,
+        attendanceLinkedCount: attendanceIds.size,
+        uniqueSlidesShown: slideIds.size,
+        uniqueVideosPlayed: videoIds.size,
+        uniqueGamesRun: gameIds.size,
+        curriculumTotal: progress.total,
+        curriculumCompleted: progress.completed,
+        curriculumProgressPercent: progress.total ? Math.round(progress.completed / progress.total * 100) : 0,
+      },
+      recent: logs.slice(0, 6).map((log) => ({
+        id: log.id,
+        subjectName: log.subject_name,
+        curriculumTopic: log.curriculum_topic,
+        startedAt: log.started_at,
+        endedAt: log.ended_at,
+        attendanceTaken: log.attendance_taken === 1,
+        activityCount: (JSON.parse(log.slides_shown || '[]') as string[]).length + (JSON.parse(log.videos_played || '[]') as string[]).length + (JSON.parse(log.games_run || '[]') as string[]).length,
+        notes: log.notes,
+      })),
+    });
+  })
+);
+
+router.get(
   '/classes/:classId/teaching-logs',
   h(async (req, res) => {
     const cls = getClassOrThrowLocal(String(req.params.classId));

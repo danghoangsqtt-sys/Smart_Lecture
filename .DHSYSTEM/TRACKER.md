@@ -49,6 +49,12 @@
 |---|---|---|---|---|
 | T-901 | Phiên dạy liền mạch: lifecycle, telemetry nội dung, điểm danh/game và tổng kết | P9 | done | typecheck + E2E 86/86 + regression 14/14 + Socket 10/10 + restore restart |
 
+## Phase 10 — Post-lesson Insights v1
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1001 | Tổng quan sau tiết học theo lớp/môn trong Teaching Hub | P10 | done | typecheck + E2E 86/86 + regression 16/16 + Socket 10/10 + restore restart |
+
 ## Session log
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
 - `CircuitCanvas` publish thay đổi theo event, tách editor engine/render và ổn định callback cho component memo.

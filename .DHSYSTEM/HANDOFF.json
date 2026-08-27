@@ -1,9 +1,9 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.6.0-teaching-session",
+  "version": "0.7.0-post-lesson-insights",
   "created": "2026-08-23",
-  "status": "phase-9-completed",
+  "status": "phase-10-completed",
   "phase_current": "next-milestone-planning",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Lập milestone tiếp theo: dashboard phân tích sau tiết học hoặc mở rộng game theo cùng Teaching Session v1."
+  "next_action": "Lập milestone mở rộng game dựa trên dữ liệu Post-lesson Insights hoặc cải thiện báo cáo xuất sau tiết học."
 }

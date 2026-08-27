@@ -92,3 +92,9 @@
 - [x] Tự ghi nhận nội dung đã trình chiếu, video/tài liệu đã mở và game đã mở từ chế độ giảng dạy.
 - [x] Hiển thị tiến độ và tổng kết phiên gần nhất ngay trên màn hình giảng dạy.
 - [x] Regression E2E cho lifecycle phiên dạy và quyền truy cập.
+
+## Phase 10 — Post-lesson Insights v1 ✅
+
+- [x] API tóm tắt theo lớp/môn từ nhật ký phiên dạy và tiến độ chương trình.
+- [x] Teaching Hub hiển thị chỉ số hành động cùng các phiên gần đây.
+- [x] Regression E2E cho quyền xem và số liệu tổng kết.

@@ -103,6 +103,10 @@ if (classId) {
   const closedTeachingSession = await request('PATCH', `/teaching-logs/${sessionId}`, teacherToken, { endedAt: new Date().toISOString(), notes: 'Regression session' });
   const afterClosingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
   check('teaching session closes and clears active session', closedTeachingSession.status === 200 && afterClosingSession.data?.log === null);
+  const insights = await request('GET', `/classes/${classId}/teaching-logs/summary?subjectId=${subjectId}`, teacherToken);
+  const deniedInsights = await request('GET', `/classes/${classId}/teaching-logs/summary`, studentToken);
+  check('post-lesson insights aggregate scoped session data', insights.status === 200 && insights.data?.summary?.completedSessionCount >= 1 && insights.data?.summary?.uniqueSlidesShown >= 1 && insights.data?.recent?.[0]?.notes === 'Regression session');
+  check('student cannot read teacher post-lesson insights', deniedInsights.status === 403);
 
   const traversal = await request('POST', `/subjects/${subjectId}/pending-files/ingest`, teacherToken, {
     filenames: ['../../package.json'], mode: 'new-lecture-per-file',
