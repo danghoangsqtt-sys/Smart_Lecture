@@ -41,7 +41,7 @@
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
 | T-801 | React accessibility, correctness và bundle code-splitting | P8 | done | Doctor 47 changed / 42 full + typecheck + production build |
-| T-802 | Tách component/reducer và chuẩn hóa Socket disposer cho game | P8 | doing | code verified local; Doctor full 100; persistence pending |
+| T-802 | Tách component/reducer và chuẩn hóa Socket disposer cho game | P8 | done | Doctor full 100 + E2E + commit `9428836` pushed |
 
 ## Session log
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
@@ -50,7 +50,7 @@
 - Dọn stable key, transition, helper module-scope, handler-only state và 7 export thừa đã xác minh không có consumer.
 - React Doctor changed-scope/full-scan 100/100, 0 issue trên 42 file.
 - Verify: root typecheck, production build entry 209.78 kB, REST 82/82, Socket 10/10, restore restart và diff check đều pass.
-- Persistence pending: chưa commit/push worktree lớn khi chưa duyệt quyền sở hữu toàn bộ thay đổi.
+- Persistence complete: commit triển khai `9428836` đã đẩy lên `origin/main`; artefact PID runtime được gitignore.
 
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 4)
 - Tách `CreateGameTab` theo câu hỏi, Ô chữ, ngữ cảnh, mode và mạch; component chính giảm 484 → 234 dòng.

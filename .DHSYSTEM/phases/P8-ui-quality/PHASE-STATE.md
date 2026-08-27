@@ -1,9 +1,9 @@
 # P8 — Chất lượng UI và hiệu năng
 
-- Trạng thái: `verified_local` — code hoàn tất, chờ persistence review/commit
+- Trạng thái: `completed`
 - Bắt đầu: 2026-08-27
 - Task hoàn tất: `T-801-react-quality`
-- Task hiện tại: `T-802-game-component-architecture` — checkpoint 5 verify hoàn tất
+- Task hiện tại: `T-802-game-component-architecture` — hoàn tất
 - Baseline React Doctor: 41/100, 2 errors, 64 warnings.
 
 ## Mục tiêu batch 1
@@ -66,4 +66,4 @@
 - Sửa ngày local, stable key, transition theo thuộc tính, helper module-scope, handler-only state và export thừa.
 - React Doctor changed-scope/full-scan đạt 100/100, không còn issue trên 42 file.
 - Root typecheck, production build (entry 209.78 kB), REST 82/82, Socket 10/10 và restore restart đều pass.
-- Cổng code đã hoàn tất; chỉ còn persistence review vì worktree lớn chưa được commit/push tự động.
+- Cổng persistence đã đóng bằng commit triển khai `9428836` trên `origin/main`.

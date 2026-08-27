@@ -78,7 +78,7 @@
 - [x] Sửa Đua toán, lịch lặp, media audit và metadata câu hỏi.
 - [x] DB test riêng, E2E idempotent và CI.
 
-## Phase 8 — Mở rộng sau ổn định
+## Phase 8 — Chất lượng UI sau ổn định ✅
 
 - [x] Tách `GamePlayPage`/`GamesPage` thành reducer + component theo từng game; chuẩn hóa lifecycle Socket.
 - [x] Xử lý cảnh báo accessibility và iframe sandbox/autoplay trong React Doctor (full-scan còn 0 accessibility/security).

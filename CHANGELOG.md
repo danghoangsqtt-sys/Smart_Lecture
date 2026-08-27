@@ -6,7 +6,7 @@
 - Tách engine/render mạch điện, chế độ giảng dạy, chi tiết lớp và cài đặt thành component nhỏ hơn.
 - Sửa callback-effect, ngày local, stable key, animation quá rộng, handler-only state và export thừa.
 - React Doctor changed/full đạt 100/100; typecheck, production build, REST 82/82, Socket 10/10 và restore restart đều pass.
-- Trạng thái hiện tại là verified-local; persistence review/commit vẫn đang chờ.
+- Commit triển khai `9428836` đã được đẩy lên `origin/main`; Phase 7–8 hoàn tất.
 
 ## 2026-08-27 — Stability foundation
 

@@ -5,7 +5,7 @@
 - Mục tiêu: loại bỏ xung đột API/quyền, bảo vệ dữ liệu và game realtime, sửa các lỗi nghiệp vụ đã xác nhận, sau đó đưa E2E cô lập vào CI.
 - Task hiện tại: `T-701-stability`
 - Checkpoint: `verified-2026-08-27`
-- Ghi chú Git: worktree đã có nhiều thay đổi chưa commit từ các phiên trước; không tự động commit/tag để tránh trộn hoặc ghi đè công việc của người dùng.
+- Ghi chú Git: thay đổi Phase 7–8 đã qua kiểm toán persistence và được đẩy trong commit `9428836`.
 
 ## Cổng hoàn thành
 

@@ -1,6 +1,6 @@
 # T-802 — Kiến trúc component và state cho game
 
-- Status: `verified_local` — chờ persistence review/commit
+- Status: `done`
 
 ## Objective
 
@@ -83,6 +83,8 @@ Giảm độ phức tạp của `GamePlayPage` và `GamesPage` mà không thay �
 - `web/src/stores/toastStore.ts`
 - `.gitignore`
 - `README.md`
+- `.DHSYSTEM/phases/P7-stability/SUMMARY.md`
+- `.DHSYSTEM/phases/P8-ui-quality/SUMMARY.md`
 - `.DHSYSTEM/phases/P8-ui-quality/tasks/T-802-game-component-architecture.md`
 - `.DHSYSTEM/phases/P8-ui-quality/PHASE-STATE.md`
 - `.DHSYSTEM/TRACKER.md`
@@ -100,6 +102,7 @@ Giảm độ phức tạp của `GamePlayPage` và `GamesPage` mà không thay �
 - Tài liệu DHSYSTEM/CHANGELOG/ROADMAP: cập nhật sau mỗi checkpoint đã verify.
 - `.gitignore`: loại PID runtime của dev server khỏi phạm vi persistence nhưng không dừng tiến trình đang chạy.
 - `README.md`: đồng bộ lệnh E2E, số lượng kiểm tra và trạng thái chất lượng của milestone trước khi persistence.
+- `P7/P8 SUMMARY.md`: ghi bằng chứng hoàn thành, commit triển khai và điều kiện bàn giao cho milestone tiếp theo.
 
 ### Best practices
 
@@ -125,4 +128,4 @@ Giảm độ phức tạp của `GamePlayPage` và `GamesPage` mà không thay �
 - Sửa stable key, animation theo thuộc tính, helper module-scope, state chỉ dùng trong handler và xóa export đã xác minh không có consumer.
 - React Doctor changed-scope và full-scan đều đạt 100/100, 0 issue trên 42 file.
 - Verify: root typecheck pass; Vite production build pass, entry 209.78 kB; REST 82/82; Socket 10/10; restore restart pass; `git diff --check` pass.
-- Persistence gate chưa đóng: worktree chứa khối thay đổi lớn từ nhiều checkpoint nên không tự commit/push khi chưa được người dùng duyệt phạm vi.
+- Persistence gate đã đóng: commit triển khai `9428836` đã được đẩy lên `origin/main`; PID runtime, data và env không nằm trong commit.
