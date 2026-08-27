@@ -217,7 +217,7 @@ function authenticate(socket: Socket): SocketPayload | null {
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
     const user = getUserById(payload.sub);
-    if (!user || user.status === 'locked') return null;
+    if (!user || user.status === 'locked' || user.must_change_password === 1) return null;
     return { userId: user.id, role: user.role };
   } catch {
     return null;

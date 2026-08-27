@@ -30,7 +30,7 @@ async function api(method, path, token, body) {
 console.log('=== SOCKET REALTIME TEST ===');
 
 // --- self-seed qua REST ---
-const adminToken = await login('admin', 'admin123');
+const adminToken = await login('admin', 'Admin@123456');
 if (!adminToken) {
   console.error('FATAL: không đăng nhập được admin');
   process.exit(1);
@@ -38,7 +38,7 @@ if (!adminToken) {
 await api('POST', '/users', adminToken, {
   username: 'teacher.hoa', password: 'Gv@123456', role: 'teacher', displayName: 'Co Hoa',
 }).catch(() => undefined);
-const teacherToken = await login('teacher.hoa', 'Gv@123456');
+const teacherToken = await login('teacher.hoa', 'Gv@654321');
 await api('POST', '/users/import', teacherToken, {
   rows: [
     { displayName: 'Nguyen Van Anh', username: 'anh' },
@@ -65,9 +65,11 @@ for (const content of ['So 1 + 1 = ?', 'So 2 x 3 = ?']) {
   qIds.push(await mkQ(content));
 }
 
-const anToken = await login('anh', 'Hocvien@123');
+const anToken = await login('anh', 'Anh@123456');
 const binhToken = await login('binh', 'Hocvien@123');
 const dungToken = await login('dung', 'Hocvien@123');
+await api('POST', '/auth/change-password', binhToken, { oldPassword: 'Hocvien@123', newPassword: 'Binh@123456' });
+await api('POST', '/auth/change-password', dungToken, { oldPassword: 'Hocvien@123', newPassword: 'Dung@123456' });
 const classResult = await api('POST', '/classes', teacherToken, {
   name: `Socket Test ${Date.now()}`,
   subject: 'Kiểm thử realtime',
@@ -134,7 +136,7 @@ await new Promise((resolve) => {
     finishedPodium = d.podium;
     finish();
   });
-  setTimeout(finish, 15000);
+  setTimeout(finish, 4000);
 
   host.emit('game:host-attach', { sessionId: game.id });
   setTimeout(() => {
@@ -175,7 +177,7 @@ let finishedWait = new Promise((resolve) => {
 host.emit('game:host-next'); // hết giờ / hiện đáp án Q2
 await sleep(700);
 host.emit('game:host-next'); // sang bước tiếp theo ⇒ finish
-finishedPodium = await Promise.race([finishedWait, sleep(8000).then(() => null)]);
+finishedPodium = await Promise.race([finishedWait, sleep(3000).then(() => null)]);
 check(`game finished with podium (${finishedPodium ? finishedPodium.length : 0})`, Array.isArray(finishedPodium) && finishedPodium.length >= 2);
 
 host.disconnect();

@@ -111,6 +111,15 @@ router.post(
     if (!NO_QUESTIONS.includes(d.gameType) && (!d.questionIds || d.questionIds.length === 0)) {
       throw new HttpError(400, 'BAD_INPUT', 'Game này cần ít nhất 1 câu hỏi');
     }
+    if (d.questionIds?.length) {
+      if (new Set(d.questionIds).size !== d.questionIds.length) throw new HttpError(400, 'BAD_QUESTIONS', 'Không được chọn trùng câu hỏi');
+      const accessible = db
+        .prepare(`SELECT COUNT(*) AS c FROM questions WHERE id IN (${d.questionIds.map(() => '?').join(',')}) AND (owner_id = ? OR is_public_bank = 1)`)
+        .get(...d.questionIds, authed.user.id) as { c: number };
+      if (accessible.c !== d.questionIds.length) {
+        throw new HttpError(400, 'BAD_QUESTIONS', 'Một số câu hỏi không tồn tại hoặc bạn không có quyền sử dụng');
+      }
+    }
     if (d.gameType === 'crossword') {
       if (!d.puzzle) throw new HttpError(400, 'BAD_INPUT', 'Ô chữ cần dữ liệu puzzle');
       const key = d.puzzle.keyword.toUpperCase();
@@ -223,6 +232,9 @@ router.post(
     if (parsed.data.examId) {
       const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(parsed.data.examId) as GameRow | undefined;
       if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy bài tập');
+      const config = JSON.parse(exam.config_json || '{}') as { classId?: string | null; class_id?: string | null };
+      const examClassId = config.class_id ?? config.classId ?? null;
+      if (examClassId !== cls.id) throw new HttpError(403, 'FORBIDDEN', 'Bài tập không thuộc lớp đã chọn');
       const submitted = queryAll<{ student_id: string }>(
         "SELECT DISTINCT student_id FROM exam_results WHERE exam_id = ? AND status = 'submitted'",
         exam.id

@@ -5,6 +5,7 @@ import { db, queryAll, queryOne } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { generatePaper, type BankQuestion, type PaperQuestion, type AnswerKeyEntry } from '../services/examEngine.js';
+import { canManageClass, getClassOrThrow } from '../utils/access.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -128,11 +129,20 @@ router.post(
     const authed = req as AuthedRequest;
     const parsed = upsertSchema.safeParse(req.body);
     if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Thông tin đề thi không hợp lệ');
-    const owned = db
-      .prepare(`SELECT COUNT(*) AS c FROM questions WHERE id IN (${parsed.data.questionIds.map(() => '?').join(',')})`)
-      .get(...parsed.data.questionIds) as { c: number };
-    if (owned.c !== parsed.data.questionIds.length) {
-      throw new HttpError(400, 'BAD_QUESTIONS', 'Một số câu hỏi không tồn tại hoặc đã bị xóa');
+    if (new Set(parsed.data.questionIds).size !== parsed.data.questionIds.length) {
+      throw new HttpError(400, 'BAD_QUESTIONS', 'Không được chọn trùng câu hỏi');
+    }
+    const accessible = db
+      .prepare(`SELECT COUNT(*) AS c FROM questions WHERE id IN (${parsed.data.questionIds.map(() => '?').join(',')}) AND (owner_id = ? OR is_public_bank = 1)`)
+      .get(...parsed.data.questionIds, authed.user.id) as { c: number };
+    if (accessible.c !== parsed.data.questionIds.length) {
+      throw new HttpError(400, 'BAD_QUESTIONS', 'Một số câu hỏi không tồn tại hoặc bạn không có quyền sử dụng');
+    }
+    if (parsed.data.config.class_id) {
+      const cls = getClassOrThrow(parsed.data.config.class_id);
+      if (!canManageClass(cls, authed.user)) {
+        throw new HttpError(403, 'FORBIDDEN', 'Không có quyền giao đề cho lớp này');
+      }
     }
     const id = randomUUID();
     db.prepare(

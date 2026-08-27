@@ -35,7 +35,7 @@ export default function Layout() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const navigate = useNavigate();
-  const [pwOpen, setPwOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(user?.mustChangePassword ?? false);
   const [guideOpen, setGuideOpen] = useState(false);
 
   if (!user) return <Navigate to="/login" replace />;
@@ -106,13 +106,13 @@ export default function Layout() {
         <main className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">{<Outlet />}</main>
       </div>
 
-      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
+      <ChangePasswordModal open={pwOpen} required={user.mustChangePassword} onClose={() => setPwOpen(false)} />
       <ContextGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }
 
-function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ChangePasswordModal({ open, required, onClose }: { open: boolean; required: boolean; onClose: () => void }) {
   const [oldPassword, setOld] = useState('');
   const [newPassword, setNew] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,12 +132,12 @@ function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Đổi mật khẩu">
+    <Modal open={open} onClose={required ? () => undefined : onClose} title="Đổi mật khẩu">
       <div className="space-y-3">
         <div><Label>Mật khẩu hiện tại</Label><Input type="password" value={oldPassword} onChange={(e) => setOld(e.target.value)} /></div>
         <div><Label>Mật khẩu mới (tối thiểu 6 ký tự)</Label><Input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} /></div>
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="ghost" onClick={onClose}>Hủy</Button>
+          {!required && <Button variant="ghost" onClick={onClose}>Hủy</Button>}
           <Button variant="primary" onClick={submit} disabled={busy || newPassword.length < 6}>
             {busy ? 'Đang lưu…' : 'Lưu'}
           </Button>

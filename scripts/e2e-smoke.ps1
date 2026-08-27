@@ -47,6 +47,11 @@ $loginAdmin = Req POST "/auth/login" $null @{ username = "admin"; password = "ad
 $admin = $loginAdmin.data.token
 Check "Admin login" ($admin.Length -gt 50)
 
+$adminBlocked = Req GET "/users" $admin
+Check "Default admin must change password" ($adminBlocked.ok -eq $false -and $adminBlocked.status -eq 403 -and $adminBlocked.code -eq "PASSWORD_CHANGE_REQUIRED")
+$adminPw = Req POST "/auth/change-password" $admin @{ oldPassword = "admin123"; newPassword = "Admin@123456" }
+Check "Admin changes default password" ($adminPw.ok)
+
 $badLogin = Req POST "/auth/login" $null @{ username = "admin"; password = "wrongpass" }
 Check ("Wrong password rejected (status={0})" -f $badLogin.status) ($badLogin.ok -eq $false -and $badLogin.status -eq 401)
 
@@ -57,6 +62,8 @@ Check "Create teacher" ($r1.ok -and $r1.data.user.role -eq "teacher")
 $tLogin = Req POST "/auth/login" $null @{ username = "teacher.hoa"; password = "Gv@123456" }
 $teacherToken = $tLogin.data.token
 Check "Teacher login" ($teacherToken.Length -gt 50)
+$teacherPw = Req POST "/auth/change-password" $teacherToken @{ oldPassword = "Gv@123456"; newPassword = "Gv@654321" }
+Check "Teacher changes temporary password" ($teacherPw.ok)
 
 $r2 = Req POST "/users" $teacherToken @{ username = "t2x"; password = "x1234567"; role = "teacher"; displayName = "GV2" }
 Check ("Teacher cannot create teacher (status={0} code={1})" -f $r2.status, $r2.code) ($r2.ok -eq $false -and $r2.status -eq 403)
@@ -151,6 +158,8 @@ $anLogin = Req POST "/auth/login" $null @{ username = "anh"; password = "Hocvien
 $anToken = $anLogin.data.token
 if (-not $anLogin.ok) { Write-Host ("   DEBUG student login: status={0} code={1} msg={2}" -f $anLogin.status, $anLogin.code, $anLogin.message) -ForegroundColor Yellow }
 Check "Student login temp password" ($anToken.Length -gt 50)
+$anPw = Req POST "/auth/change-password" $anToken @{ oldPassword = "Hocvien@123"; newPassword = "Anh@123456" }
+Check "Student changes temporary password" ($anPw.ok)
 
 $avail = Req GET "/exams/available" $anToken
 if (-not $avail.ok -or $avail.data.exams.Count -lt 1) { Write-Host ("   DEBUG available: ok={0} status={1} count={2}" -f $avail.ok, $avail.status, $avail.data.exams.Count) -ForegroundColor Yellow }

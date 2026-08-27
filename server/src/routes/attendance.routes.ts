@@ -58,6 +58,21 @@ const createSessionSchema = z.object({
   teachingPlanItemId: z.string().nullable().optional(),
 });
 
+function isValidIsoDate(value: string): boolean {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function assertTeachingPlanItemBelongsToClass(itemId: string | null | undefined, classId: string): void {
+  if (!itemId) return;
+  const item = db.prepare(
+    `SELECT 1 FROM curriculum_items ci
+     JOIN teaching_plans tp ON tp.id = ci.teaching_plan_id
+     WHERE ci.id = ? AND tp.class_id = ?`
+  ).get(itemId, classId);
+  if (!item) throw new HttpError(400, 'BAD_INPUT', 'Mục chương trình không thuộc lớp của buổi học');
+}
+
 router.post(
   '/classes/:classId/attendance/sessions',
   requireRole('teacher', 'admin'),
@@ -66,6 +81,8 @@ router.post(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền tạo buổi học');
     const parsed = createSessionSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Ngày học không hợp lệ (YYYY-MM-DD)');
+    if (!isValidIsoDate(parsed.data.date)) throw new HttpError(400, 'BAD_INPUT', 'Ngày học không hợp lệ (YYYY-MM-DD)');
+    assertTeachingPlanItemBelongsToClass(parsed.data.teachingPlanItemId, cls.id);
     const exists = db.prepare('SELECT 1 FROM attendance_sessions WHERE class_id = ? AND session_date = ?').get(cls.id, parsed.data.date);
     if (exists) throw new HttpError(409, 'SESSION_EXISTS', 'Đã có buổi học của ngày này trong lớp');
     const id = randomUUID();
@@ -104,6 +121,7 @@ router.patch(
     const teachingType = parsed.data.teachingType ?? session.teaching_type;
     const remark = parsed.data.remark ?? session.remark;
     const teachingPlanItemId = parsed.data.teachingPlanItemId !== undefined ? parsed.data.teachingPlanItemId : session.teaching_plan_item_id;
+    assertTeachingPlanItemBelongsToClass(teachingPlanItemId, cls.id);
     db.prepare('UPDATE attendance_sessions SET periods_total = ?, note = ?, teaching_type = ?, remark = ?, teaching_plan_item_id = ? WHERE id = ?').run(
       periodsTotal,
       note,
@@ -206,6 +224,21 @@ router.put(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền điểm danh lớp này');
     const parsed = recordsSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu điểm danh không hợp lệ');
+    const enrolledStudentIds = new Set(
+      (db.prepare('SELECT student_id FROM enrollments WHERE class_id = ?').all(session.class_id) as { student_id: string }[])
+        .map((row) => row.student_id)
+    );
+    const seen = new Set<string>();
+    for (const record of parsed.data.records) {
+      if (!enrolledStudentIds.has(record.studentId)) {
+        throw new HttpError(400, 'BAD_INPUT', 'Có học viên không thuộc lớp của buổi học');
+      }
+      if (seen.has(record.studentId)) throw new HttpError(400, 'BAD_INPUT', 'Danh sách điểm danh có học viên trùng lặp');
+      seen.add(record.studentId);
+      if (record.periodsAbsent > session.periods_total) {
+        throw new HttpError(400, 'BAD_INPUT', 'Số tiết vắng không được vượt số tiết của buổi học');
+      }
+    }
     const upsert = db.prepare(
       `INSERT INTO attendance_records (session_id, student_id, status, periods_absent, reason) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(session_id, student_id) DO UPDATE SET status = excluded.status, periods_absent = excluded.periods_absent, reason = excluded.reason`

@@ -31,6 +31,26 @@ interface ConflictInfo {
   endAt: string;
 }
 
+function isValidDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parts = value.split('-');
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}
+
+function isValidTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function isValidLocalDateTime(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value)) return false;
+  const [date] = value.split('T');
+  return !!date && isValidDate(date) && !Number.isNaN(new Date(value).getTime());
+}
+
 function getEventOrThrow(id: string): EventRow {
   const row = db.prepare('SELECT * FROM schedule_events WHERE id = ?').get(id) as EventRow | undefined;
   if (!row) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy sự kiện');
@@ -108,6 +128,9 @@ router.post(
     const user = (req as AuthedRequest).user!;
     const parsed = eventSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ');
+    if (!isValidLocalDateTime(parsed.data.startAt) || !isValidLocalDateTime(parsed.data.endAt)) {
+      throw new HttpError(400, 'BAD_INPUT', 'Thời gian sự kiện không hợp lệ');
+    }
     if (parsed.data.startAt >= parsed.data.endAt) throw new HttpError(400, 'BAD_INPUT', 'Giờ kết thúc phải sau giờ bắt đầu');
     if (parsed.data.classId) {
       const cls = getClassOrThrow(parsed.data.classId);
@@ -153,6 +176,9 @@ router.post(
     const parsed = recurringSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ');
     const { startDate, endDate, daysOfWeek, startTime, endTime } = parsed.data;
+    if (!isValidDate(startDate) || !isValidDate(endDate) || !isValidTime(startTime) || !isValidTime(endTime)) {
+      throw new HttpError(400, 'BAD_INPUT', 'Ngày hoặc giờ lặp không hợp lệ');
+    }
     if (startTime >= endTime) throw new HttpError(400, 'BAD_INPUT', 'Giờ kết thúc phải sau giờ bắt đầu');
     if (startDate > endDate) throw new HttpError(400, 'BAD_INPUT', 'Ngày kết thúc phải sau ngày bắt đầu');
     if (parsed.data.classId) {
@@ -221,6 +247,9 @@ router.patch(
     const endAt = parsed.data.endAt ?? event.end_at;
     const note = parsed.data.note ?? event.note;
     const classId = parsed.data.classId !== undefined ? parsed.data.classId : event.class_id;
+    if (!isValidLocalDateTime(startAt) || !isValidLocalDateTime(endAt)) {
+      throw new HttpError(400, 'BAD_INPUT', 'Thời gian sự kiện không hợp lệ');
+    }
     if (startAt >= endAt) throw new HttpError(400, 'BAD_INPUT', 'Giờ kết thúc phải sau giờ bắt đầu');
     db.prepare('UPDATE schedule_events SET title=?, event_type=?, room=?, start_at=?, end_at=?, note=?, class_id=? WHERE id=?').run(
       title,

@@ -98,12 +98,32 @@ const createGameSchema = z.object({
   questionIds: z.array(z.string()).default([]),
 });
 
+function assertPreparedGameScope(
+  classId: string | null | undefined,
+  subjectId: string | null | undefined,
+  user: NonNullable<AuthedRequest['user']>
+): void {
+  if (classId) {
+    const cls = getClassOrThrow(classId);
+    if (!canManageClass(cls, user)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với lớp này');
+  }
+  if (!subjectId) return;
+  const subject = db.prepare('SELECT class_id FROM subjects WHERE id = ?').get(subjectId) as { class_id: string } | undefined;
+  if (!subject) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy môn học');
+  if (classId && subject.class_id !== classId) throw new HttpError(400, 'BAD_INPUT', 'Môn học không thuộc lớp đã chọn');
+  if (!canManageClass(getClassOrThrow(subject.class_id), user)) {
+    throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với môn học này');
+  }
+}
+
 router.post(
   '/prepared-games',
+  requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const user = (req as AuthedRequest).user!;
     const parsed = createGameSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
+    assertPreparedGameScope(parsed.data.classId, parsed.data.subjectId, user);
     const id = randomUUID();
     db.prepare(
       `INSERT INTO prepared_games (id, teacher_id, subject_id, class_id, game_type, title, config_json, question_ids_json)
@@ -124,17 +144,21 @@ router.post(
 
 router.patch(
   '/prepared-games/:gameId',
+  requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const game = getPreparedGameOrThrow(String(req.params.gameId));
     const user = (req as AuthedRequest).user!;
     if (game.teacher_id !== user.id && user.role !== 'admin') throw new HttpError(403, 'FORBIDDEN', 'Không có quyền sửa');
     const parsed = createGameSchema.partial().safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
+    const classId = parsed.data.classId !== undefined ? parsed.data.classId : game.class_id;
+    const subjectId = parsed.data.subjectId !== undefined ? parsed.data.subjectId : game.subject_id;
+    assertPreparedGameScope(classId, subjectId, user);
     db.prepare(
       `UPDATE prepared_games SET subject_id = ?, class_id = ?, game_type = ?, title = ?, config_json = ?, question_ids_json = ? WHERE id = ?`
     ).run(
-      parsed.data.subjectId ?? game.subject_id,
-      parsed.data.classId ?? game.class_id,
+      subjectId,
+      classId,
       parsed.data.gameType ?? game.game_type,
       parsed.data.title ?? game.title,
       JSON.stringify(parsed.data.config ?? JSON.parse(game.config_json || '{}')),
@@ -147,6 +171,7 @@ router.patch(
 
 router.delete(
   '/prepared-games/:gameId',
+  requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const game = getPreparedGameOrThrow(String(req.params.gameId));
     const user = (req as AuthedRequest).user!;
@@ -158,6 +183,7 @@ router.delete(
 
 router.post(
   '/prepared-games/:gameId/launch',
+  requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const game = getPreparedGameOrThrow(String(req.params.gameId));
     const user = (req as AuthedRequest).user!;

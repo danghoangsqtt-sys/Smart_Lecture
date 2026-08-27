@@ -20,6 +20,10 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
       res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
       return;
     }
+    if (row.must_change_password === 1 && !(req.baseUrl.endsWith('/auth') && req.path === '/change-password')) {
+      res.status(403).json({ error: { code: 'PASSWORD_CHANGE_REQUIRED', message: 'Bạn cần đổi mật khẩu trước khi tiếp tục.' } });
+      return;
+    }
     req.user = toPublicUser(row);
     next();
   } catch {
@@ -39,6 +43,10 @@ export function requireAuthFlexible(req: AuthedRequest, res: Response, next: Nex
     const row = getUserById(payload.sub);
     if (!row || row.status === 'locked') {
       res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
+      return;
+    }
+    if (row.must_change_password === 1) {
+      res.status(403).json({ error: { code: 'PASSWORD_CHANGE_REQUIRED', message: 'Bạn cần đổi mật khẩu trước khi tiếp tục.' } });
       return;
     }
     req.user = toPublicUser(row);

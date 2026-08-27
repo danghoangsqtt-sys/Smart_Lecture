@@ -121,9 +121,11 @@ export function startBackupScheduler(): void {
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     if (now.getHours() === BACKUP_HOUR && lastBackupDay !== today) {
       createBackup('daily')
-        .then((name) => console.log(`[backup] created ${name}`))
+        .then((name) => {
+          lastBackupDay = today;
+          console.log(`[backup] created ${name}`);
+        })
         .catch((err) => console.error('[backup] failed:', err));
-      lastBackupDay = today;
     }
   }, 60_000);
 }

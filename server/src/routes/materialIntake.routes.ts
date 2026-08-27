@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { readdirSync, statSync } from 'node:fs';
-import { db } from '../db/connection.js';
-import { DROP_DIR } from '../config.js';
+import { readdirSync, realpathSync, statSync, unlinkSync } from 'node:fs';
+import { db, tx } from '../db/connection.js';
+import { DROP_DIR, MEDIA_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, getClassOrThrow } from '../utils/access.js';
@@ -78,6 +78,14 @@ router.post(
     }
 
     const dir = path.join(DROP_DIR, subject.id);
+    let pendingFilenames: Set<string>;
+    let resolvedDropDir: string;
+    try {
+      pendingFilenames = new Set(readdirSync(dir));
+      resolvedDropDir = realpathSync(dir);
+    } catch {
+      throw new HttpError(400, 'BAD_INPUT', 'Thư mục tài liệu chờ nhập không tồn tại');
+    }
     const recordIngested = db.prepare('INSERT OR IGNORE INTO intake_ingested (subject_id, filename) VALUES (?, ?)');
     const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM lectures WHERE class_id = ?');
     const insertLecture = db.prepare('INSERT INTO lectures (id, class_id, subject_id, chapter, title, description, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -87,30 +95,45 @@ router.post(
 
     for (const filename of parsed.data.filenames) {
       try {
+        if (path.basename(filename) !== filename || path.isAbsolute(filename) || !pendingFilenames.has(filename)) {
+          throw new Error('Tệp không nằm trong thư mục chờ nhập của môn học');
+        }
         const ext = path.extname(filename).toLowerCase();
         const meta = ALLOWED_EXT[ext];
         if (!meta) throw new Error(`Định dạng không hỗ trợ: ${ext}`);
         const sourcePath = path.join(dir, filename);
         const stat = statSync(sourcePath);
-
-        let lectureId = parsed.data.lectureId ?? '';
-        if (parsed.data.mode === 'new-lecture-per-file') {
-          lectureId = randomUUID();
-          const order = (maxOrder.get(subject.class_id) as { m: number }).m + 1;
-          insertLecture.run(lectureId, subject.class_id, subject.id, '', path.basename(filename, ext), '', order);
+        const resolvedSource = realpathSync(sourcePath);
+        const relativeSource = path.relative(resolvedDropDir, resolvedSource);
+        if (relativeSource.startsWith('..') || path.isAbsolute(relativeSource) || !stat.isFile()) {
+          throw new Error('Tệp không hợp lệ');
         }
 
+        let lectureId = parsed.data.lectureId ?? '';
         const storedFilename = copyIntoMediaDir(sourcePath, filename);
-        const materialId = insertMaterial({
-          lectureId,
-          type: meta.type,
-          title: path.basename(filename, ext),
-          filePath: storedFilename,
-          originalName: filename,
-          mimeType: meta.mime,
-          sizeBytes: stat.size,
-        });
-        recordIngested.run(subject.id, filename);
+        let materialId = '';
+        try {
+          tx(() => {
+            if (parsed.data.mode === 'new-lecture-per-file') {
+              lectureId = randomUUID();
+              const order = (maxOrder.get(subject.class_id) as { m: number }).m + 1;
+              insertLecture.run(lectureId, subject.class_id, subject.id, '', path.basename(filename, ext), '', order);
+            }
+            materialId = insertMaterial({
+              lectureId,
+              type: meta.type,
+              title: path.basename(filename, ext),
+              filePath: storedFilename,
+              originalName: filename,
+              mimeType: meta.mime,
+              sizeBytes: stat.size,
+            });
+            recordIngested.run(subject.id, filename);
+          });
+        } catch (error) {
+          try { unlinkSync(path.join(MEDIA_DIR, storedFilename)); } catch { /* best effort */ }
+          throw error;
+        }
         void maybeConvertPptx(lectureId, meta.type, storedFilename, filename, materialId);
         created.push({ filename, lectureId, materialId });
       } catch (err) {

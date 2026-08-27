@@ -151,10 +151,10 @@ router.patch(
       parsed.data.title ?? plan.title,
       parsed.data.script ?? plan.script,
       parsed.data.plannedDuration ?? plan.planned_duration,
-      parsed.data.slideMaterialId ?? plan.slide_material_id,
-      parsed.data.videoMaterialId ?? plan.video_material_id,
-      parsed.data.gameSessionId ?? plan.game_session_id,
-      parsed.data.questionSetId ?? plan.question_set_id,
+      parsed.data.slideMaterialId !== undefined ? parsed.data.slideMaterialId : plan.slide_material_id,
+      parsed.data.videoMaterialId !== undefined ? parsed.data.videoMaterialId : plan.video_material_id,
+      parsed.data.gameSessionId !== undefined ? parsed.data.gameSessionId : plan.game_session_id,
+      parsed.data.questionSetId !== undefined ? parsed.data.questionSetId : plan.question_set_id,
       plan.id
     );
     res.json({ ok: true });

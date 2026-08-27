@@ -184,6 +184,22 @@ const itemSchema = z.object({
   lectureId: z.string().nullable().optional(),
 });
 
+const itemUpdateSchema = z.object({
+  week: z.number().int().min(1).max(52).nullable().optional(),
+  chapter: z.string().max(120).optional(),
+  topic: z.string().min(1).max(300).optional(),
+  plannedPeriods: z.number().int().min(1).max(50).optional(),
+  lectureId: z.string().nullable().optional(),
+  completedPeriods: z.number().int().min(0).max(50).optional(),
+  status: z.enum(['pending', 'in_progress', 'completed']).optional(),
+});
+
+function assertLectureBelongsToPlanClass(lectureId: string | null | undefined, plan: TeachingPlanRow): void {
+  if (!lectureId) return;
+  const lecture = db.prepare('SELECT 1 FROM lectures WHERE id = ? AND class_id = ?').get(lectureId, plan.class_id);
+  if (!lecture) throw new HttpError(400, 'BAD_INPUT', 'Bài giảng không thuộc lớp của chương trình');
+}
+
 router.post(
   '/teaching-plans/:planId/items',
   h(async (req, res) => {
@@ -191,6 +207,7 @@ router.post(
     if (!canManagePlan(plan, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền thêm mục');
     const parsed = itemSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
+    assertLectureBelongsToPlanClass(parsed.data.lectureId, plan);
     const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM curriculum_items WHERE teaching_plan_id = ?').get(plan.id) as { m: number };
     const id = randomUUID();
     db.prepare('INSERT INTO curriculum_items (id, teaching_plan_id, week, chapter, topic, planned_periods, sort_order, lecture_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
@@ -206,14 +223,27 @@ router.patch(
     const item = getItemOrThrow(String(req.params.itemId));
     const plan = getPlanOrThrow(item.teaching_plan_id);
     if (!canManagePlan(plan, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền sửa');
-    const parsed = itemSchema.partial().safeParse(req.body);
+    const parsed = itemUpdateSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
+    if (parsed.data.lectureId !== undefined) assertLectureBelongsToPlanClass(parsed.data.lectureId, plan);
+    const plannedPeriods = parsed.data.plannedPeriods ?? item.planned_periods;
+    let completedPeriods = Math.min(parsed.data.completedPeriods ?? item.completed_periods, plannedPeriods);
+    let status = parsed.data.status;
+    if (status === 'pending') completedPeriods = 0;
+    if (status === 'in_progress') completedPeriods = Math.max(1, completedPeriods);
+    if (status === 'completed') completedPeriods = plannedPeriods;
+    if (!status) status = completedPeriods >= plannedPeriods ? 'completed' : completedPeriods > 0 ? 'in_progress' : 'pending';
     db.prepare('UPDATE curriculum_items SET week = ?, chapter = ?, topic = ?, planned_periods = ?, lecture_id = ?, updated_at = datetime(\'now\') WHERE id = ?').run(
-      parsed.data.week ?? item.week,
+      parsed.data.week !== undefined ? parsed.data.week : item.week,
       parsed.data.chapter ?? item.chapter,
       parsed.data.topic ?? item.topic,
-      parsed.data.plannedPeriods ?? item.planned_periods,
-      parsed.data.lectureId ?? item.lecture_id,
+      plannedPeriods,
+      parsed.data.lectureId !== undefined ? parsed.data.lectureId : item.lecture_id,
+      item.id
+    );
+    db.prepare('UPDATE curriculum_items SET completed_periods = ?, status = ?, updated_at = datetime(\'now\') WHERE id = ?').run(
+      completedPeriods,
+      status,
       item.id
     );
     res.json({ ok: true });

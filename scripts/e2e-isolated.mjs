@@ -66,6 +66,7 @@ try {
   await waitForServer();
   await run(powerShellCommand(), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/e2e-smoke.ps1']);
   await run(process.execPath, ['scripts/socket-test.mjs']);
+  await run(process.execPath, ['scripts/e2e-regressions.mjs']);
   await stopServer(server);
   server = startServer();
   await waitForServer();
@@ -75,7 +76,7 @@ try {
   const loginResponse = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+    body: JSON.stringify({ username: 'admin', password: 'Admin@123456' }),
   });
   if (!loginResponse.ok) throw new Error('Restored database did not accept the admin login');
   console.log('Restore restart check PASS');

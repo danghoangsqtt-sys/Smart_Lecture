@@ -870,7 +870,7 @@ router.patch(
     const parsed = groupUpsertSchema.partial().safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
     const name = parsed.data.name ?? group.name;
-    const color = parsed.data.color ?? '#3b82f6';
+    const color = parsed.data.color ?? group.color;
     db.prepare('UPDATE class_groups SET name = ?, color = ? WHERE id = ?').run(name, color, group.id);
     res.json({ ok: true });
   })
