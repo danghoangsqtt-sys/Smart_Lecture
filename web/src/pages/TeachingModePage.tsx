@@ -269,7 +269,6 @@ export default function TeachingModePage() {
             onModeChange={(nextMode) => {
               if (nextMode === 'game') {
                 setGameDockOpen(true); setGameDockMinimized(false);
-                void recordTeachingAction('game', 'game-dock');
                 return;
               }
               const actionKind = nextMode === 'slides' ? 'slide' : nextMode === 'video' ? 'video' : null;
@@ -295,9 +294,11 @@ export default function TeachingModePage() {
       {gameDockOpen && (
         <TeachingGameDock
           classId={classId}
+          subjectId={subjectId ?? ''}
           minimized={gameDockMinimized}
           onToggleMinimized={() => setGameDockMinimized((value) => !value)}
           onClose={() => setGameDockOpen(false)}
+          onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
       {finishModalOpen && activeLog && (
@@ -521,7 +522,7 @@ function TeachingControls({
   );
 }
 
-function TeachingGameDock({ classId, minimized, onToggleMinimized, onClose }: { classId: string; minimized: boolean; onToggleMinimized: () => void; onClose: () => void }) {
+function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, onClose, onGameLaunched }: { classId: string; subjectId: string; minimized: boolean; onToggleMinimized: () => void; onClose: () => void; onGameLaunched: (gameId: string) => void }) {
   return (
     <div className={`fixed bottom-4 right-4 z-[60] overflow-hidden rounded-lg border border-blue-400 bg-slate-950 shadow-2xl transition-[height,width] duration-300 ${minimized ? 'h-12 w-64' : 'h-[min(78vh,720px)] w-[min(94vw,1100px)]'}`}>
       <div className="flex h-12 items-center justify-between bg-blue-900 px-3 text-white">
@@ -531,7 +532,7 @@ function TeachingGameDock({ classId, minimized, onToggleMinimized, onClose }: { 
           <button onClick={onClose} className="rounded px-2 py-1 text-xs hover:bg-white/15" title="Đóng game"><i className="fas fa-xmark" /></button>
         </div>
       </div>
-      <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} /></Suspense></div>
+      <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
     </div>
   );
 }
@@ -554,7 +555,7 @@ function FinishSessionModal({ log, onClose, onFinish }: { log: TeachingLog; onCl
           <span>Game: <b>{log.gamesRun.length}</b></span>
           <span>Điểm danh: <b>{log.attendanceTaken ? 'Đã liên kết' : 'Chưa có'}</b></span>
         </div>
-        <div><Label>Ghi chú sau tiết học</Label><textarea className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nội dung đã hoàn thành, điểm cần ôn tập, việc cần theo dõi…" maxLength={5000} /></div>
+        <div><Label>Ghi chú sau tiết học</Label><textarea aria-label="Ghi chú sau tiết học" className="min-h-28 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Nội dung đã hoàn thành, điểm cần ôn tập, việc cần theo dõi…" maxLength={5000} /></div>
         <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Hủy</Button><Button onClick={() => void finish()} disabled={busy}>{busy ? 'Đang lưu…' : 'Kết thúc phiên'}</Button></div>
       </div>
     </Modal>

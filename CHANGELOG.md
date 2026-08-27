@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Game telemetry trong phiên dạy
+
+- Chỉ ghi nhận game có phiên thật, đúng lớp/môn vào nhật ký dạy; không còn dùng dấu hiệu giao diện `game-dock`.
+- Game dock của Teaching Mode khóa lớp của tiết đang dạy; tổng quan hiển thị tên game đã dùng.
+
 ## Unreleased — Post-lesson Insights v1
 
 - Thêm tổng quan theo lớp/môn từ nhật ký dạy, học liệu, game, điểm danh và tiến độ chương trình.

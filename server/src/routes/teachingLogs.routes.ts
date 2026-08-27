@@ -27,6 +27,14 @@ interface TeachingLogRow {
   notes: string;
 }
 
+interface TeachingGameRow {
+  id: string;
+  class_id: string | null;
+  subject_id: string | null;
+  game_type: string;
+  config_json: string;
+}
+
 function getClassOrThrowLocal(id: string) {
   const row = db.prepare('SELECT * FROM classes WHERE id = ?').get(id) as { id: string; teacher_id: string; name: string } | undefined;
   if (!row) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy lớp học');
@@ -100,6 +108,28 @@ function getLogOrThrow(id: string): TeachingLogRow {
   return log;
 }
 
+function getTeachingGames(log: TeachingLogRow): Array<{ id: string; title: string; gameType: string }> {
+  const ids = [...new Set(JSON.parse(log.games_run || '[]') as string[])];
+  if (ids.length === 0) return [];
+  const rows = db.prepare(
+    `SELECT id, class_id, subject_id, game_type, config_json FROM game_sessions
+     WHERE id IN (${ids.map(() => '?').join(', ')}) AND class_id = ?`
+  ).all(...ids, log.class_id) as unknown as TeachingGameRow[];
+  return rows
+    .filter((game) => !log.subject_id || game.subject_id === log.subject_id)
+    .map((game) => {
+      const config = JSON.parse(game.config_json || '{}') as { title?: unknown };
+      return { id: game.id, title: typeof config.title === 'string' && config.title.trim() ? config.title : game.game_type, gameType: game.game_type };
+    });
+}
+
+function assertGameBelongsToLog(gameId: string, log: TeachingLogRow): void {
+  const game = db.prepare('SELECT id, class_id, subject_id FROM game_sessions WHERE id = ?').get(gameId) as Pick<TeachingGameRow, 'id' | 'class_id' | 'subject_id'> | undefined;
+  if (!game || game.class_id !== log.class_id || (log.subject_id && game.subject_id !== log.subject_id)) {
+    throw new HttpError(400, 'BAD_INPUT', 'Game không thuộc lớp hoặc môn của phiên dạy');
+  }
+}
+
 router.get(
   '/classes/:classId/teaching-logs/active',
   h(async (req, res) => {
@@ -137,7 +167,7 @@ router.get(
     for (const log of logs) {
       for (const id of JSON.parse(log.slides_shown || '[]') as string[]) slideIds.add(id);
       for (const id of JSON.parse(log.videos_played || '[]') as string[]) videoIds.add(id);
-      for (const id of JSON.parse(log.games_run || '[]') as string[]) gameIds.add(id);
+      for (const game of getTeachingGames(log)) gameIds.add(game.id);
       if (log.attendance_session_id) attendanceIds.add(log.attendance_session_id);
       if (log.ended_at) {
         completedSessions += 1;
@@ -170,7 +200,8 @@ router.get(
         startedAt: log.started_at,
         endedAt: log.ended_at,
         attendanceTaken: log.attendance_taken === 1,
-        activityCount: (JSON.parse(log.slides_shown || '[]') as string[]).length + (JSON.parse(log.videos_played || '[]') as string[]).length + (JSON.parse(log.games_run || '[]') as string[]).length,
+        activityCount: (JSON.parse(log.slides_shown || '[]') as string[]).length + (JSON.parse(log.videos_played || '[]') as string[]).length + getTeachingGames(log).length,
+        games: getTeachingGames(log),
         notes: log.notes,
       })),
     });
@@ -303,6 +334,7 @@ router.post(
     if (!canManageLog((req as AuthedRequest).user!, log.class_id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền ghi nhận hoạt động');
     const parsed = actionSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Hoạt động không hợp lệ');
+    if (parsed.data.kind === 'game') assertGameBelongsToLog(parsed.data.id, log);
     const column = parsed.data.kind === 'slide' ? 'slides_shown' : parsed.data.kind === 'video' ? 'videos_played' : 'games_run';
     const current = JSON.parse(log[column] || '[]') as string[];
     const next = current.includes(parsed.data.id) ? current : [...current, parsed.data.id];

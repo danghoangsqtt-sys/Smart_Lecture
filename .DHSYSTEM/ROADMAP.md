@@ -98,3 +98,9 @@
 - [x] API tóm tắt theo lớp/môn từ nhật ký phiên dạy và tiến độ chương trình.
 - [x] Teaching Hub hiển thị chỉ số hành động cùng các phiên gần đây.
 - [x] Regression E2E cho quyền xem và số liệu tổng kết.
+
+## Phase 11 — Game telemetry trong phiên dạy ✅
+
+- [x] Ghi nhận ID và tên game thực tế khi được khởi tạo từ Teaching Mode, không ghi mốc giao diện chung.
+- [x] Khóa ngữ cảnh lớp trong Game dock để không trộn game của lớp khác vào một phiên dạy.
+- [x] Tổng quan sau tiết hiển thị các game đã dùng dưới tên dễ đọc và có regression cho liên kết này.

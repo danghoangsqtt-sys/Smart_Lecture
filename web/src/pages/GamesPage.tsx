@@ -66,7 +66,7 @@ function createSimulationChallenge(): SimulationChallengeDraft {
   return { id: nextDraftId('simulation-challenge'), title: '', description: '', points: 100, tpl: null };
 }
 
-interface SessionInfo {
+export interface GameSessionInfo {
   id: string;
   gameType: string;
   roomCode: string;
@@ -206,10 +206,25 @@ function guideFor(mode: GameMode): GameGuide {
   return GAME_GUIDES.activity;
 }
 
-export default function GamesPage({ initialClassId = '' }: { initialClassId?: string }) {
+export default function GamesPage({
+  initialClassId = '',
+  initialSubjectId = '',
+  lockedClassId = '',
+  onGameLaunched,
+}: {
+  initialClassId?: string;
+  initialSubjectId?: string;
+  lockedClassId?: string;
+  onGameLaunched?: (session: GameSessionInfo) => void;
+}) {
   const [tab, setTab] = useState<GameMode | 'picker' | 'saved'>('quick_quiz');
-  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [session, setSession] = useState<GameSessionInfo | null>(null);
   const [guideMode, setGuideMode] = useState<GameMode | null>(() => shouldHideGameGuides() ? null : 'quick_quiz');
+
+  function launchSession(nextSession: GameSessionInfo) {
+    setSession(nextSession);
+    onGameLaunched?.(nextSession);
+  }
 
   function selectGame(mode: GameMode) {
     setTab(mode);
@@ -247,11 +262,11 @@ export default function GamesPage({ initialClassId = '' }: { initialClassId?: st
       {tab === 'picker' ? (
         <RandomPickerTab />
       ) : tab === 'saved' ? (
-        <PreparedGamesTab onLaunched={setSession} />
+        <PreparedGamesTab onLaunched={launchSession} initialClassId={lockedClassId || initialClassId} initialSubjectId={initialSubjectId} lockedClassId={lockedClassId} />
       ) : (
         <>
           <Card className="mb-4 p-4 text-sm text-slate-600">{MODE_META[tab].desc}</Card>
-          <CreateGameTab key={tab} mode={tab} initialClassId={initialClassId} onCreated={setSession} />
+          <CreateGameTab key={tab} mode={tab} initialClassId={lockedClassId || initialClassId} initialSubjectId={initialSubjectId} lockedClassId={lockedClassId} onCreated={launchSession} />
         </>
       )}
       {guideMode && <GameGuideModal mode={guideMode} onClose={closeGuide} />}
@@ -259,7 +274,7 @@ export default function GamesPage({ initialClassId = '' }: { initialClassId?: st
   );
 }
 
-function CreateGameTab({ mode, initialClassId, onCreated }: { mode: GameMode; initialClassId: string; onCreated: (session: SessionInfo) => void }) {
+function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, onCreated }: { mode: GameMode; initialClassId: string; initialSubjectId: string; lockedClassId: string; onCreated: (session: GameSessionInfo) => void }) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [secondsPerQuestion, setSeconds] = useState(20);
@@ -267,16 +282,16 @@ function CreateGameTab({ mode, initialClassId, onCreated }: { mode: GameMode; in
   const [difficulty, setDifficulty] = useState(1);
   const [pointsPerCorrect, setPointsPerCorrect] = useState<0.25 | 0.5 | 1>(0.5);
   const [lockOnStart, setLockOnStart] = useState(false);
-  const [selectedClassId, setSelectedClassId] = useState(initialClassId);
+  const [selectedClassId, setSelectedClassId] = useState(lockedClassId || initialClassId);
   const [subjects, setSubjects] = useState<SubjectInfo[]>([]);
-  const [subjectId, setSubjectId] = useState('');
+  const [subjectId, setSubjectId] = useState(initialSubjectId);
   const [chapter, setChapter] = useState('');
   const [title, setTitle] = useState(MODE_META[mode].label);
   const classes = useMyClasses();
   const location = useLocation();
   const routeState = location.state as { classId?: string } | null;
   const routeClassId = routeState?.classId ?? new URLSearchParams(location.search).get('classId') ?? '';
-  const classId = selectedClassId || routeClassId || classes[0]?.id || '';
+  const classId = lockedClassId || selectedClassId || routeClassId || classes[0]?.id || '';
   const [puzzleKeyword, setPuzzleKeyword] = useState('');
   const [puzzleRows, setPuzzleRows] = useState<PuzzleRowDraft[]>(() => [createPuzzleRow(), createPuzzleRow()]);
   const [loading, setLoading] = useState(mode !== 'math_race');
@@ -308,6 +323,7 @@ function CreateGameTab({ mode, initialClassId, onCreated }: { mode: GameMode; in
     .sort((a, b) => a.localeCompare(b, 'vi'));
 
   function selectClass(nextClassId: string) {
+    if (lockedClassId) return;
     setSelectedClassId(nextClassId);
     setSubjectId('');
     setChapter('');
@@ -450,6 +466,7 @@ function CreateGameTab({ mode, initialClassId, onCreated }: { mode: GameMode; in
         mode={mode}
         title={title}
         classId={classId}
+        classLocked={Boolean(lockedClassId)}
         classes={classes}
         subjectId={subjectId}
         subjects={subjects}
@@ -603,6 +620,7 @@ interface GameSettingsCardProps {
   mode: GameMode;
   title: string;
   classId: string;
+  classLocked: boolean;
   classes: ClassOption[];
   subjectId: string;
   subjects: SubjectInfo[];
@@ -635,7 +653,7 @@ interface GameSettingsCardProps {
 
 function GameSettingsCard(props: GameSettingsCardProps) {
   const {
-    mode, title, classId, classes, subjectId, subjects, chapter, chapters,
+    mode, title, classId, classLocked, classes, subjectId, subjects, chapter, chapters,
     secondsPerQuestion, durationSec, difficulty, pointsPerCorrect, lockOnStart,
     template, challenges, canSubmit, onTitleChange, onClassChange, onSubjectChange,
     onChapterChange, onSecondsChange, onDurationChange, onDifficultyChange,
@@ -645,7 +663,7 @@ function GameSettingsCard(props: GameSettingsCardProps) {
   return (
     <Card className={`h-fit p-5 ${mode === 'math_race' ? 'mx-auto w-full max-w-md lg:col-span-2' : ''}`}>
       <GameContextFields
-        title={title} classId={classId} classes={classes} subjectId={subjectId}
+        title={title} classId={classId} classLocked={classLocked} classes={classes} subjectId={subjectId}
         subjects={subjects} chapter={chapter} chapters={chapters}
         onTitleChange={onTitleChange} onClassChange={onClassChange}
         onSubjectChange={onSubjectChange} onChapterChange={onChapterChange}
@@ -691,9 +709,9 @@ function GameSettingsCard(props: GameSettingsCardProps) {
 
 function GameContextFields({
   title, classId, classes, subjectId, subjects, chapter, chapters,
-  onTitleChange, onClassChange, onSubjectChange, onChapterChange,
+  classLocked, onTitleChange, onClassChange, onSubjectChange, onChapterChange,
 }: Pick<GameSettingsCardProps,
-  'title' | 'classId' | 'classes' | 'subjectId' | 'subjects' | 'chapter' | 'chapters'
+  'title' | 'classId' | 'classLocked' | 'classes' | 'subjectId' | 'subjects' | 'chapter' | 'chapters'
   | 'onTitleChange' | 'onClassChange' | 'onSubjectChange' | 'onChapterChange'
 >) {
   return (
@@ -701,7 +719,7 @@ function GameContextFields({
       <div><Label>Tên phiên game</Label><Input value={title} onChange={(event) => onTitleChange(event.target.value)} maxLength={200} /></div>
       <div>
         <Label>Lớp học</Label>
-        <Select value={classId} onChange={(event) => onClassChange(event.target.value)}>
+        <Select value={classId} onChange={(event) => onClassChange(event.target.value)} disabled={classLocked}>
           <option value="">— Chưa gắn lớp —</option>
           {classes.map((classItem) => <option key={classItem.id} value={classItem.id}>{classItem.name}</option>)}
         </Select>
@@ -1046,7 +1064,7 @@ function useHostConsoleEffects(
   return socketRef;
 }
 
-function HostConsole({ session }: { session: SessionInfo }) {
+function HostConsole({ session }: { session: GameSessionInfo }) {
   const navigate = useNavigate();
   const [state, setField] = useFieldReducer(createHostConsoleState);
   const {
@@ -1301,7 +1319,7 @@ function HostSandboxViews({
   onQuizNext,
   onCircuitVerify,
 }: {
-  session: SessionInfo;
+  session: GameSessionInfo;
   state: HostConsoleState;
   onQuizNext: () => void;
   onCircuitVerify: (userId: string, correct: boolean) => void;
@@ -1521,16 +1539,19 @@ function toCanvasData(c: any): CircuitData {
   };
 }
 
-function PreparedGamesTab({ onLaunched }: { onLaunched: (session: SessionInfo) => void }) {
+function PreparedGamesTab({ onLaunched, initialClassId, initialSubjectId, lockedClassId }: { onLaunched: (session: GameSessionInfo) => void; initialClassId: string; initialSubjectId: string; lockedClassId: string }) {
   const [games, setGames] = useState<PreparedGame[]>([]);
-  const [classId, setClassId] = useState('');
+  const [classId, setClassId] = useState(initialClassId);
   const [loading, setLoading] = useState(true);
   const classes = useMyClasses();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const query = classId ? `?classId=${encodeURIComponent(classId)}` : '';
+      const params = new URLSearchParams();
+      if (classId) params.set('classId', classId);
+      if (initialSubjectId) params.set('subjectId', initialSubjectId);
+      const query = params.size ? `?${params}` : '';
       const res = await api<{ preparedGames: PreparedGame[] }>(`/prepared-games${query}`);
       setGames(res.preparedGames);
     } catch (e) {
@@ -1538,7 +1559,7 @@ function PreparedGamesTab({ onLaunched }: { onLaunched: (session: SessionInfo) =
     } finally {
       setLoading(false);
     }
-  }, [classId]);
+  }, [classId, initialSubjectId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -1546,7 +1567,7 @@ function PreparedGamesTab({ onLaunched }: { onLaunched: (session: SessionInfo) =
     try {
       const res = await api<{ id: string; roomCode: string }>(`/prepared-games/${game.id}/launch`, {
         method: 'POST',
-        body: JSON.stringify({ classId: game.classId ?? undefined, subjectId: game.subjectId ?? undefined }),
+        body: JSON.stringify({ classId: lockedClassId || game.classId || undefined, subjectId: initialSubjectId || game.subjectId || undefined }),
       });
       toast.success(`Đã tạo phòng ${res.roomCode}`);
       onLaunched({
@@ -1576,7 +1597,7 @@ function PreparedGamesTab({ onLaunched }: { onLaunched: (session: SessionInfo) =
     <div>
       <div className="mb-4 max-w-xs">
         <Label>Lọc theo lớp</Label>
-        <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+        <Select value={classId} onChange={(e) => setClassId(e.target.value)} disabled={Boolean(lockedClassId)}>
           <option value="">Tất cả lớp</option>
           {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>

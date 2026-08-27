@@ -97,15 +97,19 @@ if (classId) {
   check('teaching session starts and resumes idempotently', teachingSession.status === 201 && resumedTeachingSession.status === 200 && resumedTeachingSession.data?.id === sessionId && resumedTeachingSession.data?.resumed === true);
   await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'slide', id: lecture.data?.id });
   const repeatedAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'slide', id: lecture.data?.id });
-  await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: 'game-dock' });
+  const teachingGame = await request('POST', '/games', teacherToken, {
+    gameType: 'math_race', title: 'Math race in teaching log', classId, subjectId, durationSec: 120, difficulty: 1,
+  });
+  const trackedGameAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: teachingGame.data?.id });
+  const invalidGameAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: 'not-a-game' });
   const activeTeachingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
-  check('teaching actions persist without duplicates', repeatedAction.status === 200 && activeTeachingSession.data?.log?.slidesShown?.length === 1 && activeTeachingSession.data?.log?.gamesRun?.includes('game-dock'));
+  check('teaching actions persist only real class game sessions without duplicates', repeatedAction.status === 200 && trackedGameAction.status === 200 && invalidGameAction.status === 400 && activeTeachingSession.data?.log?.slidesShown?.length === 1 && activeTeachingSession.data?.log?.gamesRun?.includes(teachingGame.data?.id));
   const closedTeachingSession = await request('PATCH', `/teaching-logs/${sessionId}`, teacherToken, { endedAt: new Date().toISOString(), notes: 'Regression session' });
   const afterClosingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);
   check('teaching session closes and clears active session', closedTeachingSession.status === 200 && afterClosingSession.data?.log === null);
   const insights = await request('GET', `/classes/${classId}/teaching-logs/summary?subjectId=${subjectId}`, teacherToken);
   const deniedInsights = await request('GET', `/classes/${classId}/teaching-logs/summary`, studentToken);
-  check('post-lesson insights aggregate scoped session data', insights.status === 200 && insights.data?.summary?.completedSessionCount >= 1 && insights.data?.summary?.uniqueSlidesShown >= 1 && insights.data?.recent?.[0]?.notes === 'Regression session');
+  check('post-lesson insights aggregate scoped game activity', insights.status === 200 && insights.data?.summary?.completedSessionCount >= 1 && insights.data?.summary?.uniqueSlidesShown >= 1 && insights.data?.summary?.uniqueGamesRun >= 1 && insights.data?.recent?.[0]?.games?.some((game) => game.id === teachingGame.data?.id && game.title === 'Math race in teaching log') && insights.data?.recent?.[0]?.notes === 'Regression session');
   check('student cannot read teacher post-lesson insights', deniedInsights.status === 403);
 
   const traversal = await request('POST', `/subjects/${subjectId}/pending-files/ingest`, teacherToken, {
