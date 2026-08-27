@@ -30,7 +30,71 @@
 ## Backlog (chưa gán phase)
 - QR code tham gia (P2) · RAG chatbot (P2) · Kéo co/đua toán/điền chỗ trống (P2) · Thống kê Azota + nhận xét AI (P2) · Auto-backup + auto-start Windows + mDNS (P3) · Tunnel opt-in + vấn đáp giọng nói (P4)
 
+## Phase 7 — Ổn định nền tảng
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-701 | Ổn định API, backup, game, nghiệp vụ, metadata câu hỏi và E2E cô lập | P7 | done | typecheck + build + REST 82/82 + Socket 10/10 + restore restart |
+
+## Phase 8 — Chất lượng UI
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-801 | React accessibility, correctness và bundle code-splitting | P8 | done | Doctor 47 changed / 42 full + typecheck + production build |
+| T-802 | Tách component/reducer và chuẩn hóa Socket disposer cho game | P8 | doing | code verified local; Doctor full 100; persistence pending |
+
 ## Session log
+### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
+- `CircuitCanvas` publish thay đổi theo event, tách editor engine/render và ổn định callback cho component memo.
+- Tách `TeachingModePage` cùng miền teaching trong `ClassDetailPage`; điểm danh dùng reducer và ngày mặc định theo local time.
+- Dọn stable key, transition, helper module-scope, handler-only state và 7 export thừa đã xác minh không có consumer.
+- React Doctor changed-scope/full-scan 100/100, 0 issue trên 42 file.
+- Verify: root typecheck, production build entry 209.78 kB, REST 82/82, Socket 10/10, restore restart và diff check đều pass.
+- Persistence pending: chưa commit/push worktree lớn khi chưa duyệt quyền sở hữu toàn bộ thay đổi.
+
+### 2026-08-27 (Phase 8 — T-802 checkpoint 4)
+- Tách `CreateGameTab` theo câu hỏi, Ô chữ, ngữ cảnh, mode và mạch; component chính giảm 484 → 234 dòng.
+- Xóa selector lớp và action Ô chữ bị trùng; khóa đường vòng tạo Ô chữ khi dữ liệu chưa hợp lệ.
+- Tách `SettingsPage` theo miền; component chính còn 155 dòng và thẻ hệ thống chỉ render cho staff.
+- React Doctor changed-scope 100/100; full-scan 62/100 với 23 cảnh báo còn lại.
+- Verify: web typecheck, production build, REST 82/82, Socket 10/10 và restore restart đều pass.
+
+### 2026-08-27 (Phase 8 — T-802 checkpoint 3)
+- Tách view theo game ở player và sandbox host; đưa Socket/QR/timer lifecycle vào hook có cleanup chính xác.
+- `GamePlayPage` giảm 586 → 226 dòng, `HostConsole` giảm còn 249 dòng; sửa câu hỏi chuẩn render trùng trong Giơ tay.
+- React Doctor changed-scope đạt 94/100, chỉ còn 2 giant component warning (`CreateGameTab`, `SettingsPage`).
+- Verify: web typecheck, production build, REST 82/82, Socket 10/10 và restore restart đều pass.
+
+### 2026-08-27 (Phase 8 — T-802 checkpoint 2)
+- Thêm `useFieldReducer`; gom toàn bộ state player và host vào `PlayerGameState`/`HostConsoleState` có kiểu.
+- Loại state/listener realtime không được sử dụng và khai báo dependency reducer tường minh.
+- React Doctor changed-scope đạt 93/100, chỉ còn 4 giant component warning; full-scan 62/100 với 27 cảnh báo, không error.
+- Verify: root typecheck, production build, REST 82/82, Socket 10/10 và restore restart đều pass.
+
+### 2026-08-27 (Phase 8 — T-802 checkpoint 1)
+- Thêm typed Socket event scope và chuyển 70 listener host/player sang disposer theo từng event; React Doctor hết 2 error cleanup.
+- Sửa auto-join URL bị state update hủy timer trước khi `join`; cờ một lần chuyển sang ref.
+- Dùng `Set` cho lookup Bingo/Memory, gộp effect chain, bỏ derived class state và thay index key bằng stable key.
+- React Doctor changed-scope 47/37 → 72/6; full-scan 42/61 → 61/29; không còn error.
+- Verify: root typecheck, production build, REST 82/82, Socket 10/10 và restore restart đều pass.
+
+### 2026-08-27 (chất lượng UI — Phase 8 batch 1)
+- Lazy-load toàn bộ route; entry bundle giảm 528.06 kB → 209.53 kB, SheetJS và màn hình lớn tách chunk.
+- Accessibility/security full-scan về 0; modal dùng native dialog, lịch dùng native button, control có nhãn rõ ràng.
+- Sửa ref mutation trong render, fetch không kiểm tra status, listener `answer:reveal` trùng và các iteration dư thừa.
+- Game dock chế độ giảng dạy render `GamesPage` lazy trực tiếp thay iframe cùng origin.
+- React Doctor: changed-scope 47/100 (37 vấn đề), full-scan 42/100 (61 vấn đề); 2 error cleanup còn lại là false-positive đã kiểm chứng bằng code.
+- Verify: root typecheck pass; Vite production build pass.
+
+### 2026-08-27 (ổn định nền tảng — Phase 7)
+- Bỏ router trùng subject/question/backup; router schedule/media/AI/RAG/system/settings mount theo prefix riêng; Zod/JSON sai trả 400 chuẩn.
+- Backup Windows không còn gọi shell; restore/delete chỉ admin, restore được stage và áp dụng an toàn lúc khởi động lại.
+- Game bắt buộc enrollment theo `game_sessions.class_id` (migration v18), mọi host event xác thực đúng host; sửa toán hạng Đua toán.
+- Sửa ngày lịch lặp theo local date và media audit theo quan hệ lecture → class → teacher.
+- Import/copy câu hỏi giữ `subjectId/chapter/lesson/difficulty`; UI import cho chọn đủ ngữ cảnh.
+- E2E chạy trên DB tạm qua `DATA_DIR`/`DB_PATH`, dọn sạch sau test và được nối vào CI.
+- Verify: typecheck pass; server/web production build pass; REST 82/82; Socket 10/10; restore restart pass.
+
 ### 2026-08-23
 - Brainstorm D1–D8 chốt; crystallize artifact set; scaffold T-001/T-002.
 
@@ -62,3 +126,9 @@
 - BTVN (homework): giao bài có hạn nộp, làm tại lớp/về nhà; thống kê đã/chưa nộp; board-questions endpoint (ẩn đáp án) phục vụ chiếu lên bảng; random-pick nhận examId → ưu tiên gọi HV CHƯA NỘP + trả về câu hỏi ngẫu nhiên không đáp án để HS lên bảng làm.
 - Phòng lab ảo (/lab): mạch logic 4 preset (half/full adder, đa số, khóa NOT-AND) đánh giá biểu thức live; mạch DC Ohm nối tiếp/song song tính I/U/P realtime + đèn phát sáng theo công suất.
 - Verify: typecheck strict PASS; build PASS; E2E mở rộng 66/66 PASS.
+
+### 2026-08-27 (game tái sử dụng + ngữ cảnh dạy học)
+- Bổ sung dữ liệu demo idempotent: 20 câu hỏi kiến thức số cơ bản, một phòng Quick Quiz và một game đã lưu để chạy lại.
+- Trang Trò chơi có tab **Lưu sẵn**: lọc theo lớp, chạy lại hoặc xóa game đã lưu. Khi tạo game, GV đặt tên và gắn lớp/môn; danh sách câu hỏi lọc theo môn đã chọn.
+- API câu hỏi hỗ trợ lưu/trả về/lọc `subjectId`, `chapter`, `lesson`, `difficulty`; API game kiểm tra quyền lớp/môn và lưu `subject_id`.
+- Verify: `npm run typecheck` PASS.

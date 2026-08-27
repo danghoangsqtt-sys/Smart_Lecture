@@ -6,10 +6,16 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export const DATA_DIR = path.resolve(__dirname, '../../data');
+export const DATA_DIR = process.env.DATA_DIR?.trim()
+  ? path.resolve(process.env.DATA_DIR)
+  : path.resolve(__dirname, '../../data');
 export const MEDIA_DIR = path.join(DATA_DIR, 'media');
 export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
-export const DB_PATH = path.join(DATA_DIR, 'smart-lecture.db');
+export const DROP_DIR = path.join(DATA_DIR, 'drop');
+export const DB_PATH = process.env.DB_PATH?.trim()
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(DATA_DIR, 'smart-lecture.db');
+export const RESTORE_PENDING_PATH = path.join(DATA_DIR, 'restore-pending.db');
 export const WEB_DIST_DIR = path.resolve(__dirname, '../../web/dist');
 
 export const PORT = Number(process.env.PORT ?? 4000);
@@ -26,7 +32,7 @@ export const NETWORK_INTERFACES: { name: string; address: string }[] = (() => {
   return result;
 })();
 
-for (const dir of [DATA_DIR, MEDIA_DIR, BACKUP_DIR]) {
+for (const dir of [DATA_DIR, MEDIA_DIR, BACKUP_DIR, DROP_DIR]) {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 }
 

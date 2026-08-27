@@ -53,7 +53,7 @@ export default function ExamResultsPage() {
       const s = await api<Stats>(`/exams/${examId}/stats`);
       setStats(s);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i táº£i káº¿t quáº£');
+      toast.error(e instanceof Error ? e.message : 'Lỗi tải kết quả');
     } finally {
       setLoading(false);
     }
@@ -71,15 +71,14 @@ export default function ExamResultsPage() {
     setAiBusyFor(row.resultId);
     try {
       const wrong = Object.entries(row.perQuestion)
-        .filter(([, p]) => p.k === false)
-        .map(([qid, p]) => row.answers[qid] ?? `(${p.s ?? 'bá» trá»‘ng'})`);
+        .flatMap(([qid, p]) => p.k === false ? [row.answers[qid] ?? `(${p.s ?? 'bỏ trống'})`] : []);
       const res = await api<{ comment: string }>('/ai/comment-student', {
         method: 'POST',
         body: JSON.stringify({ studentName: row.studentName, score: row.score, redFlags: row.redFlags, wrongQuestions: wrong.slice(0, 5) }),
       });
-      toast.success(`Nháº­n xÃ©t AI cho ${row.studentName}: ${res.comment}`);
+      toast.success(`Nhận xét AI cho ${row.studentName}: ${res.comment}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i AI');
+      toast.error(e instanceof Error ? e.message : 'Lỗi AI');
     } finally {
       setAiBusyFor(null);
     }
@@ -93,44 +92,44 @@ export default function ExamResultsPage() {
   return (
     <div>
       <PageHeader
-        title="Káº¿t quáº£ thi"
-        subtitle={`${submitted.length} bÃ i Ä‘Ã£ ná»™p Â· tá»± cáº­p nháº­t má»—i 7 giÃ¢y`}
+        title="Kết quả thi"
+        subtitle={`${submitted.length} bài đã nộp · tự cập nhật mỗi 7 giây`}
       />
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-800/60 text-left text-xs uppercase text-slate-400">
+              <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-bold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Há»c viÃªn</th>
-                  <th className="px-4 py-3">Tráº¡ng thÃ¡i</th>
-                  <th className="px-4 py-3">Äiá»ƒm</th>
-                  <th className="px-4 py-3">TL chá»</th>
-                  <th className="px-4 py-3">âš </th>
-                  <th className="px-4 py-3 text-right">Thao tÃ¡c</th>
+                  <th className="px-4 py-3">Học viên</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Điểm</th>
+                  <th className="px-4 py-3">TL chờ</th>
+                  <th className="px-4 py-3"><i className="fas fa-triangle-exclamation" /></th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-slate-200">
                 {results.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">ChÆ°a cÃ³ ai lÃ m bÃ i</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">Chưa có ai làm bài</td></tr>
                 )}
                 {results.map((r) => (
-                  <tr key={r.resultId} className="hover:bg-slate-800/40">
+                  <tr key={r.resultId} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5">{r.studentName}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={r.status === 'submitted' ? 'green' : r.status === 'in_progress' ? 'amber' : 'slate'}>
-                        {r.status === 'submitted' ? 'ÄÃ£ ná»™p' : r.status === 'in_progress' ? 'Äang thi' : 'Máº¥t káº¿t ná»‘i'}
+                        {r.status === 'submitted' ? 'Đã nộp' : r.status === 'in_progress' ? 'Đang thi' : 'Mất kết nối'}
                       </Badge>
                     </td>
-                    <td className="px-4 py-2.5 font-semibold">{r.score !== null ? r.score.toFixed(2) : 'â€”'}</td>
-                    <td className="px-4 py-2.5">{r.pendingEssays > 0 ? <span className="text-amber-400">{r.pendingEssays} cÃ¢u</span> : 'â€”'}</td>
-                    <td className="px-4 py-2.5">{r.redFlags > 0 ? <span className="text-red-400">{r.redFlags}</span> : '0'}</td>
+                    <td className="px-4 py-2.5 font-semibold">{r.score !== null ? r.score.toFixed(2) : '—'}</td>
+                    <td className="px-4 py-2.5">{r.pendingEssays > 0 ? <span className="text-amber-700">{r.pendingEssays} câu</span> : '—'}</td>
+                    <td className="px-4 py-2.5">{r.redFlags > 0 ? <span className="text-red-600">{r.redFlags}</span> : '0'}</td>
                     <td className="px-4 py-2.5 text-right">
                       {r.pendingEssays > 0 && (
-                        <button onClick={() => setGrading(r)} className="mr-1 rounded-md px-2 py-1 text-xs text-indigo-300 hover:bg-slate-800">Cháº¥m TL</button>
+                        <button onClick={() => setGrading(r)} className="mr-1 rounded-sm px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-slate-100">Chấm TL</button>
                       )}
-                      <button onClick={() => void aiComment(r)} disabled={aiBusyFor === r.resultId} className="rounded-md px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">
-                        ðŸ¤– Nháº­n xÃ©t AI
+                      <button onClick={() => void aiComment(r)} disabled={aiBusyFor === r.resultId} className="rounded-sm px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+                        <i className="fas fa-robot" /> Nhận xét AI
                       </button>
                     </td>
                   </tr>
@@ -144,15 +143,15 @@ export default function ExamResultsPage() {
           {stats && (
             <>
               <Card className="p-4">
-                <h3 className="mb-2 text-sm font-semibold text-slate-300">Phá»• Ä‘iá»ƒm ({stats.submittedCount} bÃ i)</h3>
-                <div className="mb-1 text-3xl font-bold text-indigo-300">{stats.avgScore.toFixed(2)}</div>
-                <p className="mb-3 text-xs text-slate-500">Ä‘iá»ƒm trung bÃ¬nh</p>
+                <h3 className="mb-2 text-sm font-bold text-slate-700">Phổ điểm ({stats.submittedCount} bài)</h3>
+                <div className="mb-1 text-3xl font-bold text-blue-900">{stats.avgScore.toFixed(2)}</div>
+                <p className="mb-3 text-xs text-slate-500">điểm trung bình</p>
                 <div className="flex items-end gap-1" style={{ height: 90 }}>
                   {stats.buckets.map((b) => (
                     <div key={b.range} className="flex flex-1 flex-col items-center justify-end gap-1">
                       <span className="text-[10px] text-slate-500">{b.count || ''}</span>
                       <div
-                        className="w-full rounded-t bg-gradient-to-t from-indigo-700 to-indigo-500"
+                        className="w-full rounded-t bg-gradient-to-t from-blue-900 to-blue-600"
                         style={{ height: `${(b.count / maxBucket) * 100}%`, minHeight: b.count > 0 ? 3 : 0 }}
                       />
                       <span className="text-[9px] text-slate-600">{b.range.split('-')[0]}</span>
@@ -162,12 +161,12 @@ export default function ExamResultsPage() {
               </Card>
               {stats.wrongAnalysis.length > 0 && (
                 <Card className="max-h-80 overflow-y-auto p-4">
-                  <h3 className="mb-2 text-sm font-semibold text-slate-300">CÃ¢u bá»‹ sai nhiá»u nháº¥t</h3>
+                  <h3 className="mb-2 text-sm font-bold text-slate-700">Câu bị sai nhiều nhất</h3>
                   <ul className="space-y-2 text-xs">
                     {stats.wrongAnalysis.filter((w) => w.wrong > 0).slice(0, 10).map((w) => (
-                      <li key={w.id} className="rounded-lg px-2.5 py-2 ring-1 ring-slate-800">
-                        <p className="line-clamp-2 text-slate-300">{w.content}</p>
-                        <p className="mt-1 text-red-400">{w.wrong}/{w.total} há»c viÃªn sai</p>
+                      <li key={w.id} className="rounded-sm border border-slate-200 px-2.5 py-2">
+                        <p className="line-clamp-2 text-slate-700">{w.content}</p>
+                        <p className="mt-1 text-red-600">{w.wrong}/{w.total} học viên sai</p>
                       </li>
                     ))}
                   </ul>
@@ -191,7 +190,7 @@ function EssayGraderModal({ row, essayQuestions, onClose, onSaved }: { row: Resu
 
   async function gradeOneAI(qid: string) {
     const eq = essayQuestions.find((e) => e.id === qid);
-    if (!eq) { toast.error('KhÃ´ng tÃ¬m tháº¥y ná»™i dung cÃ¢u há»i'); return; }
+    if (!eq) { toast.error('Không tìm thấy nội dung câu hỏi'); return; }
     setBusyId(qid);
     try {
       const res = await api<{ score: number; feedback: string }>('/ai/grade-essay', {
@@ -203,58 +202,59 @@ function EssayGraderModal({ row, essayQuestions, onClose, onSaved }: { row: Resu
         }),
       });
       setScores((s) => ({ ...s, [qid]: res.score }));
-      toast.info(`AI cháº¥m ${res.score}/10 â€” ${res.feedback}`);
+      toast.info(`AI chấm ${res.score}/10 — ${res.feedback}`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i AI');
+      toast.error(e instanceof Error ? e.message : 'Lỗi AI');
     } finally {
       setBusyId(null);
     }
   }
 
   async function submit() {
-    if (Object.keys(scores).length === 0) { toast.error('ChÆ°a nháº­p Ä‘iá»ƒm nÃ o'); return; }
+    if (Object.keys(scores).length === 0) { toast.error('Chưa nhập điểm nào'); return; }
     setSaving(true);
     try {
       await api(`/results/${row.resultId}/essay-scores`, { method: 'PUT', body: JSON.stringify({ scores }) });
-      toast.success('ÄÃ£ lÆ°u Ä‘iá»ƒm tá»± luáº­n');
+      toast.success('Đã lưu điểm tự luận');
       onClose();
       await onSaved();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i');
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={`Cháº¥m tá»± luáº­n â€” ${row.studentName}`} wide>
+    <Modal open onClose={onClose} title={`Chấm tự luận — ${row.studentName}`} wide>
       <div className="space-y-4">
-        {essayEntries.length === 0 && <p className="py-6 text-center text-sm text-slate-500">KhÃ´ng cÃ³ cÃ¢u tá»± luáº­n chá» cháº¥m</p>}
+        {essayEntries.length === 0 && <p className="py-6 text-center text-sm text-slate-500">Không có câu tự luận chờ chấm</p>}
         {essayEntries.map(([qid]) => {
           const eq = essayQuestions.find((e) => e.id === qid);
           return (
-            <div key={qid} className="rounded-xl p-3 ring-1 ring-slate-800">
+            <div key={qid} className="rounded-sm border border-slate-200 p-3">
               {eq && (
-                <details className="mb-2 text-xs text-slate-400">
-                  <summary className="cursor-pointer">CÃ¢u há»i &amp; Ä‘Ã¡p Ã¡n tham kháº£o</summary>
+                <details className="mb-2 text-xs text-slate-500">
+                  <summary className="cursor-pointer">Câu hỏi &amp; đáp án tham khảo</summary>
                   <p className="mt-1">{eq.content}</p>
-                  {eq.reference && <p className="mt-1 text-emerald-400">ÄÃ¡p Ã¡n: {eq.reference.slice(0, 500)}</p>}
+                  {eq.reference && <p className="mt-1 text-emerald-700">Đáp án: {eq.reference.slice(0, 500)}</p>}
                 </details>
               )}
-              <Textarea rows={4} readOnly value={row.answers[qid] ?? '(Há»c viÃªn bá» trá»‘ng)'} className="!bg-slate-950/60" />
+              <Textarea rows={4} readOnly value={row.answers[qid] ?? '(Học viên bỏ trống)'} className="!bg-slate-50" />
               <div className="mt-2 flex items-center gap-2">
-                <Label>Äiá»ƒm (0-10):&nbsp;</Label>
+                <Label>Điểm (0-10):&nbsp;</Label>
                 <input type="number" min={0} max={10} step={0.25}
+                  aria-label={`Điểm tự luận cho câu ${qid}`}
                   value={scores[qid] ?? ''}
                   onChange={(e) => setScores((s) => ({ ...s, [qid]: Number(e.target.value) }))}
-                  className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm"
+                  className="w-20 rounded-sm border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900"
                 />
-                <Button variant="secondary" onClick={() => void gradeOneAI(qid)} disabled={busyId === qid}>ðŸ¤– AI gá»£i Ã½ Ä‘iá»ƒm</Button>
+                <Button variant="secondary" onClick={() => void gradeOneAI(qid)} disabled={busyId === qid}><i className="fas fa-robot" /> AI gợi ý điểm</Button>
               </div>
             </div>
           );
         })}
-        <div className="flex justify-end"><Button onClick={() => void submit()} disabled={saving || Object.keys(scores).length === 0}>LÆ°u Ä‘iá»ƒm</Button></div>
+        <div className="flex justify-end"><Button onClick={() => void submit()} disabled={saving || Object.keys(scores).length === 0}>Lưu điểm</Button></div>
       </div>
     </Modal>
   );

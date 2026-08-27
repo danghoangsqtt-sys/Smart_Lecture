@@ -12,14 +12,22 @@ export interface ParseResult {
 }
 
 const QUESTION_RE = /^c[âa]u\s*(\d+)\s*[:\.]?\s*(.*)/i;
-const OPTION_RE = /^([A-Ha-h])\s*[\.\:\)]\s*(.*)$/;
+const OPTION_RE = /^(\*)?\s*([A-Ha-h])\s*[\.\:\)]\s*(.*)$/;
 const ANSWER_ZONE_RE = /^(đáp án|dap án|dap an|đáp an|hướng dẫn giải|huong dan giai|giải thích|giai thich)\s*[:\-]?/i;
 const ESSAY_PART_RE = /phần\s*(ii|2)|phan\s*(ii|2)|tự luận|tu luan/i;
 const MCQ_PART_RE = /phần\s*(i\b|1)|phan\s*(i\b|1)/i;
 const ANSWER_TABLE_RE = /^(?:\s*\d{1,3}\s*[A-Ha-h][\s,;\.]*){2,}$/;
+const IMG_TAG_RE = /\[img:([^\]]+)\]/i;
 
 function isVietnameseLetter(char: string): boolean {
   return /[A-Ha-h]/.test(char);
+}
+
+function stripImageTag(line: string, questionNum: number, warnings: string[]): string {
+  const m = line.match(IMG_TAG_RE);
+  if (!m) return line;
+  warnings.push(`Câu ${questionNum}: có thẻ ảnh (${m[1]}) — cần chèn ảnh thủ công sau khi import.`);
+  return line.replace(IMG_TAG_RE, '[Hình ảnh: cần chèn thủ công]');
 }
 
 export function parseExamText(input: string): ParseResult {
@@ -38,8 +46,9 @@ export function parseExamText(input: string): ParseResult {
   };
 
   for (const rawLine of lines) {
-    const line = rawLine.trim();
+    let line = rawLine.trim();
     if (!line) continue;
+    line = stripImageTag(line, questions.length + 1, warnings);
 
     if (MCQ_PART_RE.test(line) && !ESSAY_PART_RE.test(line)) {
       inEssayPart = false;
@@ -74,9 +83,14 @@ export function parseExamText(input: string): ParseResult {
     }
 
     const optMatch = !inEssayPart ? line.match(OPTION_RE) : null;
-    const optLetter = optMatch?.[1];
+    const optStar = optMatch?.[1];
+    const optLetter = optMatch?.[2];
     if (optMatch && current && optLetter && isVietnameseLetter(optLetter)) {
-      current.options.push(`${optLetter.toUpperCase()}. ${optMatch[2]?.trim() ?? ''}`);
+      const upperLetter = optLetter.toUpperCase();
+      current.options.push(`${upperLetter}. ${optMatch[3]?.trim() ?? ''}`);
+      if (optStar && current.type === 'mcq' && !current.correctAnswer) {
+        current.correctAnswer = upperLetter;
+      }
       collectingExplanation = false;
       continue;
     }
@@ -86,7 +100,7 @@ export function parseExamText(input: string): ParseResult {
     if (ANSWER_ZONE_RE.test(line)) {
       collectingExplanation = true;
       const starLetter1 = line.match(/\*\s*([A-Da-d])\b/)?.[1];
-      if (starLetter1 && current.type === 'mcq') {
+      if (starLetter1 && current.type === 'mcq' && !current.correctAnswer) {
         current.correctAnswer = starLetter1.toUpperCase();
       }
       const rest = line.replace(ANSWER_ZONE_RE, '').replace(/\*\s*[A-Da-d]\b/, '').trim();

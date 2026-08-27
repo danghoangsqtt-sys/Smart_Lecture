@@ -9,8 +9,6 @@ import { HttpError, h } from '../utils/errors.js';
 const router = Router();
 router.use(requireAuth);
 
-const TEMP_PASSWORD = 'Hocvien@123';
-
 function hashPassword(plain: string): string {
   return bcrypt.hashSync(plain, 10);
 }
@@ -23,6 +21,10 @@ interface UserRowFull {
   status: string;
   created_by: string | null;
   failed_attempts: number;
+  student_code: string | null;
+  dob: string | null;
+  gender: string | null;
+  hometown: string | null;
 }
 
 router.get(
@@ -32,7 +34,7 @@ router.get(
     const authed = req as AuthedRequest;
     const role = req.query.role as string | undefined;
     const q = ((req.query.q as string) ?? '').trim();
-    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts FROM users WHERE 1=1`;
+    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts, student_code, dob, gender, hometown FROM users WHERE 1=1`;
     const params: (string | number | null)[] = [];
     if (authed.user?.role === 'teacher') {
       sql += ` AND role = 'student' AND (created_by = ? OR id IN (SELECT student_id FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE c.teacher_id = ?))`;
@@ -56,16 +58,32 @@ const createUserBody = z.object({
   password: z.string().min(6).max(200),
   role: z.enum(['teacher', 'student']),
   displayName: z.string().min(1).max(100),
+  studentCode: z.string().trim().max(50).optional(),
+  dob: z.string().trim().max(20).optional(),
+  gender: z.string().trim().max(20).optional(),
+  hometown: z.string().trim().max(200).optional(),
 });
 
 export function insertUser(input: z.infer<typeof createUserBody>, creatorId: string): string {
   const exists = db.prepare('SELECT 1 FROM users WHERE username = ?').get(input.username);
-  if (exists) throw new HttpError(409, 'USERNAME_EXISTS', `TÃªn Ä‘Äƒng nháº­p "${input.username}" Ä‘Ã£ tá»“n táº¡i`);
+  if (exists) throw new HttpError(409, 'USERNAME_EXISTS', `Tên đăng nhập "${input.username}" đã tồn tại`);
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, input.username, hashPassword(input.password), input.role, input.displayName, input.role === 'student' ? 0 : 1, creatorId);
+    `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by, student_code, dob, gender, hometown)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id,
+    input.username,
+    hashPassword(input.password),
+    input.role,
+    input.displayName,
+    input.role === 'student' ? 0 : 1,
+    creatorId,
+    input.studentCode ?? null,
+    input.dob ?? null,
+    input.gender ?? null,
+    input.hometown ?? null
+  );
   return id;
 }
 
@@ -76,10 +94,10 @@ router.post(
     const authed = req as AuthedRequest;
     const parsed = createUserBody.safeParse(req.body);
     if (!parsed.success || !authed.user) {
-      throw new HttpError(400, 'BAD_INPUT', parsed.success ? 'Lá»—i dá»¯ liá»‡u' : (parsed.error.issues[0]?.message ?? 'Dá»¯ liá»‡u khÃ´ng há»£p lá»‡'));
+      throw new HttpError(400, 'BAD_INPUT', parsed.success ? 'Lỗi dữ liệu' : (parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ'));
     }
     if (authed.user.role === 'teacher' && parsed.data.role === 'teacher') {
-      throw new HttpError(403, 'FORBIDDEN', 'GiÃ¡o viÃªn chá»‰ Ä‘Æ°á»£c táº¡o tÃ i khoáº£n há»c viÃªn');
+      throw new HttpError(403, 'FORBIDDEN', 'Giáo viên chỉ được tạo tài khoản học viên');
     }
     const id = insertUser(parsed.data, authed.user.id);
     const row = queryOne<UserRowFull>('SELECT * FROM users WHERE id = ?', id)!
@@ -87,11 +105,16 @@ router.post(
   })
 );
 
-const importSchema = z.object({
-  rows: z
-    .array(z.object({ username: z.string().trim(), displayName: z.string().trim() }))
-    .min(1)
-    .max(200),
+const importUsersBody = z.object({
+  rows: z.array(z.object({
+    username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/),
+    displayName: z.string().min(1).max(100),
+    password: z.string().min(6).max(200).optional(),
+    studentCode: z.string().trim().max(50).optional(),
+    dob: z.string().trim().max(20).optional(),
+    gender: z.string().trim().max(20).optional(),
+    hometown: z.string().trim().max(200).optional(),
+  })).min(1).max(500),
 });
 
 router.post(
@@ -99,22 +122,53 @@ router.post(
   requireRole('admin', 'teacher'),
   h(async (req, res) => {
     const authed = req as AuthedRequest;
-    const parsed = importSchema.safeParse(req.body);
-    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Danh sÃ¡ch import khÃ´ng há»£p lá»‡');
-    const created: string[] = [];
-    const errors: { username: string; reason: string }[] = [];
-    for (const row of parsed.data.rows.slice(0, 200)) {
+    const parsed = importUsersBody.parse(req.body);
+    const ids: string[] = [];
+    const errors: { row: number; username: string; message: string }[] = [];
+    parsed.rows.forEach((row, index) => {
       try {
-        const username = row.username.replace(/\s+/g, '').toLowerCase();
-        if (username.length < 3) throw new HttpError(400, 'BAD_INPUT', 'Username tá»‘i thiá»ƒu 3 kÃ½ tá»±');
-        created.push(
-          insertUser({ username, password: TEMP_PASSWORD, role: 'student', displayName: row.displayName }, authed.user.id)
-        );
-      } catch (err) {
-        errors.push({ username: row.username, reason: err instanceof Error ? err.message : 'Lá»—i' });
+        ids.push(insertUser({ ...row, password: row.password ?? 'Hocvien@123', role: 'student' }, authed.user!.id));
+      } catch (error) {
+        errors.push({ row: index + 1, username: row.username, message: error instanceof Error ? error.message : 'Không thể tạo học viên' });
       }
+    });
+    res.status(ids.length > 0 ? 201 : 400).json({ createdCount: ids.length, ids, errors });
+  })
+);
+
+const profileSchema = z.object({
+  displayName: z.string().trim().min(1).max(100).optional(),
+  studentCode: z.string().trim().max(50).optional(),
+  dob: z.string().trim().max(20).optional(),
+  gender: z.string().trim().max(20).optional(),
+  hometown: z.string().trim().max(200).optional(),
+});
+
+router.patch(
+  '/users/:id/profile',
+  requireRole('admin', 'teacher'),
+  h(async (req, res) => {
+    const authed = req as AuthedRequest;
+    const parsed = profileSchema.safeParse(req.body);
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ');
+    const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
+    if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
+    if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
+      throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
-    res.json({ createdCount: created.length, errors, tempPassword: TEMP_PASSWORD });
+    db.prepare(
+      `UPDATE users SET display_name = COALESCE(?, display_name), student_code = COALESCE(?, student_code),
+       dob = COALESCE(?, dob), gender = COALESCE(?, gender), hometown = COALESCE(?, hometown) WHERE id = ?`
+    ).run(
+      parsed.data.displayName ?? null,
+      parsed.data.studentCode ?? null,
+      parsed.data.dob ?? null,
+      parsed.data.gender ?? null,
+      parsed.data.hometown ?? null,
+      target.id
+    );
+    const row = queryOne<UserRowFull>('SELECT * FROM users WHERE id = ?', target.id)!;
+    res.json({ user: toPublicUser(row as never) });
   })
 );
 
@@ -124,12 +178,12 @@ router.patch(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
-    if (!target) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i dÃ¹ng');
+    if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
     if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
-      throw new HttpError(403, 'FORBIDDEN', 'Chá»‰ Ä‘Æ°á»£c quáº£n lÃ½ há»c viÃªn cá»§a mÃ¬nh');
+      throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
     if (target.role === 'admin' && authed.user?.role !== 'admin') {
-      throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng Ä‘á»§ quyá»n');
+      throw new HttpError(403, 'FORBIDDEN', 'Không đủ quyền');
     }
     const status = target.status === 'locked' ? 'active' : 'locked';
     db.prepare('UPDATE users SET status = ?, failed_attempts = 0 WHERE id = ?').run(status, target.id);
@@ -145,11 +199,11 @@ router.post(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const parsed = resetSchema.safeParse(req.body);
-    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Máº­t kháº©u tá»‘i thiá»ƒu 6 kÃ½ tá»±');
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Mật khẩu tối thiểu 6 ký tự');
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
-    if (!target) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i dÃ¹ng');
+    if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
     if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
-      throw new HttpError(403, 'FORBIDDEN', 'Chá»‰ Ä‘Æ°á»£c quáº£n lÃ½ há»c viÃªn cá»§a mÃ¬nh');
+      throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
     db.prepare('UPDATE users SET password_hash = ?, failed_attempts = 0, must_change_password = 1 WHERE id = ?').run(
       hashPassword(parsed.data.newPassword),

@@ -11,5 +11,6 @@ data/
 # Environment & OS
 .env
 .env.local
+.dev-server.pid
 Thumbs.db
 .DS_Store

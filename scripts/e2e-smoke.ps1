@@ -80,6 +80,11 @@ Check ("Teacher sees own students ({0})" -f $sids.Count) ($sids.Count -ge 4)
 $clsR = Req POST "/classes" $teacherToken @{ name = "Lop A1 Dien"; subject = "Nguon dien an toan"; academicYear = "2026-2027" }
 $cid = $clsR.data.class.id
 Check "Create class" ($cid.Length -gt 10)
+$subjectList = Req GET "/classes/$cid/subjects" $teacherToken
+$subjectId = $subjectList.data.subjects[0].id
+Check "Default subject created" ($subjectId.Length -gt 10)
+$badReorder = Req PATCH "/subjects/reorder" $teacherToken @{ }
+Check "Invalid reorder returns Zod 400" ($badReorder.status -eq 400 -and $badReorder.code -eq "BAD_INPUT")
 
 $enroll = Req POST "/classes/$cid/enroll" $teacherToken @{ studentIds = $sids }
 Check ("Enroll students ({0})" -f $enroll.data.added) ($enroll.ok -and $enroll.data.added -eq $sids.Count)
@@ -102,7 +107,7 @@ Check "Lecture listed with material ($matCount)" ($matCount -eq 1)
 
 # --- Questions ---
 function NewQ($content, $options, $answer, $bloom) {
-  $body = @{ type = "mcq"; content = $content; options = $options; correctAnswer = $answer; explanation = "Giai thich"; bloomLevel = $bloom; category = "Dien co ban"; folderId = $null }
+  $body = @{ type = "mcq"; content = $content; options = $options; correctAnswer = $answer; explanation = "Giai thich"; bloomLevel = $bloom; category = "Dien co ban"; folderId = $null; subjectId = $subjectId; chapter = "Chuong 1"; lesson = "Bai 1"; difficulty = "easy" }
   return (Req POST "/questions" $teacherToken $body).data.question.id
 }
 $q1 = NewQ "Don vi do cuong do dong dien la gi?" @("A. Ampe", "B. Von", "C. Oat", "D. Om") "A" "Nhan biet"
@@ -110,7 +115,7 @@ $q2 = NewQ "Cong thuc dinh luat Om?" @("A. U = I/R", "B. U = I x R", "C. I = U x
 $q3 = NewQ "Khi tang dien tro, dong dien se?" @("A. Tang", "B. Giam", "C. Khong doi", "D. Bang 0") "B" "Van dung"
 Check "Create 3 MCQ questions" ($q1.Length -gt 10 -and $q2.Length -gt 10 -and $q3.Length -gt 10)
 
-$qeBody = @{ type = "essay"; content = "Trinh bay cac bien phap an toan khi lam viec voi dien ap thap."; correctAnswer = "Cat nguon, dung dung cu cach dien, co nguoi giam sat."; explanation = ""; bloomLevel = "Van dung cao"; folderId = $null }
+$qeBody = @{ type = "essay"; content = "Trinh bay cac bien phap an toan khi lam viec voi dien ap thap."; correctAnswer = "Cat nguon, dung dung cu cach dien, co nguoi giam sat."; explanation = ""; bloomLevel = "Van dung cao"; folderId = $null; subjectId = $subjectId; chapter = "Chuong 1"; lesson = "Bai 1"; difficulty = "hard" }
 $qe = Req POST "/questions" $teacherToken $qeBody
 $essayId = $qe.data.question.id
 Check "Create essay question" ($essayId.Length -gt 10)
@@ -123,9 +128,13 @@ Check "Filter type+bloom works" ($listF.data.questions.Count -ge 1)
 
 # --- Import text ---
 $mauText = "PHAN I. TRAC NGHIEM`nCau 1: Thiet bi nao dung de do dien ap?`nA. Ampe ke`nB. Von ke`nC. Om ke`nD. Watt ke`nDap an: *B. Von ke do dien ap.`nCau 2: Dong dien mot chieu co chieu?`nA. Thay doi theo thoi gian`nB. Khong doi theo thoi gian`nC. Sinh hinh sin`nD. Ngau nhien`n`nBANG DAP AN`n1B 2B"
-$imported = Req POST "/questions/import-text" $teacherToken @{ text = $mauText }
+$imported = Req POST "/questions/import-text" $teacherToken @{ text = $mauText; subjectId = $subjectId; chapter = "Chuong 2"; lesson = "Bai 3"; difficulty = "hard" }
 if ($imported.data.imported -ne 2) { Write-Host ("   DEBUG import-text: imported={0} warnings={1}" -f $imported.data.imported, ($imported.data.warnings -join "; ")) -ForegroundColor Yellow }
 Check "Import text parsed 2 questions" ($imported.ok -and $imported.data.imported -eq 2)
+$copied = Req POST "/questions/bulk-copy" $teacherToken @{ ids = @($imported.data.ids[0]); folderId = $null }
+$contextQuestions = Req GET "/questions?subjectId=$subjectId" $teacherToken
+$copiedQuestion = $contextQuestions.data.questions | Where-Object { $_.id -eq $copied.data.ids[0] }
+Check "Copy preserves subject/chapter/lesson/difficulty" ($copied.ok -and $copiedQuestion.subjectId -eq $subjectId -and $copiedQuestion.chapter -eq "Chuong 2" -and $copiedQuestion.lesson -eq "Bai 3" -and $copiedQuestion.difficulty -eq "hard")
 
 # --- Exam ---
 $examR = Req POST "/exams" $teacherToken @{
@@ -202,7 +211,7 @@ $myres = Req GET "/my-results" $anToken
 Check ("My-results score = {0}" -f $myres.data.results[0].score) ($myres.data.results[0].score -eq 9.5)
 
 # --- Games ---
-$game = Req POST "/games" $teacherToken @{ gameType = "quick_quiz"; questionIds = @($q1, $q2); secondsPerQuestion = 20 }
+$game = Req POST "/games" $teacherToken @{ gameType = "quick_quiz"; questionIds = @($q1, $q2); secondsPerQuestion = 20; classId = $cid }
 Check ("Game room code {0}" -f $game.data.roomCode) ($game.data.roomCode -match '^\d{6}$')
 
 $pick1 = Req POST "/games/random-pick" $teacherToken @{ classId = $cid; count = 1 }
@@ -218,17 +227,26 @@ $gbRow = $gb.data.rows | Where-Object { $_.studentId -eq $gid }
 Check ("Gradebook KTTX = {0}" -f $gbRow.kttx) ($gbRow.kttx -eq 8.5)
 
 # --- Attendance ---
-$sessR = Req POST "/classes/$cid/attendance/sessions" $teacherToken @{ date = "2026-08-23"; periodsTotal = 4; note = "Bai 1" }
+$sessR = Req POST "/classes/$cid/attendance/sessions" $teacherToken @{ date = "2026-08-23"; periodsTotal = 4; teachingType = "Ly thuyet"; note = "Bai 1" }
 $sessId = $sessR.data.id
+Check "Session created with teachingType" ($sessR.ok)
 $recs = @()
 for ($i = 0; $i -lt $sids.Count; $i++) {
   $st = "present"; $ab = 0; $rs = ""
   if ($i -eq 1) { $st = "absent"; $ab = 2; $rs = "Om" }
-  if ($i -eq 2) { $st = "late" }
   $recs += @{ studentId = $sids[$i]; status = $st; periodsAbsent = $ab; reason = $rs }
 }
 $attSave = Req PUT "/attendance/sessions/$sessId/records" $teacherToken @{ records = $recs }
 Check "Attendance saved" ($attSave.ok)
+
+$patchSess = Req PATCH "/attendance/sessions/$sessId" $teacherToken @{ remark = "Lop hoc tot, can on tap them" }
+Check "Session remark patched" ($patchSess.ok)
+$sessDetail = Req GET "/attendance/sessions/$sessId" $teacherToken
+Check ("Session remark persisted: {0}" -f $sessDetail.data.session.remark) ($sessDetail.data.session.remark -eq "Lop hoc tot, can on tap them")
+
+$sessList = Req GET "/classes/$cid/attendance/sessions" $teacherToken
+$sessListRow = $sessList.data.sessions | Where-Object { $_.id -eq $sessId }
+Check ("Session list absentCount = {0}" -f $sessListRow.absentCount) ($sessListRow.absentCount -eq 1)
 
 $gb2 = Req GET "/classes/$cid/gradebook" $teacherToken
 $absRow = $gb2.data.rows | Where-Object { $_.studentId -eq $sids[1] }
@@ -252,7 +270,7 @@ Chuong 1: Nguon dien
 Nguon dien la thiet bi tao ra dong dien trong mach dien. Pin va may phat dien la cac nguon dien thong dung.
 An toan dien yeu cau cat nguon truoc khi thao tac.
 "@
-$tmpFile = "$env:TEMP\rag-test-$([guid]::NewGuid().ToString('N').Substring(0,6)).txt"
+$tmpFile = Join-Path ([IO.Path]::GetTempPath()) "rag-test-$([guid]::NewGuid().ToString('N').Substring(0,6)).txt"
 [System.IO.File]::WriteAllText($tmpFile, $ragTxt, (New-Object System.Text.UTF8Encoding $false))
 
 $boundary = [guid]::NewGuid().ToString()
@@ -282,7 +300,7 @@ $delDoc = Req DELETE "/rag/documents/$ragId" $teacherToken
 Check "RAG delete doc" ($delDoc.ok)
 
 # --- P2: new game types REST creation ---
-$tugGame = Req POST "/games" $teacherToken @{ gameType = "tug_of_war"; questionIds = @($q1); secondsPerQuestion = 15 }
+$tugGame = Req POST "/games" $teacherToken @{ gameType = "tug_of_war"; questionIds = @($q1); secondsPerQuestion = 15; classId = $cid }
 Check "Tug of war room created" ($tugGame.ok -and $tugGame.data.roomCode -match '^\d{6}$')
 $mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationSec = 90; difficulty = 2; classId = $cid }
 Check "Math race room created" ($mathGame.ok -and $mathGame.data.roomCode -match '^\d{6}$')
@@ -297,6 +315,14 @@ Check ("Backup created: {0}" -f $bak.data.name) ($bak.ok -and $bak.data.name -ma
 
 $bkList = Req GET "/system/backups" $teacherToken
 Check "Backups list has >= 1" ($bkList.data.backups.Count -ge 1)
+$teacherDelete = Req DELETE "/system/backups/$($bak.data.name)" $teacherToken
+Check "Teacher cannot delete backup" ($teacherDelete.status -eq 403)
+$teacherRestore = Req POST "/system/restore/$($bak.data.name)" $teacherToken @{ }
+Check "Teacher cannot restore backup" ($teacherRestore.status -eq 403)
+$adminRestore = Req POST "/system/restore/$($bak.data.name)" $admin @{ }
+Check "Admin can stage restore" ($adminRestore.ok -and $adminRestore.data.restartRequired -eq $true)
+$adminDelete = Req DELETE "/system/backups/$($bak.data.name)" $admin
+Check "Admin can delete backup" ($adminDelete.ok)
 
 $sec4 = Req GET "/system/info" $anToken
 Check "Student blocked from system info" ($sec4.status -eq 403)
@@ -370,3 +396,5 @@ Write-Host ""
 Write-Host "==============================="
 Write-Host (" RESULTS: {0} passed / {1} failed" -f $script:pass, $script:fail) -ForegroundColor $(if ($script:fail -eq 0) { "Green" } else { "Red" })
 Write-Host "==============================="
+if (Test-Path -LiteralPath $tmpFile) { Remove-Item -LiteralPath $tmpFile -Force }
+if ($script:fail -gt 0) { exit 1 }

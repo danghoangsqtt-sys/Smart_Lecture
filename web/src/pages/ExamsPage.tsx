@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
 import toast from '../stores/toastStore';
 import { useMyClasses } from './LecturesPage';
 
@@ -54,8 +54,7 @@ async function printExam(examId: string) {
       .join('\n');
     const keyHtml = data.key.map((k) => `<span class="keycell">${k.no}.${k.type === 'mcq' ? k.letter : '…'}</span>`).join('');
     const essayKeys = data.key
-      .filter((k) => k.type !== 'mcq')
-      .map((k) => `<div class="essaykey"><b>Câu ${k.no}:</b> ${esc(k.correctText ?? '')}</div>`)
+      .flatMap((k) => k.type !== 'mcq' ? [`<div class="essaykey"><b>Câu ${k.no}:</b> ${esc(k.correctText ?? '')}</div>`] : [])
       .join('');
 
     const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${esc(data.exam.title)}</title>
@@ -113,7 +112,7 @@ export default function ExamsPage() {
       const res = await api<{ exams: ExamInfo[] }>('/exams/mine');
       setExams(res.exams);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i táº£i Ä‘á» thi');
+      toast.error(e instanceof Error ? e.message : 'Lỗi tải đề thi');
     } finally {
       setLoading(false);
     }
@@ -123,56 +122,55 @@ export default function ExamsPage() {
 
   return (
     <div>
-      <PageHeader title="Äá» thi" subtitle="Soáº¡n Ä‘á» tá»« ngÃ¢n hÃ ng cÃ¢u há»i theo ma tráº­n Bloom" actions={<Button onClick={() => setCreateOpen(true)}>+ Soáº¡n Ä‘á» má»›i</Button>} />
+      <PageHeader title="Đề thi" subtitle="Soạn đề từ ngân hàng câu hỏi theo ma trận Bloom" actions={<Button onClick={() => setCreateOpen(true)}>+ Soạn đề mới</Button>} />
       {loading ? <Spinner /> : exams.length === 0 ? (
-        <Card><EmptyState message="ChÆ°a cÃ³ Ä‘á» thi nÃ o" /></Card>
+        <Card><EmptyState message="Chưa có đề thi nào" /></Card>
       ) : (
         <div className="space-y-3">
           {exams.map((e) => (
             <Card key={e.id} className="flex flex-wrap items-center gap-3 p-4">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-slate-100">{e.title}</h3>
-                <p className="mt-0.5 text-xs text-slate-400">
-                  {e.questionCount} cÃ¢u Â· {e.durationMin} phÃºt Â· tá»‘i Ä‘a {e.config.maxAttempts} lÆ°á»£t
-                  {e.config.hasPassword && ' Â· ðŸ”’ cÃ³ máº­t kháº©u'}
+                <h3 className="font-bold text-slate-800">{e.title}</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {e.questionCount} câu · {e.durationMin} phút · tối đa {e.config.maxAttempts} lượt
+                  {e.config.hasPassword && (<> · <i className="fas fa-lock" /> có mật khẩu</>)}
                   {e.config.purpose === 'homework' ? ' · BTVN' : ''}
                 </p>
                 <p className="text-xs text-slate-500">
-                  Lá»›p: {classes.find((c) => c.id === e.config.classId)?.name ?? 'â€”'}
-                  {e.config.startAt && ` Â· má»Ÿ ${new Date(e.config.startAt).toLocaleString('vi-VN')}`}
-                  {e.config.endAt && ` â†’ Ä‘Ã³ng ${new Date(e.config.endAt).toLocaleString('vi-VN')}`}
+                  Lớp: {classes.find((c) => c.id === e.config.classId)?.name ?? '—'}
+                  {e.config.startAt && ` · mở ${new Date(e.config.startAt).toLocaleString('vi-VN')}`}
+                  {e.config.endAt && ` → đóng ${new Date(e.config.endAt).toLocaleString('vi-VN')}`}
                 </p>
               </div>
-              <span className={`rounded-md px-2 py-1 text-xs font-medium ring-1 ${e.status === 'published' ? 'bg-emerald-950 text-emerald-400 ring-emerald-800' : 'bg-slate-800 text-slate-400 ring-slate-700'}`}>
-                {e.status === 'published' ? 'Äang phÃ¡t hÃ nh' : 'ÄÃ£ Ä‘Ã³ng'}
-              </span>
-              <Link to={`/exams/${e.id}/results`} className="rounded-lg bg-indigo-600/90 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Káº¿t quáº£</Link>
-              <button onClick={() => void printExam(e.id)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">🖨 In A4</button>
-              <button
+              <Badge tone={e.status === 'published' ? 'green' : 'slate'}>{e.status === 'published' ? 'Đang phát hành' : 'Đã đóng'}</Badge>
+              <Link to={`/exams/${e.id}/results`} className="inline-flex items-center justify-center gap-2 rounded-sm bg-blue-900 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-slate-800">Kết quả</Link>
+              <Button variant="ghost" onClick={() => void printExam(e.id)}><i className="fas fa-print" /> In A4</Button>
+              <Button
+                variant="ghost"
                 onClick={async () => {
-                  if (!window.confirm(e.status === 'published' ? 'ÄÃ³ng Ä‘á» thi (há»c viÃªn khÃ´ng vÃ o Ä‘Æ°á»£c ná»¯a)?' : 'PhÃ¡t hÃ nh láº¡i Ä‘á» thi?')) return;
+                  if (!window.confirm(e.status === 'published' ? 'Đóng đề thi (học viên không vào được nữa)?' : 'Phát hành lại đề thi?')) return;
                   try {
                     await api(`/exams/${e.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: e.status === 'published' ? 'closed' : 'published' }) });
                     await load();
-                  } catch (err) { toast.error(err instanceof Error ? err.message : 'Lá»—i'); }
+                  } catch (err) { toast.error(err instanceof Error ? err.message : 'Lỗi'); }
                 }}
-                className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800"
               >
-                {e.status === 'published' ? 'ÄÃ³ng' : 'Má»Ÿ láº¡i'}
-              </button>
-              <button
+                {e.status === 'published' ? 'Đóng' : 'Mở lại'}
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-red-600 hover:bg-red-50"
                 onClick={async () => {
-                  if (!window.confirm('XÃ³a Ä‘á» thi? Káº¿t quáº£ thi liÃªn quan cÅ©ng bá»‹ xÃ³a.')) return;
+                  if (!window.confirm('Xóa đề thi? Kết quả thi liên quan cũng bị xóa.')) return;
                   try {
                     await api(`/exams/${e.id}`, { method: 'DELETE' });
-                    toast.success('ÄÃ£ xÃ³a');
+                    toast.success('Đã xóa');
                     await load();
-                  } catch (err) { toast.error(err instanceof Error ? err.message : 'Lá»—i'); }
+                  } catch (err) { toast.error(err instanceof Error ? err.message : 'Lỗi'); }
                 }}
-                className="rounded-lg px-3 py-2 text-sm text-red-400 hover:bg-red-950/40"
               >
-                XÃ³a
-              </button>
+                Xóa
+              </Button>
             </Card>
           ))}
         </div>
@@ -218,12 +216,12 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
       for (const c of candidates.slice(0, need)) picked.add(c.id);
     }
     setSelectedIds(picked);
-    if (shortage) toast.info('Má»™t sá»‘ má»©c Bloom khÃ´ng Ä‘á»§ cÃ¢u trong kho â€” Ä‘Ã£ chá»n háº¿t má»©c Ä‘Ã³');
-    else toast.success(`ÄÃ£ chá»n ${picked.size} cÃ¢u theo ma tráº­n`);
+    if (shortage) toast.info('Một số mức Bloom không đủ câu trong kho — đã chọn hết mức đó');
+    else toast.success(`Đã chọn ${picked.size} câu theo ma trận`);
   }
 
   async function submit() {
-    if (selectedIds.size === 0) { toast.error('ChÆ°a chá»n cÃ¢u há»i nÃ o'); return; }
+    if (selectedIds.size === 0) { toast.error('Chưa chọn câu hỏi nào'); return; }
     setBusy(true);
     try {
       await api('/exams', {
@@ -244,11 +242,11 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
           },
         }),
       });
-      toast.success('ÄÃ£ táº¡o vÃ  phÃ¡t hÃ nh Ä‘á» thi');
+      toast.success('Đã tạo và phát hành đề thi');
       onClose(); setStep(1); setSelectedIds(new Set());
       await onCreated();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i táº¡o Ä‘á»');
+      toast.error(e instanceof Error ? e.message : 'Lỗi tạo đề');
     } finally {
       setBusy(false);
     }
@@ -257,15 +255,15 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
   const previewPool = questions.filter((question) => selectedIds.has(question.id));
 
   return (
-    <Modal open={open} onClose={onClose} title="Soáº¡n Ä‘á» thi" wide>
+    <Modal open={open} onClose={onClose} title="Soạn đề thi" wide>
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><Label>TÃªn Ä‘á» *</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-          <div><Label>Thá»i lÆ°á»£ng (phÃºt)</Label><Input type="number" min={1} value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value))} /></div>
+          <div><Label>Tên đề *</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+          <div><Label>Thời lượng (phút)</Label><Input type="number" min={1} value={durationMin} onChange={(e) => setDurationMin(Number(e.target.value))} /></div>
         </div>
 
-        <div className="rounded-xl p-4 ring-1 ring-slate-800">
-          <h4 className="mb-2 text-sm font-medium text-slate-300">Ma tráº­n Bloom â†’ sá»‘ cÃ¢u mong muá»‘n</h4>
+        <div className="rounded-sm border border-slate-200 p-4">
+          <h4 className="mb-2 text-sm font-semibold text-slate-700">Ma trận Bloom → số câu mong muốn</h4>
           <div className="grid grid-cols-4 gap-2">
             {BLOOM_LEVELS.map((b) => (
               <div key={b}>
@@ -275,22 +273,22 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
             ))}
           </div>
           <div className="mt-2 flex items-end gap-2">
-            <div className="flex-1"><Label>Kho nguá»“n</Label>
+            <div className="flex-1"><Label>Kho nguồn</Label>
               <Select value={folderId} onChange={(e) => setFolderId(e.target.value)}>
-                <option value="">Táº¥t cáº£ cÃ¢u há»i cá»§a tÃ´i</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                <option value="">Tất cả câu hỏi của tôi</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </Select>
             </div>
-            <Button variant="secondary" className="mb-[1px]" onClick={autoPick}>ðŸŽ² Chá»n tá»± Ä‘á»™ng theo ma tráº­n</Button>
+            <Button variant="secondary" className="mb-[1px]" onClick={autoPick}><i className="fas fa-dice" /> Chọn tự động theo ma trận</Button>
           </div>
-          <p className="mt-2 text-xs text-slate-400">ÄÃ£ chá»n: <b className="text-indigo-300">{selectedIds.size}</b> cÃ¢u. CÃ³ thá»ƒ tick thá»§ cÃ´ng bÃªn dÆ°á»›i.</p>
+          <p className="mt-2 text-xs text-slate-500">Đã chọn: <b className="text-blue-900">{selectedIds.size}</b> câu. Có thể tick thủ công bên dưới.</p>
         </div>
 
-        <details className="rounded-xl ring-1 ring-slate-800" open={step === 2}>
-          <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium text-slate-300">Chá»n chi tiáº¿t cÃ¢u há»i ({previewPool.length})</summary>
+        <details className="rounded-sm border border-slate-200" open={step === 2}>
+          <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-slate-700">Chọn chi tiết câu hỏi ({previewPool.length})</summary>
           <ul className="max-h-56 space-y-0.5 overflow-y-auto px-3 pb-3">
             {questions.map((question) => (
               <li key={question.id}>
-                <label className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-800">
+                <label className="flex cursor-pointer items-start gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-slate-100">
                   <input
                     type="checkbox"
                     className="mt-1"
@@ -303,8 +301,8 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
                       })
                     }
                   />
-                  <span className="min-w-0 flex-1 truncate">{question.content}</span>
-                  <BadgeMini tone={question.type === 'mcq' ? 'indigo' : 'amber'}>{question.type === 'mcq' ? 'TN' : 'TL'}</BadgeMini>
+                  <span className="min-w-0 flex-1 truncate text-slate-800">{question.content}</span>
+                  <Badge tone={question.type === 'mcq' ? 'indigo' : 'amber'}>{question.type === 'mcq' ? 'TN' : 'TL'}</Badge>
                   {question.bloomLevel && <span className="shrink-0 text-xs text-slate-500">{question.bloomLevel}</span>}
                 </label>
               </li>
@@ -312,39 +310,35 @@ function CreateExamModal({ open, onClose, onCreated }: { open: boolean; onClose:
           </ul>
         </details>
 
-        <div className="grid gap-3 rounded-xl p-4 ring-1 ring-slate-800 sm:grid-cols-2">
-          <div><Label>Má»Ÿ lÃºc (tÃ¹y chá»n)</Label><Input type="datetime-local" value={config.startAt} onChange={(e) => setConfig((c) => ({ ...c, startAt: e.target.value }))} /></div>
-          <div><Label>ÄÃ³ng lÃºc (tÃ¹y chá»n)</Label><Input type="datetime-local" value={config.endAt} onChange={(e) => setConfig((c) => ({ ...c, endAt: e.target.value }))} /></div>
-          <div><Label>Máº­t kháº©u phÃ²ng thi</Label><Input value={config.password} onChange={(e) => setConfig((c) => ({ ...c, password: e.target.value }))} placeholder="Bá» trá»‘ng náº¿u khÃ´ng dÃ¹ng" /></div>
-          <div><Label>Sá»‘ lÆ°á»£t lÃ m tá»‘i Ä‘a</Label><Input type="number" min={1} max={99} value={config.maxAttempts} onChange={(e) => setConfig((c) => ({ ...c, maxAttempts: Number(e.target.value) }))} /></div>
-          <div><Label>Giao cho lá»›p</Label>
+        <div className="grid gap-3 rounded-sm border border-slate-200 p-4 sm:grid-cols-2">
+          <div><Label>Mở lúc (tùy chọn)</Label><Input type="datetime-local" value={config.startAt} onChange={(e) => setConfig((c) => ({ ...c, startAt: e.target.value }))} /></div>
+          <div><Label>Đóng lúc (tùy chọn)</Label><Input type="datetime-local" value={config.endAt} onChange={(e) => setConfig((c) => ({ ...c, endAt: e.target.value }))} /></div>
+          <div><Label>Mật khẩu phòng thi</Label><Input value={config.password} onChange={(e) => setConfig((c) => ({ ...c, password: e.target.value }))} placeholder="Bỏ trống nếu không dùng" /></div>
+          <div><Label>Số lượt làm tối đa</Label><Input type="number" min={1} max={99} value={config.maxAttempts} onChange={(e) => setConfig((c) => ({ ...c, maxAttempts: Number(e.target.value) }))} /></div>
+          <div><Label>Giao cho lớp</Label>
             <Select value={config.classId} onChange={(e) => setConfig((c) => ({ ...c, classId: e.target.value }))}>
-              <option value="">â€” Chá»n lá»›p â€”</option>
+              <option value="">— Chọn lớp —</option>
               {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           </div>
-          <div><Label>Má»¥c Ä‘Ã­ch</Label>
+          <div><Label>Mục đích</Label>
             <Select value={config.purpose} onChange={(e) => setConfig((c) => ({ ...c, purpose: e.target.value }))}>
-              <option value="online_test">Kiá»ƒm tra online</option>
+              <option value="online_test">Kiểm tra online</option>
               <option value="homework">Bài tập về nhà</option>
             </Select>
           </div>
-          <div className="flex items-end space-x-4 text-sm text-slate-300">
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={config.shuffleQ} onChange={(e) => setConfig((c) => ({ ...c, shuffleQ: e.target.checked }))} /> XÃ¡o cÃ¢u</label>
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={config.shuffleO} onChange={(e) => setConfig((c) => ({ ...c, shuffleO: e.target.checked }))} /> XÃ¡o phÆ°Æ¡ng Ã¡n</label>
+          <div className="flex items-end space-x-4 text-sm text-slate-600">
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={config.shuffleQ} onChange={(e) => setConfig((c) => ({ ...c, shuffleQ: e.target.checked }))} /> Xáo câu</label>
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={config.shuffleO} onChange={(e) => setConfig((c) => ({ ...c, shuffleO: e.target.checked }))} /> Xáo phương án</label>
           </div>
         </div>
 
 
         <div className="flex justify-between">
-          <p className="pt-2 text-xs text-slate-400">XÃ¡o trá»™n dÃ¹ng thuáº­t toÃ¡n Fisherâ€“Yates, Ä‘Ã¡p Ã¡n Ä‘Ãºng luÃ´n Ä‘Æ°á»£c báº£o toÃ n.</p>
-          <Button onClick={() => void submit()} disabled={busy || !title || selectedIds.size === 0}>Táº¡o Ä‘á» & phÃ¡t hÃ nh</Button>
+          <p className="pt-2 text-xs text-slate-500">Xáo trộn dùng thuật toán Fisher–Yates, đáp án đúng luôn được bảo toàn.</p>
+          <Button onClick={() => void submit()} disabled={busy || !title || selectedIds.size === 0}>Tạo đề & phát hành</Button>
         </div>
       </div>
     </Modal>
   );
-}
-
-function BadgeMini({ tone, children }: { tone?: string; children: React.ReactNode }) {
-  return <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-medium ${tone === 'indigo' ? 'bg-indigo-950 text-indigo-300' : 'bg-amber-950 text-amber-400'}`}>{children}</span>;
 }

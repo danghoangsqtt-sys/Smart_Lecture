@@ -20,7 +20,11 @@ router.post(
     const authed = req as AuthedRequest;
     const parsed = z
       .object({
-        gameType: z.enum(['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword']),
+        gameType: z.enum([
+          'quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword',
+          'bingo', 'memory_match', 'word_scramble', 'quiz_show',
+          'circuit_draw', 'circuit_simulate',
+        ]),
         title: z.string().max(200).default('Trò chơi'),
         questionIds: z.array(z.string()).min(1).max(50).optional(),
         secondsPerQuestion: z.number().int().min(5).max(120).default(20),
@@ -28,6 +32,7 @@ router.post(
         difficulty: z.number().int().min(1).max(3).default(1),
         pointsPerCorrect: z.union([z.literal(0.25), z.literal(0.5), z.literal(1)]).optional(),
         classId: z.string().optional(),
+        subjectId: z.string().optional(),
         lockOnStart: z.boolean().default(false),
         puzzle: z
           .object({
@@ -38,11 +43,72 @@ router.post(
               .max(10),
           })
           .optional(),
+        circuitTemplate: z
+          .object({
+            components: z
+              .array(
+                z.object({
+                  id: z.string().max(60),
+                  type: z.string().max(40),
+                  x: z.number(),
+                  y: z.number(),
+                  rot: z.number().default(0),
+                  props: z.record(z.string(), z.unknown()).default({}),
+                })
+              )
+              .max(80),
+            wires: z
+              .array(z.object({ id: z.string().max(60), from: z.string().max(120), to: z.string().max(120) }))
+              .max(200),
+          })
+          .optional(),
+        simulateChallenges: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(120),
+              description: z.string().max(500).default(''),
+              targetBehavior: z.string().max(300).default(''),
+              points: z.number().int().min(10).max(1000).default(100),
+              circuit: z
+                .object({
+                  components: z.array(
+                    z.object({
+                      id: z.string().max(60),
+                      type: z.string().max(40),
+                      x: z.number(),
+                      y: z.number(),
+                      rot: z.number().default(0),
+                      props: z.record(z.string(), z.unknown()).default({}),
+                    })
+                  ).max(80),
+                  wires: z.array(
+                    z.object({ id: z.string().max(60), from: z.string().max(120), to: z.string().max(120) })
+                  ).max(200),
+                })
+                .nullable()
+                .optional(),
+            })
+          )
+          .min(1)
+          .max(10)
+          .optional(),
       })
       .safeParse(req.body);
     if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Cấu hình game không hợp lệ');
     const d = parsed.data;
-    if (d.gameType !== 'math_race' && d.gameType !== 'crossword' && (!d.questionIds || d.questionIds.length === 0)) {
+    if (d.classId) {
+      const cls = getClassOrThrow(d.classId);
+      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n vá»›i lá»›p nÃ y');
+    }
+    if (d.subjectId) {
+      const subject = db.prepare('SELECT class_id FROM subjects WHERE id = ?').get(d.subjectId) as { class_id: string } | undefined;
+      if (!subject) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y mÃ´n há»c');
+      if (d.classId && subject.class_id !== d.classId) throw new HttpError(400, 'BAD_INPUT', 'MÃ´n há»c khÃ´ng thuá»™c lá»›p Ä‘Ã£ chá»n');
+      const cls = getClassOrThrow(subject.class_id);
+      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n vá»›i mÃ´n há»c nÃ y');
+    }
+    const NO_QUESTIONS: readonly string[] = ['math_race', 'crossword', 'bingo', 'memory_match', 'circuit_draw', 'circuit_simulate'];
+    if (!NO_QUESTIONS.includes(d.gameType) && (!d.questionIds || d.questionIds.length === 0)) {
       throw new HttpError(400, 'BAD_INPUT', 'Game này cần ít nhất 1 câu hỏi');
     }
     if (d.gameType === 'crossword') {
@@ -71,11 +137,12 @@ router.post(
     }
     const id = randomUUID();
     db.prepare(
-      `INSERT INTO game_sessions (id, host_teacher_id, game_type, room_code, question_ids_json, config_json)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO game_sessions (id, host_teacher_id, class_id, game_type, room_code, question_ids_json, config_json, subject_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       authed.user.id,
+      d.classId ?? null,
       d.gameType,
       roomCode,
       JSON.stringify(d.questionIds ?? []),
@@ -87,8 +154,11 @@ router.post(
         pointsPerCorrect: d.pointsPerCorrect ?? null,
         classId: d.classId ?? null,
         puzzle: d.puzzle ?? null,
+        circuitTemplate: d.circuitTemplate ?? null,
+        simulateChallenges: d.simulateChallenges ?? null,
         lockOnStart: d.lockOnStart,
-      })
+      }),
+      d.subjectId ?? null
     );
     res.status(201).json({ id, roomCode });
   })
@@ -281,13 +351,13 @@ export interface GameRow {
 
 export function getGameOrThrow(id: string): GameRow {
   const row = db.prepare('SELECT * FROM game_sessions WHERE id = ?').get(id) as GameRow | undefined;
-  if (!row) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y phiÃªn game');
+  if (!row) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy phiên game');
   return row;
 }
 
 export function assertHost(game: GameRow, req: AuthedRequest): void {
   if ((req.user?.role !== 'admin') && game.host_teacher_id !== req.user?.id) {
-    throw new HttpError(403, 'FORBIDDEN', 'Chá»‰ ngÆ°á»i táº¡o game má»›i Ä‘iá»u khiá»ƒn Ä‘Æ°á»£c');
+    throw new HttpError(403, 'FORBIDDEN', 'Chỉ người tạo game mới điều khiển được');
   }
 }
 

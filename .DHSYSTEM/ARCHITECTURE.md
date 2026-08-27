@@ -155,3 +155,12 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - Upload: whitelist mime + extension, giới hạn 500MB/video, quét phần mở rộng kép; filename lưu uuid, giữ tên gốc trong DB
 - SQL: chỉ prepared statements; không bao giờ ghép chuỗi input vào query
 - API key Gemini: nhập trong Settings của GV/admin, mã hóa AES-256-GCM bằng secret.key trước khi lưu DB — không bao giờ trả về client sau khi lưu
+
+## 8. Bổ sung ổn định API (2026-08-27)
+
+- Router đơn miền mount theo prefix: `/api/schedule`, `/api/media-audit`, `/api/ai`, `/api/rag`, `/api/system`, `/api/settings`.
+- Subject CRUD thuộc `classes.routes.ts`; question CRUD/import/stats thuộc `questions.routes.ts`; backup thuộc `system.routes.ts`. Không mount router trùng.
+- `ZodError` và JSON sai cú pháp được error middleware chuẩn hóa thành HTTP 400.
+- `DATA_DIR` và `DB_PATH` có thể override bằng biến môi trường; CI/E2E bắt buộc dùng thư mục tạm.
+- Restore ghi `restore-pending.db`; lần boot kế tiếp tạo bản DB trước-restore rồi thay DB trước khi mở kết nối SQLite.
+- `game_sessions.class_id` là nguồn enrollment gate; mọi event điều khiển host so khớp `host_teacher_id` với JWT socket.

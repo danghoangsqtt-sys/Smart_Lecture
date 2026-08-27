@@ -61,7 +61,7 @@ function getConfig(exam: ExamRow): ExamConfig {
 
 function getAttemptOrThrow(id: string, userId: string): AttemptRow {
   const row = queryOne<AttemptRow>('SELECT * FROM exam_results WHERE id = ?', id);
-  if (!row || row.student_id !== userId) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y bÃ i lÃ m');
+  if (!row || row.student_id !== userId) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy bài làm');
   return row;
 }
 
@@ -127,12 +127,12 @@ router.post(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const parsed = upsertSchema.safeParse(req.body);
-    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'ThÃ´ng tin Ä‘á» thi khÃ´ng há»£p lá»‡');
+    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Thông tin đề thi không hợp lệ');
     const owned = db
       .prepare(`SELECT COUNT(*) AS c FROM questions WHERE id IN (${parsed.data.questionIds.map(() => '?').join(',')})`)
       .get(...parsed.data.questionIds) as { c: number };
     if (owned.c !== parsed.data.questionIds.length) {
-      throw new HttpError(400, 'BAD_QUESTIONS', 'Má»™t sá»‘ cÃ¢u há»i khÃ´ng tá»“n táº¡i hoáº·c Ä‘Ã£ bá»‹ xÃ³a');
+      throw new HttpError(400, 'BAD_QUESTIONS', 'Một số câu hỏi không tồn tại hoặc đã bị xóa');
     }
     const id = randomUUID();
     db.prepare(
@@ -156,10 +156,10 @@ router.patch(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
-    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y Ä‘á»');
-    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n');
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
     const status = z.enum(['published', 'closed']).safeParse(req.body?.status);
-    if (!status.success) throw new HttpError(400, 'BAD_INPUT', 'Tráº¡ng thÃ¡i khÃ´ng há»£p lá»‡');
+    if (!status.success) throw new HttpError(400, 'BAD_INPUT', 'Trạng thái không hợp lệ');
     db.prepare('UPDATE exams SET status = ? WHERE id = ?').run(status.data, exam.id);
     res.json({ ok: true });
   })
@@ -171,8 +171,8 @@ router.delete(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
-    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y Ä‘á»');
-    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n');
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
     db.prepare('DELETE FROM exams WHERE id = ?').run(exam.id);
     res.json({ ok: true });
   })
@@ -300,17 +300,17 @@ router.post(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const user = authed.user!;
-    if (user.role !== 'student') throw new HttpError(403, 'FORBIDDEN', 'Chá»‰ há»c viÃªn vÃ o thi Ä‘Æ°á»£c');
+    if (user.role !== 'student') throw new HttpError(403, 'FORBIDDEN', 'Chỉ học viên vào thi được');
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
-    if (!exam || exam.status !== 'published') throw new HttpError(404, 'NOT_FOUND', 'Äá» thi khÃ´ng kháº£ dá»¥ng');
+    if (!exam || exam.status !== 'published') throw new HttpError(404, 'NOT_FOUND', 'Đề thi không khả dụng');
     const cfg = getConfig(exam);
     const now = new Date();
-    if (cfg.start_at && new Date(cfg.start_at) > now) throw new HttpError(400, 'NOT_OPEN', 'BÃ i thi chÆ°a má»Ÿ');
-    if (cfg.end_at && new Date(cfg.end_at) < now) throw new HttpError(400, 'CLOSED', 'BÃ i thi Ä‘Ã£ Ä‘Ã³ng');
+    if (cfg.start_at && new Date(cfg.start_at) > now) throw new HttpError(400, 'NOT_OPEN', 'Bài thi chưa mở');
+    if (cfg.end_at && new Date(cfg.end_at) < now) throw new HttpError(400, 'CLOSED', 'Bài thi đã đóng');
 
     if (cfg.class_id) {
       const enrolled = db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(cfg.class_id, user.id);
-      if (!enrolled) throw new HttpError(403, 'FORBIDDEN', 'Báº¡n khÃ´ng thuá»™c lá»›p Ä‘Æ°á»£c giao bÃ i thi nÃ y');
+      if (!enrolled) throw new HttpError(403, 'FORBIDDEN', 'Bạn không thuộc lớp được giao bài thi này');
     }
 
     const existing = db
@@ -322,7 +322,7 @@ router.post(
     }
 
     if (cfg.password && req.body?.password !== cfg.password) {
-      throw new HttpError(403, 'WRONG_PASSWORD', cfg.password ? 'Máº­t kháº©u bÃ i thi khÃ´ng Ä‘Ãºng' : '');
+      throw new HttpError(403, 'WRONG_PASSWORD', cfg.password ? 'Mật khẩu bài thi không đúng' : '');
     }
 
     const purpose = cfg.purpose ?? 'online_test';
@@ -331,11 +331,11 @@ router.post(
       .prepare("SELECT COUNT(*) AS c FROM exam_results WHERE exam_id = ? AND student_id = ? AND status = 'submitted'")
       .get(exam.id, user.id) as { c: number };
     if (submittedCount.c >= maxAttempts) {
-      throw new HttpError(400, 'MAX_ATTEMPTS', `Báº¡n Ä‘Ã£ dÃ¹ng háº¿t ${maxAttempts} lÆ°á»£t lÃ m bÃ i`);
+      throw new HttpError(400, 'MAX_ATTEMPTS', `Bạn đã dùng hết ${maxAttempts} lượt làm bài`);
     }
 
     const questionIds = JSON.parse(exam.question_ids_json) as string[];
-    if (questionIds.length === 0) throw new HttpError(400, 'EMPTY_EXAM', 'Äá» thi chÆ°a cÃ³ cÃ¢u há»i');
+    if (questionIds.length === 0) throw new HttpError(400, 'EMPTY_EXAM', 'Đề thi chưa có câu hỏi');
     const placeholders = questionIds.map(() => '?').join(',');
     const bank = db.prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`).all(...questionIds) as unknown as BankQuestion[];
     const orderMap = new Map(questionIds.map((qid, i) => [qid, i]));
@@ -392,9 +392,9 @@ router.put(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const attempt = getAttemptOrThrow(String(req.params.id), authed.user!.id);
-    if (attempt.status === 'submitted') throw new HttpError(400, 'ALREADY_SUBMITTED', 'BÃ i Ä‘Ã£ ná»™p');
+    if (attempt.status === 'submitted') throw new HttpError(400, 'ALREADY_SUBMITTED', 'Bài đã nộp');
     const answers = z.record(z.string(), z.string().max(2000)).safeParse(req.body?.answers);
-    if (!answers.success) throw new HttpError(400, 'BAD_INPUT', 'Dá»¯ liá»‡u Ä‘Ã¡p Ã¡n khÃ´ng há»£p lá»‡');
+    if (!answers.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu đáp án không hợp lệ');
     const detail = JSON.parse(attempt.answers_detail_json) as AttemptDetail;
     detail.answers = answers.data;
     db.prepare("UPDATE exam_results SET saved_answers_json = ?, answers_detail_json = ?, status = 'in_progress', updated_at = datetime('now') WHERE id = ?").run(
@@ -479,7 +479,7 @@ router.post(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const attempt = getAttemptOrThrow(String(req.params.id), authed.user!.id);
-    if (attempt.status === 'submitted') throw new HttpError(400, 'ALREADY_SUBMITTED', 'BÃ i Ä‘Ã£ Ä‘Æ°á»£c ná»™p trÆ°á»›c Ä‘Ã³');
+    if (attempt.status === 'submitted') throw new HttpError(400, 'ALREADY_SUBMITTED', 'Bài đã được nộp trước đó');
     const detail = JSON.parse(attempt.answers_detail_json) as AttemptDetail;
     if (req.body?.answers && typeof req.body.answers === 'object') {
       detail.answers = { ...detail.answers, ...(req.body.answers as Record<string, string>) };
@@ -497,8 +497,8 @@ router.get(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
-    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y Ä‘á»');
-    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n xem káº¿t quáº£');
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem kết quả');
 
     const rows = db
       .prepare(
@@ -554,8 +554,8 @@ router.get(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(String(req.params.id)) as ExamRow | undefined;
-    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y Ä‘á»');
-    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n');
+    if (!exam) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy đề');
+    if (!canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
 
     const rows = db
       .prepare(
@@ -603,12 +603,12 @@ router.put(
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const row = db.prepare('SELECT * FROM exam_results WHERE id = ?').get(String(req.params.resultId)) as AttemptRow | undefined;
-    if (!row) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y bÃ i lÃ m');
+    if (!row) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy bài làm');
     const exam = db.prepare('SELECT * FROM exams WHERE id = ?').get(row.exam_id) as ExamRow | undefined;
-    if (!exam || !canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n cháº¥m bÃ i nÃ y');
+    if (!exam || !canManageExam(exam, authed.user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền chấm bài này');
     const parsed = essayGradeSchema.safeParse(req.body);
     if (!parsed.success)
-    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Äiá»ƒm khÃ´ng há»£p lá»‡ (thang 0-10)');
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Điểm không hợp lệ (thang 0-10)');
     const detail = JSON.parse(row.answers_detail_json) as AttemptDetail;
     for (const [qid, score] of Object.entries(parsed.data.scores)) {
       const pq = detail.perQuestion[qid];

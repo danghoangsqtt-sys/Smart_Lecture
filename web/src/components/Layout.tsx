@@ -3,28 +3,32 @@ import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { disconnectSocket } from '../realtime/socket';
 import { api } from '../lib/api';
-import { Modal, Label, Input } from './ui';
+import { Modal, Label, Input, Button } from './ui';
 import toast from '../stores/toastStore';
+import { ContextGuide } from './ContextGuide';
 
 interface NavItemDef {
   to: string;
   label: string;
+  icon: string;
   roles: ('admin' | 'teacher' | 'student')[];
 }
 
 const NAV: NavItemDef[] = [
-  { to: '/', label: 'Tá»•ng quan', roles: ['admin', 'teacher', 'student'] },
-  { to: '/users', label: 'NgÆ°á»i dÃ¹ng', roles: ['admin', 'teacher'] },
-  { to: '/classes', label: 'Lá»›p há»c', roles: ['admin', 'teacher', 'student'] },
-  { to: '/lectures', label: 'BÃ i giáº£ng', roles: ['teacher'] },
-  { to: '/learning', label: 'Há»c liá»‡u cá»§a tÃ´i', roles: ['student'] },
-  { to: '/questions', label: 'NgÃ¢n hÃ ng cÃ¢u há»i', roles: ['teacher', 'admin'] },
-  { to: '/exams', label: 'Äá» thi & káº¿t quáº£', roles: ['teacher', 'admin'] },
-  { to: '/my-exams', label: 'BÃ i thi cá»§a tÃ´i', roles: ['student'] },
-  { to: '/games', label: 'TrÃ² chÆ¡i', roles: ['teacher'] },
-  { to: '/gradebook', label: 'Sá»• Ä‘iá»ƒm', roles: ['teacher', 'admin'] },
-  { to: '/attendance', label: 'Äiá»ƒm danh', roles: ['teacher', 'admin'] },
-  { to: '/settings', label: 'CÃ i Ä‘áº·t', roles: ['admin', 'teacher', 'student'] },
+  { to: '/', label: 'Tổng quan', icon: 'fa-gauge-high', roles: ['admin', 'teacher', 'student'] },
+  { to: '/users', label: 'Người dùng', icon: 'fa-users-gear', roles: ['admin'] },
+  { to: '/classes', label: 'Lớp học', icon: 'fa-chalkboard-user', roles: ['admin', 'teacher', 'student'] },
+  { to: '/lectures', label: 'Bài giảng', icon: 'fa-book-open', roles: ['teacher'] },
+  { to: '/teaching', label: 'Giảng dạy', icon: 'fa-person-chalkboard', roles: ['teacher', 'admin'] },
+  { to: '/curriculum', label: 'Chương trình đào tạo', icon: 'fa-folder-tree', roles: ['teacher', 'admin'] },
+  { to: '/learning', label: 'Học liệu của tôi', icon: 'fa-graduation-cap', roles: ['student'] },
+  { to: '/questions', label: 'Ngân hàng câu hỏi', icon: 'fa-database', roles: ['teacher', 'admin'] },
+  { to: '/exams', label: 'Đề thi & kết quả', icon: 'fa-clipboard-check', roles: ['teacher', 'admin'] },
+  { to: '/my-exams', label: 'Bài thi của tôi', icon: 'fa-pen-to-square', roles: ['student'] },
+  { to: '/my-results', label: 'Kết quả của tôi', icon: 'fa-chart-simple', roles: ['student'] },
+  { to: '/games', label: 'Trò chơi', icon: 'fa-gamepad', roles: ['teacher', 'admin'] },
+  { to: '/schedule', label: 'Lịch giảng dạy', icon: 'fa-calendar-days', roles: ['teacher', 'admin'] },
+  { to: '/settings', label: 'Cài đặt', icon: 'fa-gear', roles: ['admin', 'teacher', 'student'] },
 ];
 
 export default function Layout() {
@@ -32,8 +36,11 @@ export default function Layout() {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const navigate = useNavigate();
   const [pwOpen, setPwOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   if (!user) return <Navigate to="/login" replace />;
+
+  const visibleNav = NAV.filter((item) => item.roles.includes(user.role));
 
   function handleLogout() {
     disconnectSocket();
@@ -42,58 +49,70 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 md:flex">
-        <div className="mb-4 flex items-center gap-2 px-3 pt-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 font-bold">SL</div>
-          <span className="font-semibold">SmartLecture</span>
+    <div className="flex min-h-screen bg-slate-50 text-slate-800">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-100 bg-white md:flex">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-6">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-blue-900 font-black text-white shadow-lg">SL</div>
+          <div>
+            <div className="text-base font-extrabold tracking-tight text-blue-900">SmartLecture</div>
+            <div className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Hệ thống dạy học nội bộ</div>
+          </div>
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
-          {NAV.filter((n) => n.roles.includes(user.role)).map((n) => (
+        <nav className="custom-scrollbar flex-1 space-y-0.5 overflow-y-auto py-5">
+          {visibleNav.map((n) => (
             <NavLink
               key={n.to}
               to={n.to}
               end={n.to === '/'}
               className={({ isActive }) =>
-                `block rounded-lg px-3 py-2 text-sm transition ${
-                  isActive ? 'bg-indigo-600/20 font-medium text-indigo-300' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                `group mx-3 mb-1 flex items-center gap-3.5 rounded-sm px-4 py-3 text-sm transition-all duration-200 ${
+                  isActive ? 'border-l-4 border-l-yellow-500 bg-blue-50 font-bold text-blue-900' : 'font-medium text-slate-500 hover:bg-slate-100 hover:text-blue-900'
                 }`
               }
             >
-              {n.label}
+              {({ isActive }) => (
+                <>
+                  <i className={`fas ${n.icon} w-5 text-center text-base ${isActive ? 'text-blue-900' : 'text-slate-400 group-hover:text-blue-700'}`} />
+                  {n.label}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 overflow-x-auto border-b border-slate-800 bg-slate-900 px-4 py-3 md:px-6">
+        <header className="flex items-center justify-between gap-3 overflow-x-auto border-b border-slate-100 bg-white px-4 py-3 md:px-6">
           <div className="flex gap-1 md:hidden">
-            {NAV.filter((n) => n.roles.includes(user.role)).slice(0, 6).map((n) => (
-              <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-md px-2.5 py-1 text-xs ${isActive ? 'bg-indigo-600/30 text-indigo-300' : 'text-slate-400'}`}>
+            {visibleNav.slice(0, 6).map((n) => (
+              <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-sm px-2.5 py-1 text-xs font-semibold ${isActive ? 'bg-blue-50 text-blue-900' : 'text-slate-500'}`}>
                 {n.label}
               </NavLink>
             ))}
           </div>
-          <span className="hidden text-sm text-slate-500 md:inline">{user.role === 'admin' ? 'Quáº£n trá»‹ viÃªn' : user.role === 'teacher' ? 'GiÃ¡o viÃªn' : 'Há»c viÃªn'}</span>
+          <span className="hidden text-xs font-bold uppercase tracking-wide text-slate-400 md:inline">{user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học viên'}</span>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-sm text-slate-300">{user.displayName}</span>
+            <button onClick={() => setGuideOpen(true)} className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-bold text-blue-800 transition hover:bg-blue-100" aria-label="Mở hướng dẫn cho trang này" title="Hướng dẫn trang này">
+              <i className="fas fa-circle-question" /> <span className="hidden sm:inline">Hướng dẫn</span>
+            </button>
+            <span className="text-sm font-semibold text-slate-600">{user.displayName}</span>
             {user.mustChangePassword && (
-              <button onClick={() => setPwOpen(true)} className="rounded-lg bg-amber-700/80 px-2.5 py-1.5 text-xs text-white hover:bg-amber-600">
-                Äá»•i máº­t kháº©u
+              <button onClick={() => setPwOpen(true)} className="rounded-sm border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide text-orange-700 hover:bg-orange-100">
+                Đổi mật khẩu
               </button>
             )}
-            <button onClick={handleLogout} className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700">ÄÄƒng xuáº¥t</button>
+            <button onClick={handleLogout} className="rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700">Đăng xuất</button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{<Outlet />}</main>
+        <main className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">{<Outlet />}</main>
       </div>
 
       <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
+      <ContextGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }
 
-export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ChangePasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [oldPassword, setOld] = useState('');
   const [newPassword, setNew] = useState('');
   const [busy, setBusy] = useState(false);
@@ -103,25 +122,25 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
     try {
       await api('/auth/change-password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) });
       useAuthStore.setState((s) => (s.user ? { user: { ...s.user, mustChangePassword: false } } : s));
-      toast.success('ÄÃ£ Ä‘á»•i máº­t kháº©u');
+      toast.success('Đã đổi mật khẩu');
       onClose();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i');
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Äá»•i máº­t kháº©u">
+    <Modal open={open} onClose={onClose} title="Đổi mật khẩu">
       <div className="space-y-3">
-        <div><Label>Máº­t kháº©u hiá»‡n táº¡i</Label><Input type="password" value={oldPassword} onChange={(e) => setOld(e.target.value)} /></div>
-        <div><Label>Máº­t kháº©u má»›i (tá»‘i thiá»ƒu 6 kÃ½ tá»±)</Label><Input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} /></div>
+        <div><Label>Mật khẩu hiện tại</Label><Input type="password" value={oldPassword} onChange={(e) => setOld(e.target.value)} /></div>
+        <div><Label>Mật khẩu mới (tối thiểu 6 ký tự)</Label><Input type="password" value={newPassword} onChange={(e) => setNew(e.target.value)} /></div>
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:text-slate-200">Há»§y</button>
-          <button onClick={submit} disabled={busy || newPassword.length < 6} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-            {busy ? 'Äang lÆ°uâ€¦' : 'LÆ°u'}
-          </button>
+          <Button variant="ghost" onClick={onClose}>Hủy</Button>
+          <Button variant="primary" onClick={submit} disabled={busy || newPassword.length < 6}>
+            {busy ? 'Đang lưu…' : 'Lưu'}
+          </Button>
         </div>
       </div>
     </Modal>

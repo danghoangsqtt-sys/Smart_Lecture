@@ -10,13 +10,39 @@ const zAnswer = z.object({ choiceIdx: z.number().int().min(-1).max(9).default(-1
 const zMathAnswer = z.object({ answer: z.union([z.string().max(50), z.number()]) });
 const zVerdict = z.object({ userId: z.string(), correct: z.boolean() });
 const zCwTry = z.object({ rowIndex: z.number().int().min(0).max(9), word: z.string().min(1).max(60) });
+const zBingoMark = z.object({ number: z.number().int().min(1).max(75) });
+const zMemoryFlip = z.object({ cardIndex: z.number().int().min(0).max(23) });
+const zWordScrambleGuess = z.object({ word: z.string().min(1).max(60) });
+const zQuizShowAnswer = z.object({ choiceIdx: z.number().int().min(-1).max(3).default(-1), lifeline: z.enum(['fiftyFifty', 'askAudience', 'phoneFriend']).optional() });
+const zCircuitDraw = z.object({
+  components: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    x: z.number(),
+    y: z.number(),
+    rotation: z.number().default(0),
+    properties: z.record(z.string(), z.unknown()).default({})
+  })),
+  wires: z.array(z.object({
+    id: z.string(),
+    from: z.string(),
+    to: z.string(),
+    fromPort: z.string().optional(),
+    toPort: z.string().optional()
+  }))
+});
+const zCircuitSimulate = z.object({
+  action: z.enum(['start', 'stop', 'step', 'reset']),
+  inputs: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
+  timeStep: z.number().optional()
+});
 
 interface PuzzleDef {
   keyword: string;
   rows: { clue: string; word: string }[];
 }
 
-type GameType = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword';
+type GameType = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate';
 
 interface GameQuestion {
   id: string;
@@ -45,7 +71,66 @@ interface RacePlayer {
   startedAt: number;
 }
 
-type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'finished';
+interface BingoPlayer {
+  userId: string;
+  displayName: string;
+  card: number[][]; // 5x5 card with numbers
+  marked: boolean[][]; // 5x5 marked cells
+  lines: number; // completed lines (row, col, diag)
+  score: number;
+  bingo: boolean;
+}
+
+interface MemoryMatchPlayer {
+  userId: string;
+  displayName: string;
+  score: number;
+  matches: number;
+  currentFlipped: number[]; // indices of currently flipped cards
+  lastFlipTime: number;
+}
+
+interface WordScramblePlayer {
+  userId: string;
+  displayName: string;
+  score: number;
+  solved: number;
+  currentWord: string | null;
+  currentScrambled: string | null;
+  attempts: number;
+}
+
+interface QuizShowPlayer {
+  userId: string;
+  displayName: string;
+  score: number;
+  streak: number;
+  lifelines: { fiftyFifty: boolean; askAudience: boolean; phoneFriend: boolean };
+  currentQuestion: number;
+  answers: Map<number, { choiceIdx: number; lifeline?: string }>;
+}
+
+interface CircuitDrawPlayer {
+  userId: string;
+  displayName: string;
+  score: number;
+  circuit: { components: any[]; wires: any[] } | null;
+  submitted: boolean;
+  verified: boolean;
+  feedback: string;
+}
+
+interface CircuitSimulatePlayer {
+  userId: string;
+  displayName: string;
+  score: number;
+  circuit: { components: any[]; wires: any[] } | null;
+  simulationState: 'idle' | 'running' | 'paused' | 'completed' | 'start' | 'stop' | 'step' | 'reset';
+  measurements: Record<string, number>;
+  completedChallenges: string[];
+}
+
+type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate' | 'finished';
 
 interface RoomState {
   sessionId: string;
@@ -74,6 +159,41 @@ interface RoomState {
   ropePos: number;
   raceEndsAt: number;
   timer: NodeJS.Timeout | null;
+  // Bingo
+  bingoNumbers: number[];
+  bingoCalled: number[];
+  bingoPlayers: Map<string, BingoPlayer>;
+  // Memory Match
+  memoryCards: { id: number; value: string; matched: boolean }[];
+  memoryPlayers: Map<string, MemoryMatchPlayer>;
+  memoryFlipped: number[];
+  // Word Scramble
+  wordScrambleWords: { original: string; scrambled: string }[];
+  wordScramblePlayers: Map<string, WordScramblePlayer>;
+  // Quiz Show
+  quizShowQuestions: GameQuestion[];
+  quizShowPlayers: Map<string, QuizShowPlayer>;
+  quizShowCurrentQuestion: number;
+  // Circuit Draw
+  circuitDrawPlayers: Map<string, CircuitDrawPlayer>;
+  circuitDrawReference: { components: any[]; wires: any[] } | null;
+  circuitTemplate: { components: unknown[]; wires: unknown[] } | null;
+  // Circuit Simulate
+  circuitSimulatePlayers: Map<string, CircuitSimulatePlayer>;
+  circuitSimulateChallenges: CircuitChallenge[];
+  circuitSimulateCurrentChallenge: number;
+  simulateChallenges: CircuitChallenge[] | null;
+}
+
+interface CircuitChallenge {
+  id: string;
+  title: string;
+  description: string;
+  starterCircuit: { components: any[]; wires: any[] } | null;
+  referenceCircuit?: unknown;
+  targetBehavior: string; // e.g., "LED blinks at 1Hz", "Output HIGH when A=1 AND B=1"
+  testCases: { inputs: Record<string, number>; expectedOutputs: Record<string, number> }[];
+  points: number;
 }
 
 const MAX_PLAYERS = 60;
@@ -102,6 +222,15 @@ function authenticate(socket: Socket): SocketPayload | null {
   } catch {
     return null;
   }
+}
+
+function isRoomHost(room: RoomState | undefined, socket: Socket): room is RoomState {
+  return !!room && socket.data.role !== 'student' && room.hostId === String(socket.data.userId);
+}
+
+function isEnrolled(classId: string | null, userId: string): boolean {
+  if (!classId) return false;
+  return !!db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(classId, userId);
 }
 
 function leaderboard(room: RoomState): { name: string; score: number; team?: string }[] {
@@ -184,15 +313,16 @@ function generateMathProblem(difficulty: number): { text: string; answer: string
     } else {
       const b = rand(3, 16);
       const answerV = rand(6, 30);
-      text = `${b * answerV} : ${b} + ${rand(3, 20)}`;
-      answer = answerV + rand(3, 20);
+      const c = rand(3, 20);
+      text = `${b * answerV} : ${b} + ${c}`;
+      answer = answerV + c;
     }
   }
   return { text, answer: String(answer) };
 }
 
 function addKttx(classId: string | null, userId: string, delta: number): number {
-  if (!classId || delta === 0) return 0;
+  if (!classId || delta === 0 || !isEnrolled(classId, userId)) return 0;
   const row = db.prepare('SELECT kttx FROM grades WHERE class_id = ? AND student_id = ?').get(classId, userId) as
     | { kttx: number | null }
     | undefined;
@@ -359,6 +489,22 @@ function finishGame(room: RoomState): void {
     podium = [...room.players.values()]
       .sort((a, b) => b.score - a.score)
       .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
+  } else if (room.gameType === 'bingo') {
+    podium = [...room.bingoPlayers.values()]
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
+  } else if (room.gameType === 'memory_match') {
+    podium = [...room.memoryPlayers.values()]
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
+  } else if (room.gameType === 'word_scramble') {
+    podium = [...room.wordScramblePlayers.values()]
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
+  } else if (room.gameType === 'quiz_show') {
+    podium = [...room.quizShowPlayers.values()]
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
   } else {
     podium = [...room.players.values()]
       .sort((a, b) => b.score - a.score)
@@ -376,6 +522,10 @@ function finishGame(room: RoomState): void {
     const nameToPlayer = new Map<string, string>();
     for (const p of room.players.values()) nameToPlayer.set(p.displayName, p.userId);
     for (const r of room.racePlayers.values()) nameToPlayer.set(r.displayName, r.userId);
+    for (const b of room.bingoPlayers.values()) nameToPlayer.set(b.displayName, b.userId);
+    for (const m of room.memoryPlayers.values()) nameToPlayer.set(m.displayName, m.userId);
+    for (const w of room.wordScramblePlayers.values()) nameToPlayer.set(w.displayName, w.userId);
+    for (const q of room.quizShowPlayers.values()) nameToPlayer.set(q.displayName, q.userId);
 
     tx(() => {
       for (const entry of podium) {
@@ -390,6 +540,704 @@ function finishGame(room: RoomState): void {
     console.error('[game] persist results failed', err);
   }
   setTimeout(() => rooms.delete(room.roomCode), 10 * 60_000);
+}
+
+// ============ BINGO ============
+function generateBingoCard(): number[][] {
+  const card: number[][] = [];
+  const ranges: [number, number][] = [
+    [1, 15], [16, 30], [31, 45], [46, 60], [61, 75]
+  ];
+  for (let col = 0; col < 5; col++) {
+    const range = ranges[col];
+    if (!range) continue;
+    const [min, max] = range;
+    const nums = new Set<number>();
+    while (nums.size < 5) {
+      nums.add(Math.floor(Math.random() * (max - min + 1)) + min);
+    }
+    card.push([...nums].sort((a, b) => a - b));
+  }
+  // Free space in center
+  if (card[2] && card[2][2] !== undefined) {
+    card[2][2] = 0;
+  }
+  return card;
+}
+
+function checkBingoLines(marked: boolean[][]): number {
+  let lines = 0;
+  // Rows
+  for (let r = 0; r < 5; r++) {
+    if (marked[r]!.every((v) => v)) lines++;
+  }
+  // Cols
+  for (let c = 0; c < 5; c++) {
+    if (marked.every((row) => row[c])) lines++;
+  }
+  // Diagonals
+  if (marked.every((row, i) => row[i])) lines++;
+  if (marked.every((row, i) => row[4 - i])) lines++;
+  return lines;
+}
+
+function initBingo(room: RoomState): void {
+  room.phase = 'bingo';
+  room.bingoNumbers = Array.from({ length: 75 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+  room.bingoCalled = [];
+  room.bingoPlayers = new Map();
+  for (const player of room.players.values()) {
+    const bingoPlayer = {
+      userId: player.userId,
+      displayName: player.displayName,
+      card: generateBingoCard(),
+      marked: Array(5).fill(null).map(() => Array(5).fill(false)),
+      lines: 0,
+      score: 0,
+      bingo: false,
+    };
+    // Mark free space
+    bingoPlayer.marked[2]![2] = true;
+    room.bingoPlayers.set(player.userId, bingoPlayer);
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('bingo:init', {
+    players: [...room.bingoPlayers.values()].map((p) => ({
+      userId: p.userId,
+      name: p.displayName,
+      card: p.card,
+    })),
+  });
+  callNextBingoNumber(room);
+}
+
+function callNextBingoNumber(room: RoomState): void {
+  if (room.bingoNumbers.length === 0) {
+    finishGame(room);
+    return;
+  }
+  const num = room.bingoNumbers.shift()!;
+  room.bingoCalled.push(num);
+  ioRef?.to(`game:${room.roomCode}`).emit('bingo:call', { number: num, called: room.bingoCalled });
+  // Auto-check for bingo after delay
+  room.timer = setTimeout(() => checkBingoLinesForPlayers(room), 3000);
+}
+
+function checkBingoLinesForPlayers(room: RoomState): void {
+  for (const [userId, player] of room.bingoPlayers) {
+    if (player.bingo) continue;
+    const oldLines = player.lines;
+    player.lines = checkBingoLines(player.marked);
+    if (player.lines >= 5 && !player.bingo) {
+      player.bingo = true;
+      player.score += 1000;
+      const newKttx = applyCorrectPoints(room, userId, player.displayName);
+      ioRef?.to(`game:${room.roomCode}`).emit('bingo:win', {
+        userId,
+        name: player.displayName,
+        lines: player.lines,
+        newKttx,
+      });
+      broadcastLeaderboard(room);
+      finishGame(room);
+      return;
+    } else if (player.lines > oldLines) {
+      player.score += (player.lines - oldLines) * 100;
+      ioRef?.to(`game:${room.roomCode}`).emit('bingo:lines', {
+        userId,
+        name: player.displayName,
+        lines: player.lines,
+      });
+    }
+  }
+  callNextBingoNumber(room);
+}
+
+// ============ MEMORY MATCH ============
+function generateMemoryCards(pairs: number = 12): { id: number; value: string; matched: boolean }[] {
+  const values: string[] = [];
+  for (let i = 0; i < pairs; i++) {
+    const val = String.fromCharCode(65 + i) + String.fromCharCode(97 + i); // Aa, Bb, Cc...
+    values.push(val, val);
+  }
+  return values.sort(() => Math.random() - 0.5).map((v, i) => ({ id: i, value: v, matched: false }));
+}
+
+function initMemoryMatch(room: RoomState): void {
+  room.phase = 'memory_match';
+  room.memoryCards = generateMemoryCards(12);
+  room.memoryPlayers = new Map();
+  room.memoryFlipped = [];
+  for (const player of room.players.values()) {
+    room.memoryPlayers.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: 0,
+      matches: 0,
+      currentFlipped: [],
+      lastFlipTime: 0,
+    });
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('memory:init', {
+    cards: room.memoryCards.map((c) => ({ id: c.id, value: c.matched ? c.value : '?', matched: c.matched })),
+    players: [...room.memoryPlayers.values()].map((p) => ({
+      userId: p.userId,
+      name: p.displayName,
+      score: p.score,
+      matches: p.matches,
+    })),
+  });
+}
+
+function checkMemoryMatch(room: RoomState, userId: string, cardIndex: number): void {
+  const player = room.memoryPlayers.get(userId);
+  if (!player || player.currentFlipped.length >= 2) return;
+  const card = room.memoryCards[cardIndex];
+  if (!card || card.matched || player.currentFlipped.includes(cardIndex)) return;
+
+  player.currentFlipped.push(cardIndex);
+  player.lastFlipTime = Date.now();
+
+  ioRef?.to(`game:${room.roomCode}`).emit('memory:flip', {
+    userId,
+    name: player.displayName,
+    cardIndex,
+    value: card.value,
+  });
+
+  if (player.currentFlipped.length === 2) {
+    const [idx1, idx2] = player.currentFlipped as [number, number];
+    const card1 = room.memoryCards[idx1]!;
+    const card2 = room.memoryCards[idx2]!;
+    if (card1.value === card2.value) {
+      card1.matched = true;
+      card2.matched = true;
+      player.matches++;
+      player.score += 100;
+      player.currentFlipped = [];
+      ioRef?.to(`game:${room.roomCode}`).emit('memory:match', {
+        userId,
+        name: player.displayName,
+        cardIndices: [idx1, idx2],
+        value: card1.value,
+      });
+      checkMemoryWin(room);
+    } else {
+      ioRef?.to(`game:${room.roomCode}`).emit('memory:mismatch', {
+        userId,
+        name: player.displayName,
+        cardIndices: [idx1, idx2],
+      });
+      room.timer = setTimeout(() => {
+        const p = room.memoryPlayers.get(userId);
+        if (p) p.currentFlipped = [];
+        ioRef?.to(`game:${room.roomCode}`).emit('memory:hide', { cardIndices: [idx1, idx2] });
+      }, 1500);
+    }
+  }
+}
+
+function checkMemoryWin(room: RoomState): void {
+  const allMatched = room.memoryCards.every((c) => c.matched);
+  if (allMatched) {
+    finishGame(room);
+  }
+}
+
+// ============ WORD SCRAMBLE ============
+function scrambleWord(word: string): string {
+  const arr = word.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = temp;
+  }
+  return arr.join('');
+}
+
+function initWordScramble(room: RoomState): void {
+  room.phase = 'word_scramble';
+  room.wordScrambleWords = room.questions.map((q) => ({
+    original: q.correctText || q.content,
+    scrambled: scrambleWord(q.correctText || q.content),
+  }));
+  room.wordScramblePlayers = new Map();
+  for (const player of room.players.values()) {
+    room.wordScramblePlayers.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: 0,
+      solved: 0,
+      currentWord: null,
+      currentScrambled: null,
+      attempts: 0,
+    });
+  }
+  sendNextWordScramble(room);
+}
+
+function sendNextWordScramble(room: RoomState): void {
+  for (const [userId, player] of room.wordScramblePlayers) {
+    if (player.solved >= room.wordScrambleWords.length) continue;
+    const wordData = room.wordScrambleWords[player.solved]!;
+    player.currentWord = wordData.original;
+    player.currentScrambled = wordData.scrambled;
+    player.attempts = 0;
+    const socket = [...ioRef?.sockets.sockets.values() ?? []].find(
+      (s) => s.data.userId === userId && s.data.role === 'student'
+    );
+    if (socket) {
+      socket.emit('word_scramble:next', {
+        word: wordData.scrambled,
+        index: player.solved,
+        total: room.wordScrambleWords.length,
+      });
+    }
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:update', {
+    players: [...room.wordScramblePlayers.values()].map((p) => ({
+      userId: p.userId,
+      name: p.displayName,
+      score: p.score,
+      solved: p.solved,
+    })),
+  });
+}
+
+function checkWordScramble(room: RoomState, userId: string, guess: string): void {
+  const player = room.wordScramblePlayers.get(userId);
+  if (!player || !player.currentWord) return;
+  player.attempts++;
+  const normalizedGuess = guess.trim().toLowerCase();
+  const normalizedAnswer = player.currentWord.trim().toLowerCase();
+  if (normalizedGuess === normalizedAnswer) {
+    const points = Math.max(100, 500 - player.attempts * 50);
+    player.score += points;
+    player.solved++;
+    player.currentWord = null;
+    player.currentScrambled = null;
+    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:correct', {
+      userId,
+      name: player.displayName,
+      points,
+      word: player.currentWord,
+    });
+    const newKttx = applyCorrectPoints(room, userId, player.displayName);
+    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:kttx', { userId, name: player.displayName, newKttx });
+    broadcastLeaderboard(room);
+    sendNextWordScramble(room);
+  } else {
+    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:wrong', {
+      userId,
+      name: player.displayName,
+      attempts: player.attempts,
+    });
+  }
+  checkWordScrambleWin(room);
+}
+
+function checkWordScrambleWin(room: RoomState): void {
+  const allDone = [...room.wordScramblePlayers.values()].every(
+    (p) => p.solved >= room.wordScrambleWords.length
+  );
+  if (allDone) finishGame(room);
+}
+
+// ============ QUIZ SHOW ============
+function initQuizShow(room: RoomState): void {
+  room.phase = 'quiz_show';
+  room.quizShowQuestions = room.questions;
+  room.quizShowPlayers = new Map();
+  room.quizShowCurrentQuestion = 0;
+  for (const player of room.players.values()) {
+    room.quizShowPlayers.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: 0,
+      streak: 0,
+      lifelines: { fiftyFifty: true, askAudience: true, phoneFriend: true },
+      currentQuestion: 0,
+      answers: new Map(),
+    });
+  }
+  sendQuizShowQuestion(room);
+}
+
+// ============ CIRCUIT DRAW ============
+function initCircuitDraw(room: RoomState): void {
+  room.phase = 'circuit_draw';
+  room.circuitDrawPlayers = new Map();
+  room.circuitDrawReference = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
+  for (const player of room.players.values()) {
+    room.circuitDrawPlayers.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: 0,
+      circuit: null,
+      submitted: false,
+      verified: false,
+      feedback: '',
+    });
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:init', {
+    referenceCircuit: room.circuitDrawReference,
+    durationSec: room.secondsPerQuestion,
+  });
+  // Auto-submit after time
+  room.timer = setTimeout(() => {
+    submitAllCircuits(room);
+  }, room.secondsPerQuestion * 1000);
+}
+
+function submitAllCircuits(room: RoomState): void {
+  let submitted = 0;
+  for (const [userId, player] of room.circuitDrawPlayers) {
+    if (!player.submitted && player.circuit) {
+      player.submitted = true;
+      submitted++;
+    }
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:auto_submitted', { submitted });
+  // Teacher will verify manually via verdict
+}
+
+/* ---------- Auto-verify: so khớp netlist theo CẤP LOẠI LINH KIỆN ----------
+   Không so vị trí/xoay — chỉ so:
+   1) Đúng số lượng từng loại linh kiện
+   2) Đúng số dây nối
+   3) Tập "chữ ký kết nối" (loại:chân ~ loại:chân) giống hệt nhau          */
+interface TypeLevelNetlist {
+  types: Map<string, number>;
+  sigs: Map<string, number>;
+  wireCount: number;
+}
+
+function extractNetlist(circuit: unknown): TypeLevelNetlist | null {
+  const obj = circuit as { components?: any[]; wires?: any[] } | null | undefined;
+  if (!obj || !Array.isArray(obj.components) || !Array.isArray(obj.wires)) return null;
+
+  const idType = new Map<string, string>();
+  const types = new Map<string, number>();
+  for (const comp of obj.components) {
+    if (!comp || typeof comp.id !== 'string' || typeof comp.type !== 'string') return null;
+    idType.set(comp.id, comp.type);
+    types.set(comp.type, (types.get(comp.type) ?? 0) + 1);
+  }
+
+  const sigs = new Map<string, number>();
+  let wireCount = 0;
+  const epOf = (raw: unknown): string | null => {
+    if (typeof raw !== 'string') return null;
+    const sep = raw.lastIndexOf('::');
+    const cid = sep >= 0 ? raw.slice(0, sep) : raw;
+    const pid = sep >= 0 ? raw.slice(sep + 2) : '';
+    const t = idType.get(cid);
+    if (!t) return null;
+    return `${t}:${pid || '?'}`;
+  };
+
+  for (const w of obj.wires) {
+    if (!w || typeof w.from !== 'string' || typeof w.to !== 'string') continue;
+    const a = epOf(w.from);
+    const b = epOf(w.to);
+    if (!a || !b || a === b) continue;
+    wireCount++;
+    const [x, y] = a < b ? [a, b] : [b, a];
+    const key = `${x}~${y}`;
+    sigs.set(key, (sigs.get(key) ?? 0) + 1);
+  }
+
+  return { types, sigs, wireCount };
+}
+
+function circuitsMatch(student: unknown, reference: unknown): boolean {
+  const s = extractNetlist(student);
+  const r = extractNetlist(reference);
+  if (!s || !r) return false;
+  if (s.wireCount !== r.wireCount) return false;
+  if (s.types.size !== r.types.size) return false;
+  for (const [t, n] of r.types) {
+    if (s.types.get(t) !== n) return false;
+  }
+  if (s.sigs.size !== r.sigs.size) return false;
+  for (const [k, n] of r.sigs) {
+    if (s.sigs.get(k) !== n) return false;
+  }
+  return true;
+}
+
+// ============ CIRCUIT SIMULATE ============
+/* Bộ thử thách mặc định dạng SỐ — chấm tự động bằng circuitsMatch (topology) */
+function buildDigitalDefaults(): CircuitChallenge[] {
+  let n = 0;
+  interface DPart { id: string; type: string; x: number; y: number; rot: number; props: Record<string, unknown> }
+  const C = (type: string, x: number, y: number, props: Record<string, unknown> = {}): DPart =>
+    ({ id: `dc${n++}`, type, x, y, rot: 0, props });
+  const W = (a: { id: string }, ap: string, b: { id: string }, bp: string): Record<string, unknown> =>
+    ({ id: `dw${n++}`, from: `${a.id}::${ap}`, to: `${b.id}::${bp}` });
+
+  /* 1 — Đèn LED + công tắc */
+  const v1 = C('vcc', 180, 140);
+  const s1 = C('switch', 320, 140, { on: false });
+  const l1 = C('led', 460, 140, { color: '#ef4444' });
+  const g1 = C('gnd', 460, 260);
+  const ch1: CircuitChallenge = {
+    id: 'digital_1',
+    title: 'Đóng mạch đèn LED',
+    description: 'Nối nguồn VCC qua công tắc tới đèn LED rồi xuống GND.',
+    targetBehavior: 'Bật công tắc → LED sáng',
+    starterCircuit: null,
+    referenceCircuit: {
+      components: [v1, s1, l1, g1],
+      wires: [W(v1, 'out', s1, 'in'), W(s1, 'out', l1, 'anode'), W(l1, 'cathode', g1, 'out')],
+    },
+    testCases: [],
+    points: 100,
+  };
+
+  /* 2 — Cổng AND điều khiển đèn */
+  const v2 = C('vcc', 140, 160);
+  const sa = C('switch', 280, 90, { on: false });
+  const sb = C('switch', 280, 230, { on: false });
+  const an = C('and', 430, 160);
+  const l2 = C('led', 570, 160, { color: '#22c55e' });
+  const g2 = C('gnd', 570, 280);
+  const ch2: CircuitChallenge = {
+    id: 'digital_2',
+    title: 'Cổng AND — hai chìa khoá',
+    description: 'Dựng mạch chỉ khi BẬT cả hai công tắc thì đèn mới sáng.',
+    targetBehavior: 'Cả hai công tắc ON → LED sáng; thiếu một → tắt',
+    starterCircuit: null,
+    referenceCircuit: {
+      components: [v2, sa, sb, an, l2, g2],
+      wires: [
+        W(v2, 'out', sa, 'in'), W(v2, 'out', sb, 'in'),
+        W(sa, 'out', an, 'a'), W(sb, 'out', an, 'b'),
+        W(an, 'y', l2, 'anode'), W(l2, 'cathode', g2, 'out'),
+      ],
+    },
+    testCases: [],
+    points: 150,
+  };
+
+  /* 3 — Mạch đảo NOT */
+  const v3 = C('vcc', 180, 150);
+  const s3 = C('switch', 320, 150, { on: true });
+  const nt = C('not', 450, 150);
+  const l3 = C('led', 580, 150, { color: '#3b82f6' });
+  const g3 = C('gnd', 580, 270);
+  const ch3: CircuitChallenge = {
+    id: 'digital_3',
+    title: 'Mạch đảo NOT',
+    description: 'LED phải sáng khi công tắc đang TẮT và ngừng sáng khi bật.',
+    targetBehavior: 'Tắt công tắc → LED sáng · Bật công tắc → LED tắt',
+    starterCircuit: { components: [v3, s3, nt, l3, g3], wires: [] },
+    referenceCircuit: {
+      components: [v3, s3, nt, l3, g3],
+      wires: [
+        W(v3, 'out', s3, 'in'), W(s3, 'out', nt, 'a'),
+        W(nt, 'y', l3, 'anode'), W(l3, 'cathode', g3, 'out'),
+      ],
+    },
+    testCases: [],
+    points: 150,
+  };
+
+  return [ch1, ch2, ch3];
+}
+
+function initCircuitSimulate(room: RoomState): void {
+  room.phase = 'circuit_simulate';
+  room.circuitSimulatePlayers = new Map();
+  const starter = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
+  const custom = room.simulateChallenges && room.simulateChallenges.length > 0 ? room.simulateChallenges : null;
+  room.circuitSimulateChallenges = custom
+    ? custom.map((c) => ({ ...c }))
+    : buildDigitalDefaults();
+  room.circuitSimulateCurrentChallenge = 0;
+  // Mạch mẫu toàn cục chỉ làm điểm khởi đầu khi dùng bộ mặc định
+  if (!custom && starter && room.circuitSimulateChallenges[0]) {
+    (room.circuitSimulateChallenges[0] as CircuitChallenge).starterCircuit = starter;
+  }
+  for (const player of room.players.values()) {
+    room.circuitSimulatePlayers.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: 0,
+      circuit: null,
+      simulationState: 'idle',
+      measurements: {},
+      completedChallenges: [],
+    });
+  }
+  sendCircuitSimulateChallenge(room);
+}
+
+function sendCircuitSimulateChallenge(room: RoomState): void {
+  if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
+    finishGame(room);
+    return;
+  }
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (!challenge) return;
+  ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', {
+    index: room.circuitSimulateCurrentChallenge,
+    total: room.circuitSimulateChallenges.length,
+    challenge: {
+      id: challenge.id,
+      title: challenge.title,
+      description: challenge.description,
+      starterCircuit: challenge.starterCircuit,
+      targetBehavior: challenge.targetBehavior,
+    },
+  });
+  room.timer = setTimeout(() => {
+    evaluateCircuitSimulateChallenge(room);
+  }, room.secondsPerQuestion * 1000);
+}
+
+function evaluateCircuitSimulateChallenge(room: RoomState): void {
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (!challenge) return;
+  const c = challenge; // TypeScript narrowing workaround
+  let completed = 0;
+  for (const [userId, player] of room.circuitSimulatePlayers) {
+    if (player.completedChallenges.includes(c.id)) continue;
+
+    let passed = false;
+    if (c.referenceCircuit) {
+      /* Chấm tự động theo topology — giống circuit_draw */
+      passed = !!player.circuit && circuitsMatch(player.circuit, c.referenceCircuit);
+    } else if (player.circuit && player.measurements) {
+      /* Fallback legacy: đo lường từ client */
+      passed = true;
+      for (const testCase of c.testCases) {
+        for (const [output, expected] of Object.entries(testCase.expectedOutputs)) {
+          const measured = player.measurements[output];
+          if (measured === undefined || Math.abs(measured - expected) > 0.1) {
+            passed = false;
+            break;
+          }
+        }
+        if (!passed) break;
+      }
+    }
+
+    if (passed) {
+        player.completedChallenges.push(c.id);
+        player.score += c.points;
+        completed++;
+        const newKttx = applyCorrectPoints(room, userId, player.displayName);
+        ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
+          userId,
+          name: player.displayName,
+          challengeId: c.id,
+          points: c.points,
+          newKttx,
+        });
+      }
+  }
+  broadcastLeaderboard(room);
+  if (completed > 0) {
+    ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:results', { completed });
+  }
+  nextCircuitSimulateChallenge(room);
+}
+
+function nextCircuitSimulateChallenge(room: RoomState): void {
+  room.circuitSimulateCurrentChallenge++;
+  if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
+    finishGame(room);
+    return;
+  }
+  sendCircuitSimulateChallenge(room);
+}
+
+function sendQuizShowQuestion(room: RoomState): void {
+  if (room.quizShowCurrentQuestion >= room.quizShowQuestions.length) {
+    finishGame(room);
+    return;
+  }
+  const q = room.quizShowQuestions[room.quizShowCurrentQuestion]!;
+  ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:question', {
+    index: room.quizShowCurrentQuestion,
+    total: room.quizShowQuestions.length,
+    question: { id: q.id, type: q.type, content: q.content, options: q.options ?? [] },
+    durationSec: room.secondsPerQuestion,
+  });
+  room.timer = setTimeout(() => revealQuizShowAnswer(room), room.secondsPerQuestion * 1000 + 400);
+}
+
+function revealQuizShowAnswer(room: RoomState): void {
+  if (room.phase !== 'quiz_show') return;
+  const q = room.quizShowQuestions[room.quizShowCurrentQuestion];
+  if (!q) return;
+  let correctCount = 0;
+  for (const player of room.quizShowPlayers.values()) {
+    if (player.currentQuestion !== room.quizShowCurrentQuestion) continue;
+    const ans = player.answers?.get(room.quizShowCurrentQuestion);
+    if (!ans) continue;
+    const correct = ans.choiceIdx === (q.type === 'mcq' ? q.correctIdx : -1);
+    if (correct) {
+      player.score += room.pointsPerCorrect;
+      player.streak++;
+      correctCount++;
+    } else {
+      player.streak = 0;
+    }
+  }
+  ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:reveal', {
+    index: room.quizShowCurrentQuestion,
+    correctIdx: q.type === 'mcq' ? q.correctIdx : -1,
+    correctText: q.type === 'fill' ? q.correctText : undefined,
+    scores: [...room.quizShowPlayers.values()].map((p) => ({
+      userId: p.userId,
+      name: p.displayName,
+      score: p.score,
+      streak: p.streak,
+    })),
+  });
+  broadcastLeaderboard(room);
+}
+
+function useQuizShowLifeline(room: RoomState, userId: string, lifeline: 'fiftyFifty' | 'askAudience' | 'phoneFriend'): void {
+  const player = room.quizShowPlayers.get(userId);
+  if (!player || !player.lifelines[lifeline]) return;
+  player.lifelines[lifeline] = false;
+  const q = room.quizShowQuestions[room.quizShowCurrentQuestion];
+  if (!q) return;
+  if (lifeline === 'fiftyFifty' && q.type === 'mcq' && q.options) {
+    const correctIdx = q.correctIdx ?? 0;
+    const wrongIndices = q.options.map((_, i) => i).filter((i) => i !== correctIdx);
+    const toRemove = wrongIndices.slice(0, 2);
+    const remaining = q.options.map((opt, i) => (toRemove.includes(i) ? '' : opt));
+    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:fifty_fifty', { userId, remaining });
+  } else if (lifeline === 'askAudience') {
+    const votes: number[] = q.options?.map(() => Math.floor(Math.random() * 100)) ?? [];
+    const total = votes.reduce((a, b) => a + b, 0);
+    const percentages = votes.map((v) => Math.round((v / (total || 1)) * 100));
+    if (q.correctIdx !== undefined && percentages.length > q.correctIdx) {
+      percentages[q.correctIdx]! += 20;
+    }
+    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:ask_audience', { userId, percentages });
+  } else if (lifeline === 'phoneFriend') {
+    const hint = q.type === 'mcq' && q.correctIdx !== undefined
+      ? `Tôi nghĩ đáp án ${String.fromCharCode(65 + q.correctIdx)} có khả năng cao`
+      : 'Tôi không chắc lắm, nhưng bạn nên suy nghĩ kỹ hơn';
+    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:phone_friend', { userId, hint });
+  }
+}
+
+function nextQuizShowQuestion(room: RoomState): void {
+  room.quizShowCurrentQuestion++;
+  if (room.quizShowCurrentQuestion >= room.quizShowQuestions.length) {
+    finishGame(room);
+    return;
+  }
+  for (const player of room.quizShowPlayers.values()) {
+    player.currentQuestion = room.quizShowCurrentQuestion;
+  }
+  sendQuizShowQuestion(room);
 }
 
 function startRace(room: RoomState): void {
@@ -447,6 +1295,7 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
         question_ids_json: string;
         config_json: string;
         current_question_index: number;
+        class_id: string | null;
       }
     | undefined;
   if (!row || row.status === 'finished') return null;
@@ -458,9 +1307,17 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     pointsPerCorrect?: number;
     classId?: string | null;
     puzzle?: PuzzleDef | null;
+    circuitTemplate?: { components: unknown[]; wires: unknown[] } | null;
+    simulateChallenges?: {
+      title: string;
+      description?: string;
+      targetBehavior?: string;
+      points: number;
+      circuit?: { components: unknown[]; wires: unknown[] } | null;
+    }[] | null;
     lockOnStart?: boolean;
   };
-  const gameType = (['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword'] as const).includes(
+  const gameType = (['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword', 'bingo', 'memory_match', 'word_scramble', 'quiz_show', 'circuit_draw', 'circuit_simulate'] as const).includes(
     row.game_type as never
   )
     ? (row.game_type as GameType)
@@ -499,7 +1356,7 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     raceDurationSec: Math.min(Math.max(cfg.durationSec ?? 120, 30), 600),
     raceDifficulty: Math.min(Math.max(cfg.difficulty ?? 1, 1), 3),
     pointsPerCorrect: cfg.pointsPerCorrect ?? 0.5,
-    classId: cfg.classId ?? null,
+    classId: row.class_id ?? cfg.classId ?? null,
     puzzle: cfg.puzzle ?? null,
     solvedRows: new Set<number>(),
     hands: new Map<string, string>(),
@@ -516,6 +1373,41 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     ropePos: 0,
     raceEndsAt: 0,
     timer: null,
+    // Bingo
+    bingoNumbers: [],
+    bingoCalled: [],
+    bingoPlayers: new Map(),
+    // Memory Match
+    memoryCards: [],
+    memoryPlayers: new Map(),
+    memoryFlipped: [],
+    // Word Scramble
+    wordScrambleWords: [],
+    wordScramblePlayers: new Map(),
+    // Quiz Show
+    quizShowQuestions: [],
+    quizShowPlayers: new Map(),
+    quizShowCurrentQuestion: 0,
+    // Circuit Draw
+    circuitDrawPlayers: new Map(),
+    circuitDrawReference: null,
+    circuitTemplate: cfg.circuitTemplate ?? null,
+    // Circuit Simulate
+    circuitSimulatePlayers: new Map(),
+    circuitSimulateChallenges: [],
+    circuitSimulateCurrentChallenge: 0,
+    simulateChallenges: cfg.simulateChallenges
+      ? cfg.simulateChallenges.map((entry, i) => ({
+          id: `cfg_${i}`,
+          title: entry.title,
+          description: entry.description ?? '',
+          targetBehavior: entry.targetBehavior ?? '',
+          starterCircuit: (entry.circuit as { components: any[]; wires: any[] } | null | undefined) ?? null,
+          referenceCircuit: entry.circuit ?? null,
+          testCases: [],
+          points: entry.points,
+        }))
+      : null,
   };
   rooms.set(row.room_code, room);
   return room;
@@ -548,6 +1440,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         socket.emit('game:error', { message: 'Phiên game không tồn tại hoặc đã kết thúc' });
         return;
       }
+      if (!isRoomHost(room, socket)) {
+        socket.emit('game:error', { message: 'Chỉ giáo viên tạo phòng mới có quyền điều khiển game.' });
+        return;
+      }
       void socket.join(`game:${room.roomCode}`);
       socket.data.roomCode = room.roomCode;
       socket.emit('host:sync', {
@@ -570,6 +1466,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         return;
       }
       const userId = String(socket.data.userId);
+      if (!room.classId || !isEnrolled(room.classId, userId)) {
+        socket.emit('game:error', { message: 'Bạn không thuộc lớp được phép tham gia game này.' });
+        return;
+      }
       if (room.blacklist.has(userId)) {
         socket.emit('game:error', { message: 'Bạn đã bị giáo viên loại khỏi phiên này.' });
         return;
@@ -659,7 +1559,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
 
     socket.on('game:host-start', () => {
       const room = rooms.get(String(socket.data.roomCode));
-      if (!room || room.hostId !== socket.data.userId) return;
+      if (!isRoomHost(room, socket)) return;
       if (room.phase !== 'lobby') return;
       if (room.lockOnStart) room.locked = true;
       db.prepare("UPDATE game_sessions SET status = 'running', started_at = datetime('now') WHERE id = ?").run(room.sessionId);
@@ -674,6 +1574,30 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         broadcastHands(room);
         return;
       }
+      if (room.gameType === 'bingo') {
+        initBingo(room);
+        return;
+      }
+      if (room.gameType === 'memory_match') {
+        initMemoryMatch(room);
+        return;
+      }
+      if (room.gameType === 'word_scramble') {
+        initWordScramble(room);
+        return;
+      }
+      if (room.gameType === 'quiz_show') {
+        initQuizShow(room);
+        return;
+      }
+      if (room.gameType === 'circuit_draw') {
+        initCircuitDraw(room);
+        return;
+      }
+      if (room.gameType === 'circuit_simulate') {
+        initCircuitSimulate(room);
+        return;
+      }
       if (room.gameType === 'tug_of_war') broadcastRope(room);
       if (room.gameType === 'crossword') emitCrosswordState(room, socket);
       room.currentIndex = 0;
@@ -682,7 +1606,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
 
     socket.on('game:host-next', () => {
       const room = rooms.get(String(socket.data.roomCode));
-      if (!room || room.hostId !== socket.data.userId) return;
+      if (!isRoomHost(room, socket)) return;
       if (room.gameType === 'math_race') {
         if (room.timer) clearTimeout(room.timer);
         finishGame(room);
@@ -725,7 +1649,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const parsed = z.object({ userId: z.string() }).safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.hostId !== socket.data.userId || room.activePick) return;
+      if (!isRoomHost(room, socket) || room.activePick) return;
       const target = room.players.get(parsed.data.userId);
       const raceTarget = room.racePlayers.get(parsed.data.userId);
       const name = target?.displayName ?? raceTarget?.displayName ?? room.hands.get(parsed.data.userId) ?? 'Học viên';
@@ -739,7 +1663,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
 
     socket.on('game:host-release', () => {
       const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || socket.data.role === 'student') return;
+      if (!isRoomHost(room, socket)) return;
       room.activePick = null;
       ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
     });
@@ -748,7 +1672,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const parsed = zVerdict.safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.hostId !== socket.data.userId || !room.activePick) return;
+      if (!isRoomHost(room, socket) || !room.activePick) return;
       const { userId, correct } = parsed.data;
       const player = room.players.get(userId);
       const racePlayer = room.racePlayers.get(userId);
@@ -781,7 +1705,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const parsed = z.object({ userId: z.string() }).safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.hostId !== socket.data.userId) return;
+      if (!isRoomHost(room, socket)) return;
       const targetId = parsed.data.userId;
       room.blacklist.add(targetId);
       room.players.delete(targetId);
@@ -878,6 +1802,191 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         rp.wrongStreak += 1;
         socket.emit('math:wrong', { streak: rp.wrongStreak });
       }
+    });
+
+    // ============ BINGO ============
+    socket.on('bingo:mark', (raw: unknown) => {
+      const parsed = zBingoMark.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'bingo' || room.phase !== 'bingo') return;
+      const player = room.bingoPlayers.get(String(socket.data.userId));
+      if (!player || player.bingo) return;
+      const num = parsed.data.number;
+      for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+          if (player.card[r]![c] === num) {
+            player.marked[r]![c] = true;
+            ioRef?.to(`game:${room.roomCode}`).emit('bingo:marked', {
+              userId: player.userId,
+              name: player.displayName,
+              row: r,
+              col: c,
+            });
+            return;
+          }
+        }
+      }
+    });
+
+    // ============ MEMORY MATCH ============
+    socket.on('memory:flip', (raw: unknown) => {
+      const parsed = zMemoryFlip.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'memory_match' || room.phase !== 'memory_match') return;
+      checkMemoryMatch(room, String(socket.data.userId), parsed.data.cardIndex);
+    });
+
+    // ============ WORD SCRAMBLE ============
+    socket.on('word_scramble:guess', (raw: unknown) => {
+      const parsed = zWordScrambleGuess.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'word_scramble' || room.phase !== 'word_scramble') return;
+      checkWordScramble(room, String(socket.data.userId), parsed.data.word);
+    });
+
+    // ============ QUIZ SHOW ============
+    socket.on('quiz_show:answer', (raw: unknown) => {
+      const parsed = zQuizShowAnswer.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'quiz_show' || room.phase !== 'quiz_show') return;
+      const player = room.quizShowPlayers.get(String(socket.data.userId));
+      if (!player) return;
+      if (player.answers?.has(room.quizShowCurrentQuestion)) return;
+      if (!player.answers) player.answers = new Map();
+      player.answers.set(room.quizShowCurrentQuestion, {
+        choiceIdx: parsed.data.choiceIdx,
+        lifeline: parsed.data.lifeline,
+      });
+      if (parsed.data.lifeline) {
+        useQuizShowLifeline(room, player.userId, parsed.data.lifeline);
+      }
+    });
+
+    socket.on('quiz_show:next', () => {
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!isRoomHost(room, socket) || room.gameType !== 'quiz_show') return;
+      if (room.phase !== 'quiz_show') return;
+      nextQuizShowQuestion(room);
+    });
+
+    // ============ CIRCUIT DRAW ============
+    socket.on('circuit_draw:submit', (raw: unknown) => {
+      const parsed = zCircuitDraw.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'circuit_draw' || room.phase !== 'circuit_draw') return;
+      const player = room.circuitDrawPlayers.get(String(socket.data.userId));
+      if (!player || player.submitted) return;
+      player.circuit = parsed.data;
+      player.submitted = true;
+
+      ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:submitted', {
+        userId: player.userId,
+        name: player.displayName,
+        circuit: parsed.data,
+      });
+
+      /* Auto-grade khi GV có mạch mẫu */
+      const reference = room.circuitTemplate;
+      if (reference) {
+        const ok = circuitsMatch(parsed.data, reference);
+        player.verified = ok;
+        player.feedback = ok
+          ? 'Mạch khớp với mạch mẫu của giáo viên'
+          : 'Mạch chưa khớp — kiểm tra lại loại linh kiện và cách nối dây';
+        let newKttx: number | null = null;
+        if (ok) {
+          player.score += room.pointsPerCorrect;
+          newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+        }
+        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
+          userId: player.userId,
+          name: player.displayName,
+          correct: ok,
+          feedback: player.feedback,
+          newKttx,
+          auto: true,
+        });
+        broadcastLeaderboard(room);
+        /* Chưa khớp → cho nộp lại */
+        if (!ok) player.submitted = false;
+      }
+    });
+
+    socket.on('circuit_draw:verify', (raw: unknown) => {
+      const parsed = z.object({ userId: z.string(), correct: z.boolean(), feedback: z.string().optional() }).safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_draw') return;
+      const player = room.circuitDrawPlayers.get(parsed.data.userId);
+      if (!player) return;
+      player.verified = parsed.data.correct;
+      player.feedback = parsed.data.feedback ?? '';
+      if (parsed.data.correct) {
+        player.score += room.pointsPerCorrect;
+        const newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
+          userId: player.userId,
+          name: player.displayName,
+          correct: true,
+          feedback: player.feedback,
+          newKttx,
+        });
+      } else {
+        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
+          userId: player.userId,
+          name: player.displayName,
+          correct: false,
+          feedback: player.feedback,
+        });
+      }
+      broadcastLeaderboard(room);
+    });
+
+    // ============ CIRCUIT SIMULATE ============
+    socket.on('circuit_simulate:circuit', (raw: unknown) => {
+      const parsed = zCircuitDraw.safeParse(raw); // Reuse same schema for circuit data
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
+      if (!player) return;
+      player.circuit = parsed.data;
+      ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:circuit_update', {
+        userId: player.userId,
+        name: player.displayName,
+        circuit: parsed.data,
+      });
+    });
+
+    socket.on('circuit_simulate:measurements', (raw: unknown) => {
+      const parsed = z.object({ measurements: z.record(z.string(), z.number()) }).safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
+      if (!player) return;
+      player.measurements = parsed.data.measurements;
+    });
+
+    socket.on('circuit_simulate:simulate', (raw: unknown) => {
+      const parsed = zCircuitSimulate.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
+      if (!player) return;
+      player.simulationState = parsed.data.action;
+      // In a real implementation, this would run a SPICE simulation
+      // For now, we just acknowledge the action
+      socket.emit('circuit_simulate:simulation_state', {
+        state: parsed.data.action,
+        timeStep: parsed.data.timeStep ?? 0.001,
+      });
     });
 
     socket.on('disconnecting', () => {

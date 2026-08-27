@@ -35,6 +35,16 @@ npm run build && npm start -w server    # học viên truy cập http://<ip-máy
 
 Tài khoản mặc định lần đầu: `admin / admin123` (bắt buộc đổi).
 
+### Dữ liệu demo
+
+Để có ngay 20 câu hỏi cơ bản cùng một game Quick Quiz mẫu, chạy:
+
+```bash
+npm run seed:demo-quiz
+```
+
+Lệnh có thể chạy lại an toàn, không tạo dữ liệu trùng. Sau khi đăng nhập bằng tài khoản đã seed, mở **Trò chơi → Lưu sẵn** để chạy lại game mẫu; hoặc dùng mã phòng được in ra ở terminal.
+
 ## Tiện ích vận hành
 
 | Việc | Cách |
@@ -52,14 +62,20 @@ server/  Express + node:sqlite + Socket.IO + RAG/AI services (+ migrations đán
 web/     React SPA theo vai trò Admin/GV/Học viên
 data/    runtime (gitignored): SQLite, media, secret.key, backups/
 .DHSYSTEM/  artifact quản trị: ARCHITECTURE, ROADMAP, SYSTEM-RULES, TRACKER…
-scripts/ e2e-smoke.ps1 (71 checks) · autostart · seed helper
+scripts/ E2E cô lập/idempotent · autostart · seed helper
 ```
 
 ## Kiểm thử
 
 ```powershell
-scripts/e2e-smoke.ps1   # E2E toàn luồng: auth, lớp, bài giảng, câu hỏi, thi,
-                        # chấm, game, RAG, backup, archive… (chạy với server ở PORT=4100)
+npm run typecheck       # TypeScript strict cho server + web
+npm run test:e2e        # DB tạm riêng: REST 82/82, Socket 10/10, restore–restart
 ```
 
-CI GitHub Actions: typecheck strict + production build cho mọi push/PR.
+CI GitHub Actions chạy typecheck, production build và E2E cô lập cho mọi push/PR.
+
+## Trạng thái chất lượng
+
+- Phase 7 ổn định nền tảng và Phase 8 kiến trúc UI đã được xác minh local.
+- React Doctor full-scan: **100/100**, không còn issue trên 42 file frontend.
+- Entry bundle production: khoảng **209.78 kB**; các màn hình lớn và SheetJS được tách chunk.

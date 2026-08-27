@@ -69,3 +69,18 @@
 | WiFi lớp yếu/không ổn định | Không phụ thuộc Internet khi dạy (AI/RAG là tiện ích, không chặn luồng chính) |
 | IP máy GV đổi | P3 mDNS + QR regenerate mỗi boot; khuyến nghị static lease |
 | Anti-cheat trên điện thoại hạn chế | Thiết kế trung thực: timer server-side là nguồn sự thật, shuffle, một thiết bị/tài khoản, red-flag chỉ mang tính tham khảo |
+
+## Phase 7 — Ổn định nền tảng ✅
+
+- [x] Chuẩn hóa router/prefix, quyền middleware và lỗi Zod 400.
+- [x] Backup/restore Windows an toàn; restore/delete chỉ admin.
+- [x] Enrollment gate và host authorization cho game realtime.
+- [x] Sửa Đua toán, lịch lặp, media audit và metadata câu hỏi.
+- [x] DB test riêng, E2E idempotent và CI.
+
+## Phase 8 — Mở rộng sau ổn định
+
+- [x] Tách `GamePlayPage`/`GamesPage` thành reducer + component theo từng game; chuẩn hóa lifecycle Socket.
+- [x] Xử lý cảnh báo accessibility và iframe sandbox/autoplay trong React Doctor (full-scan còn 0 accessibility/security).
+- [x] Code-split bundle chính: entry 528.06 kB → 209.53 kB; SheetJS tải theo chunk riêng.
+- [x] Cổng ổn định UI đạt React Doctor full-scan 100/100; có thể lập milestone mở rộng game/UI tiếp theo sau persistence review.

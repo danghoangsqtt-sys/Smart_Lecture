@@ -25,3 +25,6 @@ jobs:
 
       - name: Build production (web + server)
         run: npm run build
+
+      - name: End-to-end tests (isolated SQLite)
+        run: node scripts/e2e-isolated.mjs

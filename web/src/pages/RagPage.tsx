@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { Button, Card, EmptyState, PageHeader, Spinner } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Input, PageHeader, Spinner } from '../components/ui';
 import toast from '../stores/toastStore';
 
 interface RagDoc {
@@ -21,16 +21,17 @@ interface Source {
 }
 
 interface ChatMsg {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   sources?: Source[];
 }
 
-const STATUS_LABEL: Record<RagDoc['status'], { label: string; cls: string }> = {
-  pending: { label: 'Đang chờ', cls: 'bg-slate-800 text-slate-400 ring-slate-700' },
-  parsing: { label: 'Đang xử lý…', cls: 'bg-amber-950 text-amber-400 ring-amber-800 animate-pulse' },
-  ready: { label: 'Sẵn sàng', cls: 'bg-emerald-950 text-emerald-400 ring-emerald-800' },
-  error: { label: 'Lỗi', cls: 'bg-red-950 text-red-400 ring-red-800' },
+const STATUS_LABEL: Record<RagDoc['status'], { label: string; tone: 'slate' | 'amber' | 'green' | 'red'; pulse?: boolean }> = {
+  pending: { label: 'Đang chờ', tone: 'slate' },
+  parsing: { label: 'Đang xử lý…', tone: 'amber', pulse: true },
+  ready: { label: 'Sẵn sàng', tone: 'green' },
+  error: { label: 'Lỗi', tone: 'red' },
 };
 
 export default function RagPage() {
@@ -91,14 +92,14 @@ export default function RagPage() {
     if (!question || thinking) return;
     setInput('');
     const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
-    setMessages((m) => [...m, { role: 'user', content: question }]);
+    setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'user', content: question }]);
     setThinking(true);
     try {
       const res = await api<{ answer: string; sources: Source[] }>('/rag/chat', {
         method: 'POST',
         body: JSON.stringify({ question, history }),
       });
-      setMessages((m) => [...m, { role: 'assistant', content: res.answer, sources: res.sources }]);
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content: res.answer, sources: res.sources }]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi AI');
     } finally {
@@ -112,7 +113,7 @@ export default function RagPage() {
         title="Trợ giảng AI (RAG)"
         subtitle="Nạp tài liệu môn học → hỏi đáp có trích dẫn nguồn & trang"
         actions={
-          <label className="cursor-pointer rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-500">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-sm bg-blue-900 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition hover:bg-slate-800">
             {uploading ? 'Đang tải…' : '+ Nạp tài liệu'}
             <input type="file" accept=".pdf,.docx,.pptx,.txt,.md" className="hidden" disabled={uploading}
               onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
@@ -121,36 +122,38 @@ export default function RagPage() {
       />
 
       {stats && (
-        <div className="mb-4 flex gap-3 text-xs text-slate-500">
-          <span>📄 {stats.docs} tài liệu sẵn sàng</span>
-          <span>🧩 {stats.chunks} khối</span>
-          <span>🧠 {stats.embedded} khối đã nhúng vector{stats.embedded === 0 && stats.chunks > 0 && ' (chế độ từ khóa — thêm API key để tăng độ chính xác)'}</span>
+        <div className="mb-4 flex flex-wrap gap-4 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5"><i className="fas fa-file-lines text-blue-700" /> {stats.docs} tài liệu sẵn sàng</span>
+          <span className="flex items-center gap-1.5"><i className="fas fa-puzzle-piece text-blue-700" /> {stats.chunks} khối</span>
+          <span className="flex items-center gap-1.5"><i className="fas fa-brain text-blue-700" /> {stats.embedded} khối đã nhúng vector{stats.embedded === 0 && stats.chunks > 0 && ' (chế độ từ khóa — thêm API key để tăng độ chính xác)'}</span>
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
         <Card className="h-fit p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-300">Kho tài liệu</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Kho tài liệu</h3>
           {docs.length === 0 ? (
             <EmptyState message="Chưa có tài liệu. Nạp PDF/DOCX/PPTX/TXT." />
           ) : (
             <ul className="space-y-2">
               {docs.map((d) => (
-                <li key={d.id} className="rounded-xl px-3 py-2.5 ring-1 ring-slate-800">
+                <li key={d.id} className="rounded-sm border border-slate-200 px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm">{d.filename}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{d.filename}</span>
                     <button onClick={async () => {
                       if (!window.confirm(`Xóa "${d.filename}" khỏi kho?`)) return;
                       try { await api(`/rag/documents/${d.id}`, { method: 'DELETE' }); await loadDocs(); }
                       catch (e) { toast.error(e instanceof Error ? e.message : 'Lỗi'); }
-                    }} className="text-xs text-red-400 hover:text-red-300">×</button>
+                    }} aria-label={`Xóa tài liệu ${d.filename}`} className="text-xs text-red-600 hover:text-red-700"><i className="fas fa-xmark" /></button>
                   </div>
                   <div className="mt-1 flex items-center gap-2 text-xs">
-                    <span className={`rounded-md px-1.5 py-0.5 ring-1 ${STATUS_LABEL[d.status].cls}`}>{STATUS_LABEL[d.status].label}</span>
+                    <span className={STATUS_LABEL[d.status].pulse ? 'animate-pulse' : ''}>
+                      <Badge tone={STATUS_LABEL[d.status].tone}>{STATUS_LABEL[d.status].label}</Badge>
+                    </span>
                     {d.page_count > 0 && <span className="text-slate-600">{d.page_count} trang</span>}
                     {(d.status === 'pending' || d.status === 'parsing') && <Spinner />}
                   </div>
-                  {d.error_msg && <p className="mt-1 line-clamp-2 text-xs text-red-400">{d.error_msg}</p>}
+                  {d.error_msg && <p className="mt-1 line-clamp-2 text-xs text-red-600">{d.error_msg}</p>}
                 </li>
               ))}
             </ul>
@@ -162,19 +165,19 @@ export default function RagPage() {
             {messages.length === 0 && !thinking && (
               <EmptyState message='Hỏi bất kỳ điều gì về tài liệu đã nạp — ví dụ: "Tóm tắt chương 1", "Có những biện pháp an toàn nào?"' />
             )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-sm px-4 py-2.5 text-sm leading-relaxed ${
+                  msg.role === 'user' ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-800'
                 }`}>
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                   {msg.sources && msg.sources.length > 0 && (
-                    <div className="mt-2 border-t border-slate-700 pt-2">
-                      <p className="mb-1 text-xs font-medium text-slate-400">Nguồn tham chiếu:</p>
+                    <div className="mt-2 border-t border-slate-200 pt-2">
+                      <p className="mb-1 text-xs font-medium text-slate-500">Nguồn tham chiếu:</p>
                       <ul className="space-y-1">
                         {msg.sources.map((s, si) => (
-                          <li key={si} className="rounded-lg bg-slate-900/80 px-2.5 py-1.5 text-xs text-slate-400">
-                            📄 <b className="text-slate-300">{s.docName}</b>, trang {s.page}
+                          <li key={si} className="rounded-sm border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-500">
+                            <i className="fas fa-file-lines text-blue-700" /> <b className="text-slate-700">{s.docName}</b>, trang {s.page}
                             {s.heading && ` — ${s.heading}`}
                             <p className="mt-0.5 line-clamp-2 italic text-slate-500">{s.snippet}…</p>
                           </li>
@@ -187,20 +190,20 @@ export default function RagPage() {
             ))}
             {thinking && (
               <div className="flex justify-start">
-                <div className="animate-pulse rounded-2xl bg-slate-800 px-4 py-2.5 text-sm text-slate-400">Trợ giảng đang đọc tài liệu…</div>
+                <div className="animate-pulse rounded-sm bg-slate-100 px-4 py-2.5 text-sm text-slate-500">Trợ giảng đang đọc tài liệu…</div>
               </div>
             )}
             <div ref={chatEndRef} />
           </div>
           <form
             onSubmit={(e) => { e.preventDefault(); void ask(); }}
-            className="flex gap-2 border-t border-slate-800 p-3"
+            className="flex gap-2 border-t border-slate-200 p-3"
           >
-            <input
+            <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Nhập câu hỏi cho trợ giảng…"
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm outline-none focus:border-indigo-500"
+              className="flex-1"
             />
             <Button type="submit" disabled={thinking || !input.trim()}>Gửi</Button>
           </form>

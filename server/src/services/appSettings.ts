@@ -48,3 +48,18 @@ export function deleteSetting(key: string): void {
 export function getGeminiApiKey(): string | null {
   return getSetting('gemini_api_key');
 }
+
+export type AiProvider = 'cloud' | 'local' | 'auto';
+
+export function getAiProvider(): AiProvider {
+  const v = getSetting('ai_provider');
+  return v === 'local' || v === 'auto' ? v : 'cloud'; // unset = today's behavior, unchanged
+}
+
+export function getOllamaBaseUrl(): string {
+  return getSetting('ollama_base_url') || 'http://localhost:11434';
+}
+
+export function getOllamaModel(): string {
+  return getSetting('ollama_model') || 'qwen2.5:7b-instruct-q4_K_M';
+}

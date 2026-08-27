@@ -67,11 +67,24 @@ for (const content of ['So 1 + 1 = ?', 'So 2 x 3 = ?']) {
 
 const anToken = await login('anh', 'Hocvien@123');
 const binhToken = await login('binh', 'Hocvien@123');
-check('tokens ready', !!teacherToken && !!anToken && !!binhToken && qIds.length === 2);
+const dungToken = await login('dung', 'Hocvien@123');
+const classResult = await api('POST', '/classes', teacherToken, {
+  name: `Socket Test ${Date.now()}`,
+  subject: 'Kiểm thử realtime',
+  academicYear: '2026-2027',
+});
+const classId = classResult.class?.id;
+const students = await api('GET', '/users?role=student', teacherToken);
+const socketStudentIds = (students.users ?? [])
+  .filter((user) => user.username === 'anh' || user.username === 'binh')
+  .map((user) => user.id);
+await api('POST', `/classes/${classId}/enroll`, teacherToken, { studentIds: socketStudentIds });
+check('tokens and enrollment ready', !!teacherToken && !!anToken && !!binhToken && qIds.length === 2 && socketStudentIds.length === 2);
 const game = await api('POST', '/games', teacherToken, {
   gameType: 'quick_quiz',
   questionIds: qIds,
   secondsPerQuestion: 8,
+  classId,
 });
 check('game created', !!game.roomCode);
 
@@ -85,17 +98,29 @@ function connect(token) {
 const host = connect(teacherToken);
 const sA = connect(anToken);
 const sB = connect(binhToken);
+const outsider = connect(dungToken);
+const nonHost = connect(adminToken);
 
 let lobbyCount = 0;
 let questionShownA = null;
 let reveal = null;
 let finishedPodium = null;
+let outsiderError = null;
+let nonHostError = null;
 
 host.on('lobby:update', (d) => (lobbyCount = d.count));
 host.on('answer:reveal', (d) => (reveal = d));
 
 sA.on('question:show', (d) => (questionShownA = d));
 sB.on('game:finished', () => undefined);
+outsider.on('game:error', (data) => (outsiderError = data));
+nonHost.on('game:error', (data) => (nonHostError = data));
+
+nonHost.emit('game:host-attach', { sessionId: game.id });
+outsider.emit('game:join', { roomCode: game.roomCode });
+await sleep(400);
+check('non-host cannot attach as host', !!nonHostError);
+check('unenrolled student cannot join', !!outsiderError);
 
 await new Promise((resolve) => {
   let done = false;
@@ -156,6 +181,8 @@ check(`game finished with podium (${finishedPodium ? finishedPodium.length : 0})
 host.disconnect();
 sA.disconnect();
 sB.disconnect();
+outsider.disconnect();
+nonHost.disconnect();
 
 const pass = results.filter(Boolean).length;
 console.log(`\nSOCKET TEST: ${pass}/${results.length} passed`);

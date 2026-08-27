@@ -9,6 +9,7 @@ export interface ClassRow {
   teacher_id: string;
   academic_year: string;
   settings_json: string;
+  total_periods: number;
 }
 
 export function getClassOrThrow(id: string): ClassRow {

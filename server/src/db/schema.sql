@@ -151,9 +151,26 @@ CREATE TABLE IF NOT EXISTS grades (
   PRIMARY KEY (class_id, student_id)
 );
 
+CREATE TABLE IF NOT EXISTS class_groups (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#3b82f6',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_class_groups_class ON class_groups(class_id);
+
+CREATE TABLE IF NOT EXISTS class_group_members (
+  group_id TEXT NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+  student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (group_id, student_id)
+);
+
 CREATE TABLE IF NOT EXISTS game_sessions (
   id TEXT PRIMARY KEY,
   host_teacher_id TEXT NOT NULL REFERENCES users(id),
+  class_id TEXT REFERENCES classes(id) ON DELETE SET NULL,
   game_type TEXT NOT NULL,
   room_code TEXT NOT NULL UNIQUE,
   exam_id TEXT REFERENCES exams(id) ON DELETE SET NULL,
@@ -166,6 +183,7 @@ CREATE TABLE IF NOT EXISTS game_sessions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_game_host ON game_sessions(host_teacher_id, status);
+CREATE INDEX IF NOT EXISTS idx_game_class ON game_sessions(class_id, status);
 
 CREATE TABLE IF NOT EXISTS game_results (
   game_session_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,

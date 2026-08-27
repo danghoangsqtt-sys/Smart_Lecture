@@ -9,7 +9,7 @@ import { MEDIA_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { deleteRagDocument, listRagChunkStats, processRagDocument, retrieveWithVectors } from '../services/rag.js';
-import { generateText } from '../services/gemini.js';
+import { generateText } from '../services/ai.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -45,7 +45,7 @@ const upload = multer({
 });
 
 router.get(
-  '/rag/documents',
+  '/documents',
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const docs = queryAll<{
@@ -65,7 +65,7 @@ router.get(
 );
 
 router.post(
-  '/rag/documents',
+  '/documents',
   upload.single('file'),
   h(async (req, res) => {
     const authed = req as AuthedRequest;
@@ -89,7 +89,7 @@ router.post(
 );
 
 router.delete(
-  '/rag/documents/:id',
+  '/documents/:id',
   h(async (req, res) => {
     const ok = deleteRagDocument(String(req.params.id), (req as AuthedRequest).user!.id);
     if (!ok) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy tài liệu');
@@ -103,7 +103,7 @@ const chatSchema = z.object({
 });
 
 router.post(
-  '/rag/chat',
+  '/chat',
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     const parsed = chatSchema.safeParse(req.body);
@@ -145,7 +145,7 @@ router.post(
       } catch (error) {
         if (error instanceof HttpError && (error.code === 'NO_API_KEY' || error.status === 502)) {
           answer = [
-            '(Chế độ ngoại tuyến — chưa cấu hình Gemini API key nên hiển thị đoạn trích liên quan nhất.)',
+            '(Chế độ ngoại tuyến — AI hiện không khả dụng (chưa cấu hình Gemini API key hoặc Ollama chưa chạy) nên hiển thị đoạn trích liên quan nhất.)',
             '',
             ...chunks.slice(0, 3).map((c, i) => `📌 Theo [Nguồn ${i + 1} — ${c.docName}, trang ${c.page}]:\n"${c.text.slice(0, 300)}..."`),
           ].join('\n\n');

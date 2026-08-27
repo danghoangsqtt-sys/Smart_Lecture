@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import path from 'node:path';
 
 const [sessionId, s1, s2, s3] = process.argv.slice(2);
 if (!sessionId || !s1 || !s2 || !s3) {
@@ -6,10 +7,14 @@ if (!sessionId || !s1 || !s2 || !s3) {
   process.exit(1);
 }
 
-const db = new DatabaseSync('E:/data/2.MyProject/2025/Smart_Lecture/data/smart-lecture.db');
-const target = sessionId.replace(/'/g, '');
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.resolve(import.meta.dirname, '../data');
+const dbPath = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(dataDir, 'smart-lecture.db');
+const db = new DatabaseSync(dbPath);
+const target = sessionId;
 
-db.exec(`UPDATE game_sessions SET status = 'finished', finished_at = datetime('now') WHERE id = '${target}'`);
+db.prepare("UPDATE game_sessions SET status = 'finished', finished_at = datetime('now') WHERE id = ?").run(target);
 const ins = db.prepare(
   'INSERT OR IGNORE INTO game_results (game_session_id, student_id, score, rank) VALUES (?, ?, ?, ?)'
 );
@@ -17,3 +22,4 @@ ins.run(target, s1, 12, 1);
 ins.run(target, s2, 9, 2);
 ins.run(target, s3, 7, 3);
 console.log('seeded');
+db.close();

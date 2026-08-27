@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Badge, Button, Card, EmptyState, Modal, PageHeader, Spinner } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Modal, PageHeader, Spinner, Textarea } from '../components/ui';
 import toast from '../stores/toastStore';
 
 interface AvailableExam {
@@ -23,25 +23,25 @@ export default function MyExamsPage() {
     setLoading(true);
     api<{ exams: AvailableExam[] }>(`/exams/available?purpose=${purpose}`)
       .then((r) => setExams(r.exams))
-      .catch((e) => toast.error(e instanceof Error ? e.message : 'Lá»—i'))
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Lỗi'))
       .finally(() => setLoading(false));
   }, [purpose]);
 
   return (
     <div>
       <PageHeader
-        title={purpose === 'homework' ? 'Tá»± Ã´n táº­p' : 'BÃ i thi cá»§a tÃ´i'}
-        subtitle={purpose === 'homework' ? 'LÃ m láº¡i khÃ´ng giá»›i háº¡n sá»‘ lÆ°á»£t' : 'CÃ¡c bÃ i kiá»ƒm tra giÃ¡o viÃªn giao cho lá»›p báº¡n'}
+        title={purpose === 'homework' ? 'Tự ôn tập' : 'Bài thi của tôi'}
+        subtitle={purpose === 'homework' ? 'Làm lại không giới hạn số lượt' : 'Các bài kiểm tra giáo viên giao cho lớp bạn'}
         actions={
-          <div className="flex gap-1 rounded-xl bg-slate-900 p-1 ring-1 ring-slate-800">
-            {([['online_test', 'Kiá»ƒm tra'], ['homework', 'Tá»± Ã´n']] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setPurpose(k)} className={`rounded-lg px-3 py-1.5 text-sm ${purpose === k ? 'bg-indigo-600 text-white' : 'text-slate-400'}`}>{l}</button>
+          <div className="flex gap-1 rounded-sm border border-slate-200 bg-slate-100 p-1">
+            {([['online_test', 'Kiểm tra'], ['homework', 'Tự ôn']] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setPurpose(k)} className={`rounded-sm px-3 py-1.5 text-sm font-medium transition ${purpose === k ? 'bg-blue-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>{l}</button>
             ))}
           </div>
         }
       />
       {loading ? <Spinner /> : exams.length === 0 ? (
-        <Card><EmptyState message="Hiá»‡n chÆ°a cÃ³ bÃ i thi nÃ o Ä‘Æ°á»£c giao" /></Card>
+        <Card><EmptyState message="Hiện chưa có bài thi nào được giao" /></Card>
       ) : (
         <div className="space-y-3">
           {exams.map((e) => {
@@ -49,19 +49,23 @@ export default function MyExamsPage() {
             return (
               <Card key={e.id} className="flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-medium">{e.title}</h3>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {e.questionCount} cÃ¢u Â· {e.durationMin} phÃºt Â· Ä‘Ã£ lÃ m {e.attemptsUsed}/{e.config.maxAttempts} lÆ°á»£t
-                    {e.config.hasPassword && ' Â· ðŸ”’ cáº§n máº­t kháº©u'}
-                    {e.config.startAt && ` Â· má»Ÿ ${new Date(e.config.startAt).toLocaleString('vi-VN')}`}
-                    {e.config.endAt && ` â†’ Ä‘Ã³ng ${new Date(e.config.endAt).toLocaleString('vi-VN')}`}
+                  <h3 className="font-medium text-slate-800">{e.title}</h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {e.questionCount} câu · {e.durationMin} phút · đã làm {e.attemptsUsed}/{e.config.maxAttempts} lượt
+                    {e.config.hasPassword && (
+                      <>
+                        {' · '}<i className="fas fa-lock" /> cần mật khẩu
+                      </>
+                    )}
+                    {e.config.startAt && ` · mở ${new Date(e.config.startAt).toLocaleString('vi-VN')}`}
+                    {e.config.endAt && ` → đóng ${new Date(e.config.endAt).toLocaleString('vi-VN')}`}
                   </p>
                 </div>
                 {exhausted ? (
-                  <Badge>Háº¿t lÆ°á»£t</Badge>
+                  <Badge>Hết lượt</Badge>
                 ) : (
                   <Link to={`/my-exams/${e.id}`} state={{ resume: e.resumableAttemptId }}>
-                    <Button>{e.resumableAttemptId ? 'Tiáº¿p tá»¥c bÃ i dá»Ÿ' : purpose === 'homework' ? 'Ã”n ngay' : 'VÃ o thi'}</Button>
+                    <Button>{e.resumableAttemptId ? 'Tiếp tục bài dở' : purpose === 'homework' ? 'Ôn ngay' : 'Vào thi'}</Button>
                   </Link>
                 )}
               </Card>
@@ -107,10 +111,10 @@ export function ExamRoomPage() {
         setAnswers(r.attempt.answers);
         deadlineRef.current = Date.now() + r.attempt.remainingSec * 1000;
         setRemaining(r.attempt.remainingSec);
-        if (resume) toast.info('ÄÃ£ khÃ´i phá»¥c bÃ i lÃ m cá»§a báº¡n');
+        if (resume) toast.info('Đã khôi phục bài làm của bạn');
       })
       .catch((e) => {
-        const msg = e instanceof Error ? e.message : 'KhÃ´ng vÃ o Ä‘Æ°á»£c bÃ i thi';
+        const msg = e instanceof Error ? e.message : 'Không vào được bài thi';
         toast.error(msg);
         void navigate('/my-exams');
       });
@@ -134,7 +138,7 @@ export function ExamRoomPage() {
       try {
         await api(`/attempts/${data.attempt.id}/answers`, { method: 'PUT', body: JSON.stringify({ answers: ans }) });
       } catch {
-        /* offline â€” sáº½ autosave chu ká»³ sau */
+        /* offline — sẽ autosave chu kỳ sau */
       }
     },
     [data]
@@ -160,7 +164,7 @@ export function ExamRoomPage() {
     if (!data || submittedRef.current) return;
     if (!auto) {
       const unanswered = data.questions.filter((q) => !answers[q.id]).length;
-      if (unanswered > 0 && !window.confirm(`Báº¡n cÃ²n ${unanswered} cÃ¢u chÆ°a tráº£ lá»i. Ná»™p bÃ i?`)) return;
+      if (unanswered > 0 && !window.confirm(`Bạn còn ${unanswered} câu chưa trả lời. Nộp bài?`)) return;
     }
     submittedRef.current = true;
     setSubmitting(true);
@@ -169,10 +173,10 @@ export function ExamRoomPage() {
         method: 'POST',
         body: JSON.stringify({ answers }),
       });
-      toast.success(res.fullyGraded ? `Ná»™p thÃ nh cÃ´ng! Äiá»ƒm: ${res.provisionalScore}/10` : 'Ná»™p thÃ nh cÃ´ng! Chá» giÃ¡o viÃªn cháº¥m tá»± luáº­n.');
+      toast.success(res.fullyGraded ? `Nộp thành công! Điểm: ${res.provisionalScore}/10` : 'Nộp thành công! Chờ giáo viên chấm tự luận.');
       void navigate('/my-results');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lá»—i ná»™p bÃ i');
+      toast.error(e instanceof Error ? e.message : 'Lỗi nộp bài');
       submittedRef.current = false;
     } finally {
       setSubmitting(false);
@@ -186,16 +190,16 @@ export function ExamRoomPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="sticky top-0 z-10 mb-4 flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 ring-1 ring-slate-800">
-        <h1 className="truncate font-semibold">{data.attempt.examTitle}</h1>
-        <span className={`rounded-lg px-3 py-1 font-mono text-lg font-bold ${remaining < 120 ? 'animate-pulse bg-red-950 text-red-400' : 'bg-slate-800 text-emerald-400'}`}>
+      <div className="sticky top-0 z-10 mb-4 flex items-center justify-between rounded-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <h1 className="truncate font-semibold text-slate-800">{data.attempt.examTitle}</h1>
+        <span className={`rounded-sm px-3 py-1 font-mono text-lg font-bold ${remaining < 120 ? 'animate-pulse bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
           {mm}:{ss}
         </span>
       </div>
 
       <Card className="p-6">
-        <p className="mb-1 text-xs text-slate-500">CÃ¢u {currentIdx + 1}/{data.questions.length}</p>
-        <p className="whitespace-pre-wrap leading-relaxed text-slate-100">{q?.content}</p>
+        <p className="mb-1 text-xs text-slate-500">Câu {currentIdx + 1}/{data.questions.length}</p>
+        <p className="whitespace-pre-wrap leading-relaxed text-slate-800">{q?.content}</p>
 
         {q?.type === 'mcq' && (
           <div className="mt-5 space-y-2">
@@ -204,13 +208,13 @@ export function ExamRoomPage() {
               const active = answers[q.id] === letter;
               return (
                 <button
-                  key={i}
+                  key={letter}
                   onClick={() => setAnswers((a) => ({ ...a, [q.id]: letter }))}
-                  className={`flex w-full items-start gap-3 rounded-xl px-4 py-3 text-left text-sm transition ${
-                    active ? 'bg-indigo-600/25 text-indigo-100 ring-2 ring-indigo-500' : 'bg-slate-800/60 hover:bg-slate-800'
+                  className={`flex w-full items-start gap-3 rounded-sm border px-4 py-3 text-left text-sm transition ${
+                    active ? 'border-blue-900 bg-blue-50 text-blue-900' : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
-                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-indigo-500 text-white' : 'bg-slate-700'}`}>{letter}</span>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-blue-900 text-white' : 'bg-slate-200 text-slate-700'}`}>{letter}</span>
                   <span className="whitespace-pre-wrap">{opt.replace(/^([A-D])[\.\:\)]\s+/, '')}</span>
                 </button>
               );
@@ -218,49 +222,53 @@ export function ExamRoomPage() {
           </div>
         )}
         {q?.type === 'essay' && (
-          <textarea
+          <Textarea
             rows={8}
             value={answers[q.id] ?? ''}
             onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
-            placeholder="Nháº­p cÃ¢u tráº£ lá»i tá»± luáº­nâ€¦"
-            className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm"
+            placeholder="Nhập câu trả lời tự luận…"
+            className="mt-4"
           />
         )}
 
         <div className="mt-4 flex justify-end">
-          <button onClick={() => setFlags((f) => { const n = new Set(f); if (n.has(q?.id ?? '')) n.delete(q?.id ?? ''); else n.add(q?.id ?? ''); return n; })} className="text-xs text-amber-400">
-            {flags.has(q?.id ?? '') ? 'â˜… Bá» Ä‘Ã¡nh dáº¥u' : 'â˜† ÄÃ¡nh dáº¥u xem láº¡i'}
+          <button onClick={() => setFlags((f) => { const n = new Set(f); if (n.has(q?.id ?? '')) n.delete(q?.id ?? ''); else n.add(q?.id ?? ''); return n; })} className="text-xs font-semibold text-amber-700 hover:text-amber-800">
+            {flags.has(q?.id ?? '') ? (
+              <><i className="fas fa-star mr-1" />Bỏ đánh dấu</>
+            ) : (
+              <><i className="far fa-star mr-1" />Đánh dấu xem lại</>
+            )}
           </button>
         </div>
       </Card>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="secondary" disabled={currentIdx === 0} onClick={() => setCurrentIdx((i) => i - 1)}>â† TrÆ°á»›c</Button>
+        <Button variant="secondary" disabled={currentIdx === 0} onClick={() => setCurrentIdx((i) => i - 1)}>← Trước</Button>
         <div className="flex flex-wrap justify-center gap-1">
           {data.questions.map((qq, i) => (
             <button
               key={qq.id}
               onClick={() => setCurrentIdx(i)}
-              className={`h-7 w-7 rounded-md text-xs font-medium ${
-                i === currentIdx ? 'ring-2 ring-indigo-400' : ''
-              } ${answers[qq.id] ? 'bg-indigo-600 text-white' : flags.has(qq.id) ? 'bg-amber-800 text-amber-200' : 'bg-slate-800 text-slate-400'}`}
+              className={`h-7 w-7 rounded-sm text-xs font-medium transition ${
+                i === currentIdx ? 'ring-2 ring-blue-900' : ''
+              } ${answers[qq.id] ? 'bg-blue-900 text-white' : flags.has(qq.id) ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500'}`}
             >
               {i + 1}
             </button>
           ))}
         </div>
         {currentIdx < data.questions.length - 1 ? (
-          <Button onClick={() => setCurrentIdx((i) => i + 1)}>Sau â†’</Button>
+          <Button onClick={() => setCurrentIdx((i) => i + 1)}>Sau →</Button>
         ) : (
-          <Button variant="danger" onClick={() => setConfirmOpen(true)}>Ná»™p bÃ i</Button>
+          <Button variant="danger" onClick={() => setConfirmOpen(true)}>Nộp bài</Button>
         )}
       </div>
 
-      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="XÃ¡c nháº­n ná»™p bÃ i">
-        <p className="text-sm text-slate-300">ÄÃ£ tráº£ lá»i: {Object.keys(answers).length}/{data.questions.length} cÃ¢u. Ná»™p bÃ i ngay?</p>
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Xác nhận nộp bài">
+        <p className="text-sm text-slate-600">Đã trả lời: {Object.keys(answers).length}/{data.questions.length} câu. Nộp bài ngay?</p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Xem láº¡i</Button>
-          <Button variant="danger" onClick={() => void doSubmit(false)} disabled={submitting}>Ná»™p bÃ i</Button>
+          <Button variant="secondary" onClick={() => setConfirmOpen(false)}>Xem lại</Button>
+          <Button variant="danger" onClick={() => void doSubmit(false)} disabled={submitting}>Nộp bài</Button>
         </div>
       </Modal>
     </div>

@@ -7,7 +7,7 @@ const DAILY_LIMITS: Record<string, number> = {
   'ai-generate-questions': 400,
   'ai-grade-essay': 200,
   'ai-comment-student': 150,
-  
+  'ai-comment-gradebook': 150,
 };
 
 function today(): string {
@@ -25,7 +25,7 @@ export function consumeQuota(feature: string): void {
     throw new HttpError(
       429,
       'QUOTA_EXCEEDED',
-      `ÄÃ£ Ä‘áº¡t giá»›i háº¡n ${limit} lÆ°á»£t dÃ¹ng AI cho tÃ­nh nÄƒng nÃ y trong hÃ´m nay. Thá»­ láº¡i vÃ o ngÃ y mai.`
+      `Đã đạt giới hạn ${limit} lượt dùng AI cho tính năng này trong hôm nay. Thử lại vào ngày mai.`
     );
   }
   db.prepare(

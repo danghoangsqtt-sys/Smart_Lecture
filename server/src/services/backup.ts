@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { BACKUP_DIR, DATA_DIR, DB_PATH, MEDIA_DIR } from '../config.js';
+import { BACKUP_DIR, DATA_DIR, MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
 import { db } from '../db/connection.js';
 
 const KEEP_BACKUPS = 7;
@@ -87,12 +87,38 @@ export function listBackups(): { name: string; size: number; createdAt: string }
     .sort((a, b) => b.name.localeCompare(a.name));
 }
 
+function resolveBackup(name: string): string {
+  if (!/^backup-[A-Za-z0-9_.-]+\.zip$/.test(name) || path.basename(name) !== name) {
+    throw new Error('Tên bản sao lưu không hợp lệ');
+  }
+  const item = listBackups().find((backup) => backup.name === name);
+  if (!item) throw new Error('Không tìm thấy bản sao lưu');
+  return path.join(BACKUP_DIR, item.name);
+}
+
+export function deleteBackup(name: string): void {
+  unlinkSync(resolveBackup(name));
+}
+
+export async function stageRestore(name: string): Promise<void> {
+  const zip = await JSZip.loadAsync(readFileSync(resolveBackup(name)));
+  const dbEntry = zip.file('smart-lecture.db');
+  if (!dbEntry) throw new Error('Bản sao lưu không chứa smart-lecture.db');
+  const content = await dbEntry.async('nodebuffer');
+  if (content.subarray(0, 16).toString('utf8') !== 'SQLite format 3\u0000') {
+    throw new Error('Cơ sở dữ liệu trong bản sao lưu không hợp lệ');
+  }
+  const temporary = `${RESTORE_PENDING_PATH}.tmp`;
+  writeFileSync(temporary, content, { flag: 'w' });
+  renameSync(temporary, RESTORE_PENDING_PATH);
+}
+
 let lastBackupDay = '';
 
 export function startBackupScheduler(): void {
   setInterval(() => {
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     if (now.getHours() === BACKUP_HOUR && lastBackupDay !== today) {
       createBackup('daily')
         .then((name) => console.log(`[backup] created ${name}`))

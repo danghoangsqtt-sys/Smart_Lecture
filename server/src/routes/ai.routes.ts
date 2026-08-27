@@ -4,7 +4,7 @@ import { Type, type Schema } from '@google/genai';
 import { db } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
-import { generateJSON } from '../services/gemini.js';
+import { generateJSON } from '../services/ai.js';
 import { generateQuestionsByMatrix, type BloomLevel } from '../services/aiQuestions.js';
 import { quotaStatus } from '../services/quota.js';
 
@@ -35,7 +35,7 @@ const commentSchema: Schema = {
 };
 
 router.post(
-  '/ai/generate-questions',
+  '/generate-questions',
   h(async (req, res) => {
     const parsed = generateSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Cần cung cấp văn bản tài liệu (tối thiểu 200 ký tự) và ma trận số câu');
@@ -54,7 +54,7 @@ const essayGradeBody = z.object({
 });
 
 router.post(
-  '/ai/grade-essay',
+  '/grade-essay',
   h(async (req, res) => {
     const parsed = essayGradeBody.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Thiếu nội dung câu hỏi hoặc bài làm');
@@ -85,7 +85,7 @@ const commentBody = z.object({
 });
 
 router.post(
-  '/ai/comment-student',
+  '/comment-student',
   h(async (req, res) => {
     const parsed = commentBody.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu nhận xét không hợp lệ');
@@ -106,8 +106,37 @@ router.post(
   })
 );
 
+const gradebookCommentBody = z.object({
+  studentName: z.string().max(100),
+  kttx: z.number().min(0).max(10).nullable(),
+  process1: z.number().min(0).max(10).nullable(),
+  finalExam: z.number().min(0).max(10).nullable(),
+  presentCount: z.number().int().min(0).default(0),
+  absentCount: z.number().int().min(0).default(0),
+});
+
+router.post(
+  '/comment-gradebook',
+  h(async (req, res) => {
+    const parsed = gradebookCommentBody.safeParse(req.body);
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
+    const d = parsed.data;
+    const result = await generateJSON<{ comment: string }>({
+      prompt: [
+        `Viết nhận xét học tập ngắn gọn (30-60 chữ, tiếng Việt, mang tính xây dựng) cho học viên ${d.studentName} dựa trên kết quả trong lớp.`,
+        `- KTTX: ${d.kttx ?? 'chưa có'} · Quá trình 1: ${d.process1 ?? 'chưa có'} · KT cuối môn: ${d.finalExam ?? 'chưa có'}`,
+        `- Chuyên cần: ${d.presentCount} có mặt, ${d.absentCount} vắng`,
+      ].join('\n'),
+      schema: commentSchema,
+      temperature: 0.6,
+      feature: 'ai-comment-gradebook',
+    });
+    res.json({ comment: result.comment });
+  })
+);
+
 router.get(
-  '/ai/quota',
+  '/quota',
   h(async (_req, res) => {
     res.json({ quota: quotaStatus() });
   })

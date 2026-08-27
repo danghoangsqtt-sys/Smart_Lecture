@@ -27,6 +27,27 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   }
 }
 
+export function requireAuthFlexible(req: AuthedRequest, res: Response, next: NextFunction): void {
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : typeof req.query.token === 'string' ? req.query.token : null;
+  if (!token) {
+    res.status(401).json({ error: { code: 'NO_TOKEN', message: 'Thiếu token xác thực' } });
+    return;
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
+    const row = getUserById(payload.sub);
+    if (!row || row.status === 'locked') {
+      res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
+      return;
+    }
+    req.user = toPublicUser(row);
+    next();
+  } catch {
+    res.status(401).json({ error: { code: 'BAD_TOKEN', message: 'Token không hợp lệ hoặc hết hạn' } });
+  }
+}
+
 export function requireRole(...roles: string[]) {
   return (req: AuthedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {

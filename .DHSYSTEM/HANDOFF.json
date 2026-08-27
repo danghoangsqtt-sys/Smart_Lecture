@@ -1,11 +1,11 @@
-﻿{
+{
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
   "version": "0.5.0-classroom-interaction",
   "created": "2026-08-23",
-  "status": "phase-1-in-progress",
-  "phase_current": "classroom-scope-done-awaiting-review",
-  "workflow_state": "crystallized",
+  "status": "phase-8-t802-verified-local",
+  "phase_current": "ui-quality-persistence-pending",
+  "workflow_state": "verified-local-persistence-pending",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "User review; then Phase 4 opt-in: Cloudflare tunnel, speech grading, self-study polish"
+  "next_action": "Review và commit/push worktree Phase 7-8; sau đó lập milestone mở rộng game/UI. Baseline: React Doctor full 100/100, E2E 82 REST + 10 Socket + restore restart."
 }

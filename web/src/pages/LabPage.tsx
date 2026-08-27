@@ -122,7 +122,7 @@ function LogicLab() {
             <li key={p.id}>
               <button
                 onClick={() => setPresetId(p.id)}
-                className={`w-full rounded-lg px-3 py-2 text-left text-sm transition ${p.id === presetId ? 'bg-indigo-600/25 font-medium text-indigo-300' : 'text-slate-400 hover:bg-slate-800'}`}
+                className={`w-full rounded-sm px-3 py-2 text-left text-sm transition ${p.id === presetId ? 'bg-blue-50 font-medium text-blue-900' : 'text-slate-500 hover:bg-slate-100'}`}
               >
                 {p.name}
               </button>
@@ -133,21 +133,21 @@ function LogicLab() {
       </Card>
 
       <Card className="p-5">
-        <h3 className="mb-4 font-semibold text-slate-200">{preset.name}</h3>
+        <h3 className="mb-4 font-semibold text-slate-800">{preset.name}</h3>
         <div className="mb-5 flex flex-wrap gap-4">
           {preset.inputs.map((inp) => (
             <button
               key={inp}
               onClick={() => toggle(inp)}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 ring-1 transition ${
-                netStates[inp] ? 'bg-emerald-800/50 ring-emerald-500' : 'bg-slate-800 ring-slate-700 hover:bg-slate-700'
+              className={`flex items-center gap-3 rounded-sm border px-4 py-3 transition ${
+                netStates[inp] ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
               }`}
             >
-              <span className={`relative h-6 w-11 rounded-full transition ${netStates[inp] ? 'bg-emerald-500' : 'bg-slate-600'}`}>
-                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${netStates[inp] ? 'left-[22px]' : 'left-0.5'}`} />
+              <span className={`relative h-6 w-11 rounded-full transition ${netStates[inp] ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${netStates[inp] ? 'left-[22px]' : 'left-0.5'}`} />
               </span>
-              <b className="text-lg">{inp}</b>
-              <span className="font-mono text-sm text-slate-400">{netStates[inp] ? 1 : 0}</span>
+              <b className="text-lg text-slate-800">{inp}</b>
+              <span className="font-mono text-sm text-slate-500">{netStates[inp] ? 1 : 0}</span>
             </button>
           ))}
         </div>
@@ -155,9 +155,9 @@ function LogicLab() {
           {preset.gates.map((gate) => {
             const value = evalExpr(gate.expr, netStates);
             return (
-              <div key={gate.label} className="flex items-center justify-between rounded-xl px-4 py-3 ring-1 ring-slate-800">
-                <span className="font-mono text-sm text-slate-300">{gate.label}</span>
-                <span className={`flex h-9 w-9 items-center justify-center rounded-lg font-mono text-xl font-bold ${value ? 'bg-emerald-600 text-white shadow-[0_0_18px_rgba(16,185,129,0.7)]' : 'bg-slate-800 text-slate-500'}`}>
+              <div key={gate.label} className="flex items-center justify-between rounded-sm border border-slate-200 px-4 py-3">
+                <span className="font-mono text-sm text-slate-700">{gate.label}</span>
+                <span className={`flex h-9 w-9 items-center justify-center rounded-sm font-mono text-xl font-bold ${value ? 'bg-emerald-600 text-white shadow-[0_0_18px_rgba(16,185,129,0.7)]' : 'bg-slate-100 text-slate-400'}`}>
                   {value ? 1 : 0}
                 </span>
               </div>
@@ -194,13 +194,13 @@ function DcLab() {
       <Card className="h-fit space-y-4 p-5">
         <div>
           <Label>Nguồn U = {voltage} V</Label>
-          <input type="range" min={1} max={24} value={voltage} onChange={(e) => setVoltage(Number(e.target.value))} className="w-full accent-indigo-500" />
+          <input type="range" min={1} max={24} value={voltage} aria-label="Điện áp nguồn" onChange={(e) => setVoltage(Number(e.target.value))} className="w-full accent-blue-900" />
         </div>
         <div>
           <Label>Kiểu mắc</Label>
           <div className="flex gap-2">
             {(['series', 'parallel'] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)} className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium ${mode === m ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+              <button key={m} onClick={() => setMode(m)} className={`flex-1 rounded-sm px-3 py-2 text-sm font-medium transition ${mode === m ? 'bg-blue-900 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
                 {m === 'series' ? 'Nối tiếp' : 'Song song'}
               </button>
             ))}
@@ -208,11 +208,11 @@ function DcLab() {
         </div>
         <div>
           <Label>R₁ = {r1} Ω</Label>
-          <input type="range" min={1} max={200} value={r1} onChange={(e) => setR1(Number(e.target.value))} className="w-full accent-indigo-500" />
+          <input type="range" min={1} max={200} value={r1} aria-label="Điện trở R1" onChange={(e) => setR1(Number(e.target.value))} className="w-full accent-blue-900" />
         </div>
         <div>
           <Label>R₂ = {r2} Ω</Label>
-          <input type="range" min={1} max={200} value={r2} onChange={(e) => setR2(Number(e.target.value))} className="w-full accent-indigo-500" />
+          <input type="range" min={1} max={200} value={r2} aria-label="Điện trở R2" onChange={(e) => setR2(Number(e.target.value))} className="w-full accent-blue-900" />
         </div>
       </Card>
 
@@ -224,12 +224,12 @@ function DcLab() {
             </div>
             <p className="mt-1 text-xs text-slate-500">Nguồn {voltage}V</p>
           </div>
-          <div className="text-center text-3xl">💡<span className="block text-xs text-slate-500">R₁={r1}Ω</span></div>
-          <div className="text-center text-3xl">💡<span className="block text-xs text-slate-500">R₂={r2}Ω</span></div>
+          <div className="text-center text-3xl text-amber-500"><i className="fas fa-lightbulb" /><span className="block text-xs text-slate-500">R₁={r1}Ω</span></div>
+          <div className="text-center text-3xl text-amber-500"><i className="fas fa-lightbulb" /><span className="block text-xs text-slate-500">R₂={r2}Ω</span></div>
         </div>
 
         <table className="w-full text-sm">
-          <tbody className="divide-y divide-slate-800">
+          <tbody className="divide-y divide-slate-200">
             <Row label="Điện trở tương đương R_tđ" value={`${calc.rt.toFixed(1)} Ω`} />
             <Row label="Dòng điện tổng I = U / R_tđ" value={`${calc.i.toFixed(3)} A`} highlight />
             <Row label="Công suất tổng P = U × I" value={`${calc.pTotal.toFixed(2)} W`} highlight />
@@ -254,8 +254,8 @@ function DcLab() {
 function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <tr>
-      <td className="py-2 text-slate-400">{label}</td>
-      <td className={`py-2 text-right font-mono ${highlight ? 'text-base font-bold text-indigo-300' : 'text-slate-200'}`}>{value}</td>
+      <td className="py-2 text-slate-500">{label}</td>
+      <td className={`py-2 text-right font-mono ${highlight ? 'text-base font-bold text-blue-900' : 'text-slate-700'}`}>{value}</td>
     </tr>
   );
 }
@@ -265,10 +265,10 @@ export default function LabPage() {
   return (
     <div>
       <PageHeader title="Phòng lab ảo" subtitle="Thí nghiệm an toàn ngay trên lớp — GV chiếu máy, HV cũng tự thử được qua LAN" />
-      <div className="mb-5 flex gap-1 rounded-xl bg-slate-900 p-1 ring-1 ring-slate-800 w-fit">
-        {([['logic', '🔌 Mạch logic'], ['dc', '⚡ Mạch điện DC']] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`rounded-lg px-4 py-2 text-sm font-medium ${tab === k ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}>
-            {l}
+      <div className="mb-5 flex w-fit gap-1 rounded-sm border border-slate-200 bg-slate-100 p-1">
+        {([['logic', 'fa-plug', 'Mạch logic'], ['dc', 'fa-bolt', 'Mạch điện DC']] as const).map(([k, icon, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`flex items-center gap-2 rounded-sm px-4 py-2 text-sm font-medium transition ${tab === k ? 'bg-blue-900 text-white' : 'text-slate-500 hover:text-slate-800'}`}>
+            <i className={`fas ${icon}`} /> {l}
           </button>
         ))}
       </div>

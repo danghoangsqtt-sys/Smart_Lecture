@@ -1,7 +1,7 @@
 ﻿import { Type, type Schema } from '@google/genai';
-import { generateJSON } from './gemini.js';
+import { generateJSON } from './ai.js';
 
-export const BLOOM_LEVELS = ['Nháº­n biáº¿t', 'ThÃ´ng hiá»ƒu', 'Váº­n dá»¥ng', 'Váº­n dá»¥ng cao'] as const;
+export const BLOOM_LEVELS = ['Nhận biết', 'Thông hiểu', 'Vận dụng', 'Vận dụng cao'] as const;
 export type BloomLevel = (typeof BLOOM_LEVELS)[number];
 
 export interface GeneratedQuestion {
@@ -32,23 +32,23 @@ const MAX_SOURCE_CHARS = 240_000;
 
 function buildPrompt(level: string, count: number, isEssay: boolean, sourceText: string): string {
   return [
-    'Báº¡n lÃ  chuyÃªn gia sÆ° pháº¡m giÃ u kinh nghiá»‡m soáº¡n cÃ¢u há»i kiá»ƒm tra.',
+    'Bạn là chuyên gia sư phạm giàu kinh nghiệm soạn câu hỏi kiểm tra.',
     '',
-    '[QUY Táº®C Cá»¨NG]',
-    '1. CHá»ˆ Ä‘Æ°á»£c sá»­ dá»¥ng thÃ´ng tin tá»« tÃ i liá»‡u dÆ°á»›i Ä‘Ã¢y. Tuyá»‡t Ä‘á»‘i khÃ´ng bá»‹a Ä‘áº·t kiáº¿n thá»©c ngoÃ i tÃ i liá»‡u.',
-    '2. Náº¿u tÃ i liá»‡u khÃ´ng Ä‘á»§ thÃ´ng tin Ä‘á»ƒ sinh Ä‘á»§ sá»‘ cÃ¢u, hÃ£y tráº£ vá» sá»‘ cÃ¢u cÃ³ thá»ƒ vÃ  Ä‘á»ƒ trá»‘ng pháº§n cÃ²n láº¡i (tráº£ máº£ng rá»—ng [] náº¿u khÃ´ng sinh Ä‘Æ°á»£c cÃ¢u nÃ o).',
-    '3. Má»—i cÃ¢u tráº¯c nghiá»‡m cÃ³ Ä‘Ãºng 4 phÆ°Æ¡ng Ã¡n vÃ  chá»‰ má»™t Ä‘Ã¡p Ã¡n Ä‘Ãºng; "correctAnswer" lÃ  chá»¯ cÃ¡i A/B/C/D á»©ng vá»›i Ä‘Ã¡p Ã¡n Ä‘Ãºng.',
-    '4. PhÆ°Æ¡ng Ã¡n sai pháº£i há»£p lÃ½ (báº«y nháº­n thá»©c), khÃ´ng quÃ¡ hiá»ƒn nhiÃªn vÃ´ lÃ½.',
-    '5. "explanation" lÃ  giáº£i thÃ­ch ngáº¯n gá»n vÃ¬ sao Ä‘Ã¡p Ã¡n Ä‘Ãºng (2-3 cÃ¢u).',
-    '6. Náº¿u ná»™i dung chá»©a cÃ´ng thá»©c/toÃ¡n há»c, dÃ¹ng LaTeX trong $...$ hoáº·c $$...$$.',
-    '7. KhÃ´ng láº·p láº¡i ná»™i dung cÃ¢u há»i Ä‘Ã£ cÃ³.',
+    '[QUY TẮC CỨNG]',
+    '1. CHỈ được sử dụng thông tin từ tài liệu dưới đây. Tuyệt đối không bịa đặt kiến thức ngoài tài liệu.',
+    '2. Nếu tài liệu không đủ thông tin để sinh đủ số câu, hãy trả về số câu có thể và để trống phần còn lại (trả mảng rỗng [] nếu không sinh được câu nào).',
+    '3. Mỗi câu trắc nghiệm có đúng 4 phương án và chỉ một đáp án đúng; "correctAnswer" là chữ cái A/B/C/D ứng với đáp án đúng.',
+    '4. Phương án sai phải hợp lý (bẫy nhận thức), không quá hiển nhiên vô lý.',
+    '5. "explanation" là giải thích ngắn gọn vì sao đáp án đúng (2-3 câu).',
+    '6. Nếu nội dung chứa công thức/toán học, dùng LaTeX trong $...$ hoặc $$...$$.',
+    '7. Không lặp lại nội dung câu hỏi đã có.',
     '',
-    `[TÃ€I LIá»†U]`,
+    `[TÀI LIỆU]`,
     sourceText.slice(0, MAX_SOURCE_CHARS),
     '',
-    `[YÃŠU Cáº¦U]`,
-    `Sinh ${count} cÃ¢u á»Ÿ má»©c nháº­n thá»©c "${level}" dáº¡ng ${isEssay ? 'Tá»° LUáº¬N (khÃ´ng cÃ³ options, correctAnswer lÃ  dÃ n Ã½ Ä‘Ã¡p Ã¡n)' : 'TRáº®C NGHIá»†M 4 phÆ°Æ¡ng Ã¡n'}.`,
-    'Tráº£ vá» JSON array Ä‘Ãºng schema.',
+    `[YÊU CẦU]`,
+    `Sinh ${count} câu ở mức nhận thức "${level}" dạng ${isEssay ? 'TỰ LUẬN (không có options, correctAnswer là dàn ý đáp án)' : 'TRẮC NGHIỆM 4 phương án'}.`,
+    'Trả về JSON array đúng schema.',
   ].join('\n');
 }
 
@@ -65,7 +65,7 @@ function normalize(
   let correctAnswer = typeof raw['correctAnswer'] === 'string' ? raw['correctAnswer'].trim() : '';
   if (!isEssay) {
     options = options.slice(0, 4);
-    while (options.length < 4) options.push(`PhÆ°Æ¡ng Ã¡n ${String.fromCharCode(65 + options.length)}`);
+    while (options.length < 4) options.push(`Phương án ${String.fromCharCode(65 + options.length)}`);
     const letterMatch = correctAnswer.match(/^([A-Da-d])\b/);
     if (!letterMatch?.[1]) {
       const idx = options.findIndex((o) => o.replace(/\s+/g, '').toLowerCase() === correctAnswer.replace(/\s+/g, '').toLowerCase());

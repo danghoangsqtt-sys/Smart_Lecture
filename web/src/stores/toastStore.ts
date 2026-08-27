@@ -24,10 +24,10 @@ export const useToastStore = create<ToastState>((set) => ({
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
-export const toast = {
+const toast = {
   success: (m: string) => useToastStore.getState().push('success', m),
   error: (m: string) => useToastStore.getState().push('error', m),
   info: (m: string) => useToastStore.getState().push('info', m),
 };
 
-export default { success: (m: string) => useToastStore.getState().push('success', m), error: (m: string) => useToastStore.getState().push('error', m), info: (m: string) => useToastStore.getState().push('info', m) };
+export default toast;

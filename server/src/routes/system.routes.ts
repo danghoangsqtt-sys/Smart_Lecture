@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { NETWORK_INTERFACES, PORT } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
-import { createBackup, listBackups } from '../services/backup.js';
+import { createBackup, deleteBackup, listBackups, stageRestore } from '../services/backup.js';
 import { detectCloudflared, getTunnelUrl, isTunnelRunning, startTunnel, stopTunnel } from '../services/tunnel.js';
 
 const router = Router();
@@ -45,12 +45,28 @@ export function detectDocling(): Promise<boolean> {
   });
 }
 
+let libreOfficeAvailable: boolean | null = null;
+
+export function isLibreOfficeAvailable(): boolean {
+  return libreOfficeAvailable === true;
+}
+
+export function detectLibreOffice(): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile('soffice', ['--version'], { timeout: 8000 }, (err) => {
+      libreOfficeAvailable = !err;
+      resolve(libreOfficeAvailable);
+    });
+  });
+}
+
 router.get(
-  '/system/info',
+  '/info',
   h(async (req, res) => {
     const authed = req as AuthedRequest;
     if (authed.user?.role === 'student') throw new HttpError(403, 'FORBIDDEN', 'Chỉ giáo viên/quản trị xem thông tin hệ thống');
     if (doclingAvailable === null) await detectDocling();
+    if (libreOfficeAvailable === null) await detectLibreOffice();
     res.json({
       appVersion: '0.3.0',
       port: PORT,
@@ -61,6 +77,7 @@ router.get(
       hostname: os.hostname(),
       platform: `${os.type()} ${os.release()}`,
       doclingAvailable: doclingAvailable ?? false,
+      libreOfficeAvailable: libreOfficeAvailable ?? false,
       backups: listBackups(),
       uptimeSec: Math.round(process.uptime()),
     });
@@ -68,7 +85,7 @@ router.get(
 );
 
 router.post(
-  '/system/backup',
+  '/backup',
   requireRole('teacher', 'admin'),
   h(async (_req, res) => {
     const name = await createBackup('manual');
@@ -77,15 +94,41 @@ router.post(
 );
 
 router.get(
-  '/system/backups',
+  '/backups',
   requireRole('teacher', 'admin'),
   h(async (_req, res) => {
     res.json({ backups: listBackups() });
   })
 );
 
+router.delete(
+  '/backups/:name',
+  requireRole('admin'),
+  h(async (req, res) => {
+    try {
+      deleteBackup(String(req.params.name));
+    } catch (error) {
+      throw new HttpError(404, 'BACKUP_NOT_FOUND', error instanceof Error ? error.message : 'Không tìm thấy bản sao lưu');
+    }
+    res.json({ ok: true });
+  })
+);
+
 router.post(
-  '/system/tunnel',
+  '/restore/:name',
+  requireRole('admin'),
+  h(async (req, res) => {
+    try {
+      await stageRestore(String(req.params.name));
+    } catch (error) {
+      throw new HttpError(400, 'RESTORE_INVALID', error instanceof Error ? error.message : 'Không thể chuẩn bị khôi phục');
+    }
+    res.json({ ok: true, restartRequired: true, message: 'Đã chuẩn bị khôi phục. Khởi động lại máy chủ để áp dụng.' });
+  })
+);
+
+router.post(
+  '/tunnel',
   requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const enable = req.body?.enable === true;
