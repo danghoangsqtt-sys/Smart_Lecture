@@ -28,3 +28,9 @@ Làm cho build, start, stop, healthcheck và phục hồi hoạt động lặp l
 ## Verification
 
 Build three times; healthcheck; `npm run test:e2e`; restore/restart check.
+
+## Execution Log
+
+- 2026-08-28: started after T-1202 was committed, pushed and tagged. Inventory confirms existing autostart scripts are at `scripts/` and `/api/health` is defined inline in `server/src/index.ts`. Healthcheck/runbook and controlled lifecycle evidence are in progress.
+- 2026-08-28: evidence captured: no Node process or listener was present on ports 4000/4100/5173, `web/dist/assets` has normal directory attributes and writable ACL, but Vite still receives Windows `EPERM` while deleting that asset directory. The selected mitigation is `emptyOutDir: false`: Vite emits content-hashed assets alongside previous artifacts, so production `index.html` always references the current build and no runtime path is deleted during build.
+- 2026-08-28: complete. Added `scripts/healthcheck.ps1`; it passes for the owning production PID and rejects stale PID `999999`. Three controlled cycles each passed build, start, PID/port/API healthcheck and stop with port release on 4180 and a temporary `DATA_DIR`. Isolated E2E (86 REST, Excel route regression, 10 Socket, 16 regression, restore/restart) passed after the lifecycle changes.

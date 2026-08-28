@@ -20,7 +20,7 @@
 
 - **Server:** Node.js 24 · Express 5 · `node:sqlite` (zero native build) · Socket.IO · JWT + bcrypt · Gemini AI
   (resilience layer: queue/backoff/fallback/structured output/quota counter)
-- **Web:** React 19 · Vite 7 · TypeScript strict · Tailwind v4 · Zustand · SheetJS
+- **Web:** React 19 · Vite 7 · TypeScript strict · Tailwind v4 · Zustand · ExcelJS (tải khi xuất Excel)
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
@@ -34,6 +34,14 @@ npm run dev          # API :4000 + Web :5173 (dev proxy sẵn)
 # Production:
 npm run build && npm start -w server    # học viên truy cập http://<ip-máy-GV>:4000
 ```
+
+Nếu cần kiểm tra bản production sau khi khởi động trên Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/healthcheck.ps1 -Port 4000
+```
+
+Trên Windows, build giữ lại asset cũ có hash để tránh lỗi khoá thư mục `web/dist` từ hệ điều hành; `index.html` luôn trỏ tới asset của lần build hiện tại.
 
 Tài khoản mặc định lần đầu: `admin / admin123` (bắt buộc đổi).
 
@@ -51,7 +59,7 @@ Lệnh có thể chạy lại an toàn, không tạo dữ liệu trùng. Sau khi
 
 | Việc | Cách |
 |---|---|
-| Tự khởi động cùng Windows | `powershell -File scripts/install-autostart.ps1` |
+| Tự khởi động cùng Windows | `powershell -File scripts/install-autostart.ps1` (chạy `npm run build` trước) |
 | Backup thủ công / xem bản sao lưu | Cài đặt → Hệ thống & sao lưu (tự động 02:00 hằng ngày, giữ 7 bản) |
 | Cho HV làm BTVN từ nhà | Cài đặt → Mở tunnel (cần `cloudflared`) — **tắt ngay sau khi giao bài** |
 | Truy cập kiểu `smart-lecture.local` | Tự động nếu máy có Bonjour |
@@ -80,4 +88,4 @@ CI GitHub Actions chạy typecheck, production build và E2E cô lập cho mọi
 
 - Phase 7 ổn định nền tảng và Phase 8 kiến trúc UI đã được xác minh local.
 - React Doctor full-scan: **100/100**, không còn issue trên 42 file frontend.
-- Entry bundle production: khoảng **209.78 kB**; các màn hình lớn và SheetJS được tách chunk.
+- Entry bundle production: khoảng **209.82 kB**; các màn hình lớn và ExcelJS chỉ tải khi người dạy xuất tệp.

@@ -16,6 +16,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Windows may retain a handle on a previous static asset after server shutdown.
+    // Content-hashed assets keep serving deterministic output without deleting runtime files.
+    emptyOutDir: false,
     sourcemap: false,
     rollupOptions: {
       output: {
