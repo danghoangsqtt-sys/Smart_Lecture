@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Bắt đầu T-1201 theo contract .DHSYSTEM/phases/P12-release-hardening/tasks/T-1201-baseline-version-docs.md; không triển khai P13 trước khi P12 đạt release gate."
+  "next_action": "Bắt đầu T-1202 theo contract .DHSYSTEM/phases/P12-release-hardening/tasks/T-1202-excel-dependency-security.md; không triển khai P13 trước khi P12 đạt release gate."
 }

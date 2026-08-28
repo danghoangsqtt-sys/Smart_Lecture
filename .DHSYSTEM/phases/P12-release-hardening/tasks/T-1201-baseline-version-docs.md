@@ -41,3 +41,4 @@ Thiết lập một development baseline duy nhất `0.9.0` (trên functional ba
 ## Execution Log
 
 - 2026-08-28: started. Version target reconciled to `0.9.0`; P11 remains the verified functional baseline `0.8.0`.
+- 2026-08-28: completed and persisted in `c3a3f9c`; all automated verification commands passed.

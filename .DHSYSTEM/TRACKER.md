@@ -65,7 +65,7 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-1201 | Đồng bộ version, metadata, docs và release baseline | P12 | doing | typecheck + clean build + consistency scan |
+| T-1201 | Đồng bộ version, metadata, docs và release baseline | P12 | done | typecheck + clean build + consistency scan + E2E |
 | T-1202 | Triage/rút bỏ rủi ro dependency Excel mức high | P12 | planned | audit + ADR + import/export regression |
 | T-1203 | Ổn định build, healthcheck và lifecycle Windows | P12 | planned | 3 build/start/stop cycles + E2E |
 | T-1204 | Browser E2E cho luồng lớp học trọng yếu | P12 | planned | isolated browser E2E + CI |

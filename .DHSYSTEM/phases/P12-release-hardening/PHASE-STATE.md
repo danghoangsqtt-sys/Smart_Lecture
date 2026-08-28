@@ -9,9 +9,14 @@
 
 | Task | Status | Dependency | Verification |
 | --- | --- | --- | --- |
-| T-1201 Baseline/version/docs | in_progress | — | typecheck, clean build, documentation consistency scan |
+| T-1201 Baseline/version/docs | done | — | typecheck, clean build, documentation consistency scan |
 | T-1202 Excel/dependency security | planned | T-1201 | audit, ADR, import/export regression |
 | T-1203 Windows lifecycle | planned | T-1201 | three clean build/start/stop cycles, healthcheck |
 | T-1204 Browser quality gate | planned | T-1201 | isolated browser E2E in CI |
 
 No shipping code is changed in this planning checkpoint.
+
+## T-1201 Result
+
+- Centralized the `0.9.0` runtime version and aligned system-info, backup manifest and the isolated E2E assertion.
+- Verified: typecheck, version consistency scan, server build, clean web build, 86 REST checks, 10 Socket checks, 16 regression checks and restore/restart.

@@ -107,7 +107,7 @@
 
 ## Phase 12 — Release hardening ⏳
 
-- [ ] Đồng bộ version, metadata và tài liệu vận hành với development target v0.9.0 (P11 functional baseline v0.8.0).
+- [x] Đồng bộ version, metadata và tài liệu vận hành với development target v0.9.0 (P11 functional baseline v0.8.0).
 - [ ] Triage/rút bỏ rủi ro dependency Excel mức high bằng ADR và regression.
 - [ ] Làm build, healthcheck và lifecycle Windows lặp lại được.
 - [ ] Bổ sung browser E2E cho các luồng lớp học trọng yếu.
