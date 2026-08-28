@@ -74,10 +74,10 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-1301 | Presentation Canvas PDF/PPTX theo trang | P13 | doing | browser PDF/PPTX + authorization tests |
-| T-1302 | Annotation: pen, highlight, shape, laser, undo/redo | P13 | planned | pointer/zoom/history browser tests |
-| T-1303 | Video/Game Continuity Dock kéo thả, minimize, PiP fallback | P13 | planned | playback/context/socket regression |
-| T-1304 | Thanh tác vụ và full-flow Teaching Mode | P13 | planned | browser full-flow + accessibility + E2E |
+| T-1301 | Presentation Canvas PDF/PPTX theo trang | P13 | done | PDF.js canvas + build/typecheck |
+| T-1302 | Annotation: pen, highlight, shape, laser, undo/redo | P13 | done | SVG overlay + session persistence + typecheck |
+| T-1303 | Video/Game Continuity Dock kéo thả, minimize, PiP fallback | P13 | done | draggable docks + PiP fallback + E2E regression |
+| T-1304 | Thanh tác vụ và full-flow Teaching Mode | P13 | done | Teaching Mode Browser E2E + build + E2E regression |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

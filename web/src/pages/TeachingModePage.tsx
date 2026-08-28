@@ -516,7 +516,7 @@ function TeachingControls({
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-700 bg-slate-800 p-3">
       <div className="flex gap-1">
         {(Object.keys(CONTENT_MODE_LABELS) as ContentMode[]).map((mode) => (
-          <button key={mode} onClick={() => onModeChange(mode)} className={`rounded px-3 py-1.5 text-xs font-medium transition ${mode === 'game' ? gameDockOpen && !gameDockMinimized ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600' : contentMode === mode ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{CONTENT_MODE_LABELS[mode]}</button>
+          <button key={mode} aria-label={`Mở ${CONTENT_MODE_LABELS[mode]}`} onClick={() => onModeChange(mode)} className={`rounded px-3 py-1.5 text-xs font-medium transition ${mode === 'game' ? gameDockOpen && !gameDockMinimized ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600' : contentMode === mode ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{CONTENT_MODE_LABELS[mode]}</button>
         ))}
       </div>
       {selectedItem && canManage && (
