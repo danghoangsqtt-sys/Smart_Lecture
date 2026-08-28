@@ -5,7 +5,7 @@ import { db, tx } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.js';
-import * as XLSX from 'xlsx';
+import { createCsvBuffer, createXlsxBuffer } from '../utils/spreadsheet.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -372,7 +372,6 @@ router.get(
     sql += ' ORDER BY started_at DESC';
     const logs = db.prepare(sql).all(...params) as unknown as TeachingLogRow[];
     if (format === 'csv' || format === 'xlsx') {
-      const wb = XLSX.utils.book_new();
       const rows = [
         ['STT', 'Ngày bắt đầu', 'Ngày kết thúc', 'Môn học', 'Mục chương trình', 'Buổi điểm danh', 'Kế hoạch tiết',
          'Slide đã trình chiếu', 'Video đã phát', 'Game đã chạy', 'Đã điểm danh', 'KTTX đã cộng', 'Ghi chú'],
@@ -392,9 +391,7 @@ router.get(
           l.notes,
         ]),
       ];
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, 'Nhật ký giảng dạy');
-      const buf = XLSX.write(wb, { type: 'buffer', bookType: format === 'csv' ? 'csv' : 'xlsx' });
+      const buf = format === 'csv' ? createCsvBuffer(rows) : await createXlsxBuffer('Nhật ký giảng dạy', rows);
       res.setHeader('Content-Type', format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="nhat-ky-giang-day-${cls.name}-${Date.now()}.${format}"`);
       res.send(buf);

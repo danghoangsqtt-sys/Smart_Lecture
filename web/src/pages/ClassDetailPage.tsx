@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner, Textarea } from '../components/ui';
@@ -8,6 +7,22 @@ import { StudentProfileModal } from '../components/StudentProfileFields';
 import toast from '../stores/toastStore';
 import { toISODate } from '../lib/dateUtils';
 import { useFieldReducer } from '../hooks/useFieldReducer';
+
+async function downloadExcelWorkbook(filename: string, sheetName: string, rows: Array<Array<string | number>>) {
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName);
+  sheet.addRows(rows);
+  const blob = new Blob([await workbook.xlsx.writeBuffer()], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 interface ClassMeta {
   id: string;
@@ -487,7 +502,7 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
       <input
         aria-label="Chọn file danh sách học viên"
         type="file"
-        accept=".csv,.xlsx,.xls"
+        accept=".csv,.xlsx"
         onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
         className="mb-4 block w-full text-sm text-slate-600 file:mr-3 file:rounded-sm file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-semibold file:text-slate-700"
       />
@@ -822,7 +837,7 @@ function GradebookTab({ classId, canManage }: { classId: string; canManage: bool
     }
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     if (!info) return;
     const aoa = [
       [`SỔ ĐIỂM — ${info.name}`],
@@ -830,10 +845,7 @@ function GradebookTab({ classId, canManage }: { classId: string; canManage: bool
       ['STT', 'Họ tên', 'KTTX', 'Quá trình 1', 'KT kết thúc môn', `Buổi học (${info.sessionTotal})`, 'Đi học', 'Vắng', 'Tiết vắng', 'Nhận xét'],
       ...rows.map((r, i) => [i + 1, r.displayName, r.kttx ?? '', r.process1 ?? '', r.finalExam ?? '', info.sessionTotal, r.presentCount, r.absentCount, r.periodsAbsent, r.remark]),
     ];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sổ điểm');
-    XLSX.writeFile(wb, `so-diem-${Date.now()}.xlsx`);
+    await downloadExcelWorkbook(`so-diem-${Date.now()}.xlsx`, 'Sổ điểm', aoa);
     toast.success('Đã xuất Excel');
   }
 
@@ -843,7 +855,7 @@ function GradebookTab({ classId, canManage }: { classId: string; canManage: bool
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <Button variant="secondary" onClick={exportExcel}><i className="fas fa-download" /> Excel</Button>
+        <Button variant="secondary" onClick={() => void exportExcel()}><i className="fas fa-download" /> Excel</Button>
       </div>
       <Card className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1212,7 +1224,7 @@ function ImportGroupsModal({ classId, onClose, onImported }: { classId: string; 
       <input
         aria-label="Chọn file danh sách nhóm"
         type="file"
-        accept=".csv,.xlsx,.xls"
+        accept=".csv,.xlsx"
         onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
         className="mb-4 block w-full text-sm text-slate-600 file:mr-3 file:rounded-sm file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-semibold file:text-slate-700"
       />
@@ -1734,7 +1746,7 @@ function ImportCurriculumModal({ classId, subjectId, onClose, onImported }: { cl
       <input
         aria-label="Chọn file chương trình đào tạo"
         type="file"
-        accept=".csv,.xlsx,.xls"
+        accept=".csv,.xlsx"
         onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
         className="mb-4 block w-full text-sm text-slate-600 file:mr-3 file:rounded-sm file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-semibold file:text-slate-700"
       />
@@ -1919,17 +1931,14 @@ function GroupScoresSection({ classId, canManage }: { classId: string; canManage
     }
   }
 
-  function exportExcel() {
+  async function exportExcel() {
     const aoa = [
       [`SỔ ĐIỂM NHÓM — ${classNameRef.current}`],
       [],
       ['STT', 'Tên nhóm', 'KTTX', 'Quá trình 1', 'KT kết thúc môn', 'Nhận xét'],
       ...rows.map((r, i) => [i + 1, r.groupName, r.kttx ?? '', r.process1 ?? '', r.finalExam ?? '', r.remark]),
     ];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Điểm nhóm');
-    XLSX.writeFile(wb, `diem-nhom-${Date.now()}.xlsx`);
+    await downloadExcelWorkbook(`diem-nhom-${Date.now()}.xlsx`, 'Điểm nhóm', aoa);
     toast.success('Đã xuất Excel');
   }
 
@@ -1939,7 +1948,7 @@ function GroupScoresSection({ classId, canManage }: { classId: string; canManage
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <Button variant="secondary" onClick={exportExcel}><i className="fas fa-download" /> Excel</Button>
+        <Button variant="secondary" onClick={() => void exportExcel()}><i className="fas fa-download" /> Excel</Button>
       </div>
       <Card className="overflow-x-auto">
         <table className="w-full text-sm">

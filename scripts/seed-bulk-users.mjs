@@ -6,7 +6,7 @@
 
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { writeFileSync, readFileSync } from 'node:fs';
 
 const BASE_URL = 'http://localhost:4000/api';
@@ -230,11 +230,11 @@ async function main() {
     }
 
     // Tạo workbook
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 18 }, { wch: 14 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'Danh sach');
-    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Danh sach');
+    ws.addRows(rows);
+    [6, 14, 25, 12, 10, 10, 15, 18, 14].forEach((width, index) => { ws.getColumn(index + 1).width = width; });
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
     const xlsxPath = `/tmp/students_${c.name}.xlsx`;
     writeFileSync(xlsxPath, buf);

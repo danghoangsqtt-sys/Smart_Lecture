@@ -21,7 +21,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          xlsx: ['xlsx'],
+          exceljs: ['exceljs'],
           socket: ['socket.io-client'],
         },
       },

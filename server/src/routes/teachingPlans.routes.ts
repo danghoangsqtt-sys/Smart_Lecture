@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import multer from 'multer';
-import * as XLSX from 'xlsx';
 import { db, tx } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.js';
+import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -14,7 +14,7 @@ router.use(requireAuth);
 const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.csv', '.xlsx', '.xls'];
+    const allowed = ['.csv', '.xlsx'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
     cb(null, allowed.includes(ext));
   },
@@ -95,6 +95,24 @@ router.get(
       totalPeriods: p.total_periods,
       items: (p as any).items,
     })) });
+  })
+);
+
+router.get(
+  '/classes/:classId/teaching-plans/template.xlsx',
+  h(async (_req, res) => {
+    const headers = ['Tuần', 'Chương/Phần', 'Chủ đề/Nội dung', 'Số tiết dự kiến'];
+    const sampleRows = [
+      [1, 'Chương 1', 'Tổng quan môn học', 2],
+      [1, 'Chương 1', 'Khái niệm cơ bản', 2],
+      [2, 'Chương 2', 'Lý thuyết cốt lõi 1', 3],
+      [2, 'Chương 2', 'Lý thuyết cốt lõi 2', 3],
+      [3, 'Chương 3', 'Thực hành / Bài tập', 4],
+    ];
+    const buffer = await createXlsxBuffer('Chương trình đào tạo', [headers, ...sampleRows], [8, 18, 40, 18]);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="mau-chuong-trinh-dao-tao-${Date.now()}.xlsx"`);
+    res.send(buffer);
   })
 );
 
@@ -287,6 +305,7 @@ function normalizeHeader(cell: unknown): string {
     .normalize('NFD')
     .replace(/\p{Mark}/gu, '')
     .replace(/đ/gi, 'd')
+    .replace(/[\s/]+/gu, '')
     .trim()
     .toLowerCase();
 }
@@ -303,12 +322,12 @@ router.post(
     const subject = subjectId ? db.prepare('SELECT id FROM subjects WHERE id = ? AND class_id = ?').get(subjectId, cls.id) : undefined;
     if (!subject) throw new HttpError(400, 'BAD_INPUT', 'Môn học không hợp lệ');
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new HttpError(400, 'BAD_INPUT', 'File không có sheet nào');
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) throw new HttpError(400, 'BAD_INPUT', 'Sheet không hợp lệ');
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
+    let rows: unknown[][];
+    try {
+      rows = await readFirstWorksheetRows(req.file.buffer, req.file.originalname.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx');
+    } catch {
+      throw new HttpError(400, 'BAD_INPUT', 'Không thể đọc file; hãy dùng file .xlsx hoặc .csv hợp lệ');
+    }
 
     if (rows.length < 2) throw new HttpError(400, 'BAD_INPUT', 'File phải có ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu');
 
@@ -318,7 +337,7 @@ router.post(
 
     const weekIdx = headers.findIndex((h) => h === 'tuan' || h === 'week' || h.includes('tuan'));
     const chapterIdx = headers.findIndex((h) => h.includes('chuong') || h.includes('phan') || h === 'chapter');
-    const topicIdx = headers.findIndex((h) => h.includes('chude') || h.includes('noidung') || h.includes('topic') || h === 'ten' || h.includes('tieu de'));
+    const topicIdx = headers.findIndex((h) => h.includes('chude') || h.includes('noidung') || h.includes('topic') || h === 'ten' || h.includes('tieude'));
     const periodsIdx = headers.findIndex((h) => h.includes('tiet') || h.includes('period') || h.includes('gio') || h === 'so tiet');
 
     if (topicIdx === -1) {
@@ -361,29 +380,6 @@ router.post(
     db.prepare('UPDATE teaching_plans SET total_periods = ? WHERE id = ?').run(totalPeriods.s, planId);
 
     res.json({ planId, created, totalPeriods: totalPeriods.s, errors });
-  })
-);
-
-router.get(
-  '/classes/:classId/teaching-plans/template.xlsx',
-  h(async (req, res) => {
-    const headers = ['Tuần', 'Chương/Phần', 'Chủ đề/Nội dung', 'Số tiết dự kiến'];
-    const sampleRows = [
-      [1, 'Chương 1', 'Tổng quan môn học', 2],
-      [1, 'Chương 1', 'Khái niệm cơ bản', 2],
-      [2, 'Chương 2', 'Lý thuyết cốt lõi 1', 3],
-      [2, 'Chương 2', 'Lý thuyết cốt lõi 2', 3],
-      [3, 'Chương 3', 'Thực hành / Bài tập', 4],
-    ];
-    const workbook = XLSX.utils.book_new();
-    const sheetData = [headers, ...sampleRows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    sheet['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Chương trình đào tạo');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="mau-chuong-trinh-dao-tao-${Date.now()}.xlsx"`);
-    res.send(buffer);
   })
 );
 

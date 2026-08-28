@@ -6,7 +6,7 @@
 
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs';
 
 const BASE = 'http://localhost:4000/api';
@@ -81,7 +81,7 @@ async function main() {
 
   // 5. UPLOAD CHƯƠNG TRÌNH ĐÀO TẠO (Excel)
   console.log('\n[5] Upload chương trình đào tạo từ Excel...');
-  const wb = XLSX.utils.book_new();
+  const wb = new ExcelJS.Workbook();
   const rows = [
     ['Tuần', 'Chương/Phần', 'Chủ đề/Nội dung', 'Số tiết dự kiến'],
     [1, 'Chương 1', 'Động học chất điểm', 3],
@@ -90,10 +90,10 @@ async function main() {
     [2, 'Chương 2', 'Bảo toàn năng lượng', 2],
     [3, 'Chương 3', 'Cơ học chất rắn', 3],
   ];
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 40 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws, 'Chương trình');
-  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const ws = wb.addWorksheet('Chương trình');
+  ws.addRows(rows);
+  [8, 18, 40, 18].forEach((width, index) => { ws.getColumn(index + 1).width = width; });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   // Upload multipart
   const importRes = await new Promise((resolve, reject) => {

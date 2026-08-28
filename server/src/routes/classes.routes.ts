@@ -4,7 +4,6 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { tx, db, queryAll, toPublicUser, findUserByUsername } from '../db/connection.js';
 import { DROP_DIR } from '../config.js';
@@ -12,6 +11,7 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '../utils/access.js';
 import { insertUser } from './users.routes.js';
+import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
 
 function ensureDropFolder(subjectId: string): void {
   const dir = path.join(DROP_DIR, subjectId);
@@ -21,7 +21,7 @@ function ensureDropFolder(subjectId: string): void {
 const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.csv', '.xlsx', '.xls'];
+    const allowed = ['.csv', '.xlsx'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
     cb(null, allowed.includes(ext));
   },
@@ -459,7 +459,6 @@ router.get(
     ).all(cls.id) as { student_id: string; present: number; absent: number; periodsAbsent: number }[];
     const attMap = new Map(attendance.map((a) => [a.student_id, a]));
 
-    const workbook = XLSX.utils.book_new();
     const sheetData = [
       ['STT', 'Mã SV', 'Tài khoản', 'Họ tên', 'Trạng thái', 'KTTX', 'QLT1', 'Cuối kỳ', 'Ghi chú', 'Có mặt', 'Vắng', 'Tiết vắng'],
     ];
@@ -481,9 +480,7 @@ router.get(
         String(a?.periodsAbsent ?? 0),
       ]);
     });
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Danh sách lớp');
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    const buffer = await createXlsxBuffer('Danh sách lớp', sheetData);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${cls.name}-danh-sach-${Date.now()}.xlsx"`);
     res.send(buffer);
@@ -709,12 +706,12 @@ router.post(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền nhập học viên');
     if (!req.file) throw new HttpError(400, 'BAD_INPUT', 'Không có file được tải lên');
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new HttpError(400, 'BAD_INPUT', 'File không có sheet nào');
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) throw new HttpError(400, 'BAD_INPUT', 'Sheet không hợp lệ');
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
+    let rows: unknown[][];
+    try {
+      rows = await readFirstWorksheetRows(req.file.buffer, req.file.originalname.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx');
+    } catch {
+      throw new HttpError(400, 'BAD_INPUT', 'Không thể đọc file; hãy dùng file .xlsx hoặc .csv hợp lệ');
+    }
 
     if (rows.length < 2) throw new HttpError(400, 'BAD_INPUT', 'File phải có ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu');
 
@@ -1068,12 +1065,12 @@ router.post(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền nhập nhóm');
     if (!req.file) throw new HttpError(400, 'BAD_INPUT', 'Không có file được tải lên');
 
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new HttpError(400, 'BAD_INPUT', 'File không có sheet nào');
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) throw new HttpError(400, 'BAD_INPUT', 'Sheet không hợp lệ');
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
+    let rows: unknown[][];
+    try {
+      rows = await readFirstWorksheetRows(req.file.buffer, req.file.originalname.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx');
+    } catch {
+      throw new HttpError(400, 'BAD_INPUT', 'Không thể đọc file; hãy dùng file .xlsx hoặc .csv hợp lệ');
+    }
     if (rows.length < 2) throw new HttpError(400, 'BAD_INPUT', 'File phải có ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu');
 
     let headerRowIdx = -1;

@@ -66,7 +66,7 @@
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
 | T-1201 | Đồng bộ version, metadata, docs và release baseline | P12 | done | typecheck + clean build + consistency scan + E2E |
-| T-1202 | Triage/rút bỏ rủi ro dependency Excel mức high | P12 | planned | audit + ADR + import/export regression |
+| T-1202 | Triage/rút bỏ rủi ro dependency Excel mức high | P12 | done | 0 high/critical audit + ADR + isolated XLSX route regression |
 | T-1203 | Ổn định build, healthcheck và lifecycle Windows | P12 | planned | 3 build/start/stop cycles + E2E |
 | T-1204 | Browser E2E cho luồng lớp học trọng yếu | P12 | planned | isolated browser E2E + CI |
 
@@ -80,6 +80,11 @@
 | T-1304 | Thanh tác vụ và full-flow Teaching Mode | P13 | planned | browser full-flow + accessibility + E2E |
 
 ## Session log
+### 2026-08-28 (Phase 12 — T-1202 checkpoint)
+- Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
+- Bổ sung adapter XLSX/CSV, E2E thực cho nhập học viên/chương trình, template và export lớp; sửa route template bị route động che khuất cùng chuẩn hoá tiêu đề tiếng Việt.
+- Verify: audit 0 high/critical (2 moderate transitive có ADR), typecheck, server build, clean web build, REST 86/86, Excel route regression, Socket 10/10, regression 16/16, restore restart.
+
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
 - `CircuitCanvas` publish thay đổi theo event, tách editor engine/render và ổn định callback cho component memo.
 - Tách `TeachingModePage` cùng miền teaching trong `ClassDetailPage`; điểm danh dùng reducer và ngày mặc định theo local time.

@@ -143,13 +143,8 @@ for ($i = 0; $i -lt $CLASSES.Count; $i++) {
 Write-Host ""
 Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Tạo $TOTAL_STUDENTS học viên và import vào lớp..." -ForegroundColor Yellow
 
-# Load xlsx library để tạo file Excel
-Add-Type -Path "E:\data\2.MyProject\2026\Smart_Lecture\node_modules\xlsx\xlsx.full.min.js" -ErrorAction SilentlyContinue
-# Thay vào đó dùng PowerShell tạo CSV rồi convert, hoặc dùng COM Excel nếu có
-# Cách đơn giản: dùng .NET tạo file Excel qua EPPlus không có sẵn.
-# Ta sẽ tạo file CSV và convert qua xlsx qua node -e inline.
-
-function New-StudentExcel($className, $classInfo, $startIndex) {
+# CSV is supported by the import route and avoids a separate spreadsheet parser in this seed script.
+function New-StudentCsv($className, $classInfo, $startIndex) {
     $headers = @('STT','Mã học viên','Họ và tên','Ngày sinh','Giới tính','Lớp','Quê quán','Tài khoản user','Mật khẩu')
     $rows = @($headers -join ',')
 
@@ -184,23 +179,7 @@ function New-StudentExcel($className, $classInfo, $startIndex) {
     $csvPath = "$env:TEMP\students_$className.csv"
     [System.IO.File]::WriteAllText($csvPath, $csvContent, [System.Text.Encoding]::UTF8)
 
-    # Convert CSV -> XLSX qua node (xlsx package đã có)
-    $xlsxPath = "$env:TEMP\students_$className.xlsx"
-    $nodeScript = @"
-const XLSX = require('xlsx');
-const fs = require('fs');
-const csv = fs.readFileSync('$csvPath', 'utf8');
-const workbook = XLSX.utils.book_new();
-const sheet = XLSX.utils.csv_to_sheet(csv);
-XLSX.utils.book_append_sheet(workbook, sheet, 'Danh sach');
-const buf = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-fs.writeFileSync('$xlsxPath', buf);
-console.log('Done');
-"@
-    $nodeScript | Out-File "$env:TEMP\convert_$className.js" -Encoding utf8
-    node "$env:TEMP\convert_$className.js" | Out-Null
-
-    return $xlsxPath
+    return $csvPath
 }
 
 # Import cho từng lớp
@@ -210,17 +189,17 @@ foreach ($c in $CLASSES) {
     $teacherUser = $TEACHERS[$c.teacherIndex].username
     $teacherToken = $teacherTokens[$teacherUser]
 
-    Write-Host "  → Tạo file Excel cho lớp $($c.name) (học viên $($studentCount+1) - $($studentCount+$STUDENTS_PER_CLASS))..." -ForegroundColor Gray
-    $xlsxFile = New-StudentExcel $c.name $c $studentCount
+    Write-Host "  → Tạo file CSV cho lớp $($c.name) (học viên $($studentCount+1) - $($studentCount+$STUDENTS_PER_CLASS))..." -ForegroundColor Gray
+    $importFile = New-StudentCsv $c.name $c $studentCount
     $studentCount += $STUDENTS_PER_CLASS
 
     Write-Host "  → Import vào lớp $($c.name)..." -ForegroundColor Gray
     # Upload file qua multipart
-    $bytes = [System.IO.File]::ReadAllBytes($xlsxFile)
+    $bytes = [System.IO.File]::ReadAllBytes($importFile)
     $content = New-Object System.Net.Http.MultipartFormDataContent
     $fileContent = New-Object System.Net.Http.ByteArrayContent(,$bytes)
-    $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    $content.Add($fileContent, "file", "students_$($c.name).xlsx")
+    $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse("text/csv")
+    $content.Add($fileContent, "file", "students_$($c.name).csv")
 
     $request = New-Object System.Net.Http.HttpRequestMessage([System.Net.Http.HttpMethod]::Post, "$BASE_URL/classes/$cid/import-students")
     $request.Headers.TryAddWithoutValidation("Authorization", "Bearer $teacherToken") | Out-Null
@@ -238,9 +217,7 @@ foreach ($c in $CLASSES) {
     }
 
     # Cleanup
-    Remove-Item $xlsxFile -ErrorAction SilentlyContinue
-    Remove-Item "$env:TEMP\students_$($c.name).csv" -ErrorAction SilentlyContinue
-    Remove-Item "$env:TEMP\convert_$($c.name).js" -ErrorAction SilentlyContinue
+    Remove-Item $importFile -ErrorAction SilentlyContinue
 }
 
 # --- 5. Kiểm tra kết quả ---
