@@ -1,6 +1,6 @@
 # Phase State — P12 Release hardening
 
-- Phase: `in_progress`
+- Phase: `completed`
 - Version target: `0.9.0`
 - Dependency: P11 completed
 - Quality gate: release gates in `docs/SPEC.md` section 6.
@@ -26,6 +26,11 @@
 - Added `scripts/healthcheck.ps1` to validate stale PID, listening port, owning PID and the `/api/health` contract.
 - Windows `EPERM` persisted while Vite tried to delete `web/dist/assets` despite no Node listener/process and normal writable ACL; builds now preserve content-hashed assets instead of deleting that directory.
 - Verified three controlled build/start/healthcheck/stop cycles on port 4180 with a temporary DB/runtime; stale PID is rejected; isolated E2E passes.
+
+## T-1204 Result
+
+- Added Playwright Chromium browser E2E with a temporary server/database, Chrome system executable for local Windows and CI Chromium installation.
+- Browser login flow passed three consecutive local runs; screenshot/trace are retained when a failure occurs.
 
 ## T-1201 Result
 

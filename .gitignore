@@ -13,5 +13,7 @@ data/
 .env
 .env.local
 .dev-server.pid
+test-results/
+playwright-report/
 Thumbs.db
 .DS_Store
