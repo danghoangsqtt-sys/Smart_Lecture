@@ -560,12 +560,14 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
 function TeachingVideoDock({ material, token, onClose }: { material: TeachingMaterial; token: string | null; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [minimized, setMinimized] = useState(false);
+  const [position, setPosition] = useState({ x: 16, y: 64 });
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
   const requestPiP = async () => {
     try { await videoRef.current?.requestPictureInPicture(); }
     catch { toast.info('Trình duyệt không hỗ trợ Picture-in-Picture; dùng khung video thu nhỏ.'); }
   };
-  return <div className={`fixed bottom-4 left-4 z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
-    <div className="flex h-10 items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}</span><div className="flex gap-1"><button type="button" onClick={() => setMinimized((value) => !value)} aria-label="Thu nhỏ video" className="rounded px-2 hover:bg-white/15">−</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
+  return <div style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
+    <div onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}</span><div className="flex gap-1"><button type="button" onClick={() => setMinimized((value) => !value)} aria-label="Thu nhỏ video" className="rounded px-2 hover:bg-white/15">−</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
     {!minimized && <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay className="w-full bg-black" />}
   </div>;
 }
