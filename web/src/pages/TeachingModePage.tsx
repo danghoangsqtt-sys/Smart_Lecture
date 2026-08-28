@@ -549,7 +549,7 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
         <span className="text-sm font-black"><i className="fas fa-gamepad mr-2 text-amber-300" />Game đang chuẩn bị / điều hành</span>
         <div className="flex gap-1">
           <button onClick={onToggleMinimized} className="rounded px-2 py-1 text-xs hover:bg-white/15" title={minimized ? 'Mở lại game' : 'Hạ game xuống'}><i className={`fas ${minimized ? 'fa-up-right-and-down-left-from-center' : 'fa-window-minimize'}`} /></button>
-          <button onClick={onClose} className="rounded px-2 py-1 text-xs hover:bg-white/15" title="Đóng game"><i className="fas fa-xmark" /></button>
+          <button onClick={() => { if (window.confirm('Đóng khung game? Phiên game trên máy chủ vẫn tiếp tục.')) onClose(); }} className="rounded px-2 py-1 text-xs hover:bg-white/15" title="Đóng game"><i className="fas fa-xmark" /></button>
         </div>
       </div>
       <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
