@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync,
 import path from 'node:path';
 import { BACKUP_DIR, DATA_DIR, MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
 import { db } from '../db/connection.js';
+import { APP_VERSION } from '../version.js';
 
 const KEEP_BACKUPS = 7;
 const BACKUP_HOUR = Number(process.env.BACKUP_HOUR ?? 2);
@@ -42,7 +43,7 @@ export async function createBackup(reason = 'auto'): Promise<string> {
         {
           createdAt: new Date().toISOString(),
           reason,
-          appVersion: '0.3.0',
+          appVersion: APP_VERSION,
           note: `Media >${MAX_INLINE_MEDIA_MB}MB chỉ ghi trong manifest — khôi phục bằng cách chép từ data/media/ hiện tại.`,
           mediaCount: mediaManifest.length,
           media: mediaManifest,

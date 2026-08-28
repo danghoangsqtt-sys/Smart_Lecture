@@ -1,11 +1,11 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.8.0-game-teaching-telemetry",
+  "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-11-completed",
-  "phase_current": "next-milestone-planning",
-  "workflow_state": "completed",
+  "status": "phase-12-planned",
+  "phase_current": "P12-release-hardening",
+  "workflow_state": "executing",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Lập milestone tiếp theo: báo cáo sau tiết có thể xuất hoặc mở rộng game dựa trên dữ liệu telemetry chính xác."
+  "next_action": "Bắt đầu T-1201 theo contract .DHSYSTEM/phases/P12-release-hardening/tasks/T-1201-baseline-version-docs.md; không triển khai P13 trước khi P12 đạt release gate."
 }

@@ -2,6 +2,7 @@
 $BASE = "http://localhost:4100/api"
 $script:pass = 0
 $script:fail = 0
+$expectedAppVersion = (Get-Content -Raw (Join-Path $PSScriptRoot "..\package.json") | ConvertFrom-Json).version
 
 function Check($name, $cond) {
   if ($cond) { $script:pass++; Write-Host "  PASS  $name" -ForegroundColor Green }
@@ -315,7 +316,7 @@ $mathGame = Req POST "/games" $teacherToken @{ gameType = "math_race"; durationS
 Check "Math race room created" ($mathGame.ok -and $mathGame.data.roomCode -match '^\d{6}$')
 # --- P3: system info + manual backup ---
 $sysInfo = Req GET "/system/info" $teacherToken
-Check "System info accessible" ($sysInfo.ok -and $sysInfo.data.appVersion -eq "0.3.0")
+Check "System info accessible" ($sysInfo.ok -and $sysInfo.data.appVersion -eq $expectedAppVersion)
 Check "System info has lanUrls array" ($null -ne $sysInfo.data.lanUrls)
 
 $bak = Req POST "/system/backup" $teacherToken @{ }

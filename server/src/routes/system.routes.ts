@@ -6,6 +6,7 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { HttpError, h } from '../utils/errors.js';
 import { createBackup, deleteBackup, listBackups, stageRestore } from '../services/backup.js';
 import { detectCloudflared, getTunnelUrl, isTunnelRunning, startTunnel, stopTunnel } from '../services/tunnel.js';
+import { APP_VERSION } from '../version.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -68,7 +69,7 @@ router.get(
     if (doclingAvailable === null) await detectDocling();
     if (libreOfficeAvailable === null) await detectLibreOffice();
     res.json({
-      appVersion: '0.3.0',
+      appVersion: APP_VERSION,
       port: PORT,
       lanUrls: NETWORK_INTERFACES.map((i) => `http://${i.address}:${PORT}`),
       mdnsUrl: mdnsAdvertised ? `http://${mdnsHostname}:${PORT}` : null,

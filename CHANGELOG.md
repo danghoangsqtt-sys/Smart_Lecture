@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Teaching Continuity Canvas v0.9.0 (planned)
+
+- Lập milestone cho presentation canvas PDF/PPTX, annotation, laser/highlight và video/game dock không gián đoạn phiên dạy.
+
 ## Unreleased — Game telemetry trong phiên dạy
 
 - Chỉ ghi nhận game có phiên thật, đúng lớp/môn vào nhật ký dạy; không còn dùng dấu hiệu giao diện `game-dock`.

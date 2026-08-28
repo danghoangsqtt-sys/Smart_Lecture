@@ -61,6 +61,24 @@
 |---|---|---|---|---|
 | T-1101 | Liên kết game được tạo từ Teaching Mode với nhật ký dạy và tổng quan sau tiết | P11 | done | typecheck + E2E 86/86 + regression 16/16 + Socket 10/10 + restore restart + clean web build |
 
+## Phase 12 — Release hardening
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1201 | Đồng bộ version, metadata, docs và release baseline | P12 | doing | typecheck + clean build + consistency scan |
+| T-1202 | Triage/rút bỏ rủi ro dependency Excel mức high | P12 | planned | audit + ADR + import/export regression |
+| T-1203 | Ổn định build, healthcheck và lifecycle Windows | P12 | planned | 3 build/start/stop cycles + E2E |
+| T-1204 | Browser E2E cho luồng lớp học trọng yếu | P12 | planned | isolated browser E2E + CI |
+
+## Phase 13 — Teaching Continuity Canvas
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1301 | Presentation Canvas PDF/PPTX theo trang | P13 | planned | browser PDF/PPTX + authorization tests |
+| T-1302 | Annotation: pen, highlight, shape, laser, undo/redo | P13 | planned | pointer/zoom/history browser tests |
+| T-1303 | Video/Game Continuity Dock kéo thả, minimize, PiP fallback | P13 | planned | playback/context/socket regression |
+| T-1304 | Thanh tác vụ và full-flow Teaching Mode | P13 | planned | browser full-flow + accessibility + E2E |
+
 ## Session log
 ### 2026-08-27 (Phase 8 — T-802 checkpoint 5)
 - `CircuitCanvas` publish thay đổi theo event, tách editor engine/render và ổn định callback cho component memo.
