@@ -17,6 +17,12 @@ interface TeachingInsights {
   recent: Array<{ id: string; subjectName: string | null; curriculumTopic: string | null; startedAt: string; endedAt: string | null; attendanceTaken: boolean; activityCount: number; games: Array<{ id: string; title: string; gameType: string }>; notes: string }>;
 }
 
+interface TeachingReadiness {
+  curriculum: { itemCount: number; linkedLectureCount: number };
+  materials: { presentationCount: number; pdfCanvasReadyCount: number; pptxCount: number; pptxPendingConversionCount: number; videoCount: number; linkCount: number };
+  note: string;
+}
+
 export default function TeachingHubPage() {
   const navigate = useNavigate();
   const [classes, setClasses] = useState<ClassInfo[]>([]);
@@ -28,6 +34,7 @@ export default function TeachingHubPage() {
   const [busy, setBusy] = useState(false);
   const [insightSubjectId, setInsightSubjectId] = useState('');
   const [insights, setInsights] = useState<TeachingInsights | null>(null);
+  const [readiness, setReadiness] = useState<TeachingReadiness | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const loadClasses = useCallback(async () => {
@@ -59,6 +66,16 @@ export default function TeachingHubPage() {
   }, [classId, insightSubjectId]);
 
   useEffect(() => { void loadInsights(); }, [loadInsights]);
+
+  const loadReadiness = useCallback(async () => {
+    if (!classId) { setReadiness(null); return; }
+    try {
+      const suffix = insightSubjectId ? `?subjectId=${encodeURIComponent(insightSubjectId)}` : '';
+      setReadiness(await api<TeachingReadiness>(`/classes/${classId}/teaching-readiness${suffix}`));
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể kiểm tra học liệu trước giờ dạy'); }
+  }, [classId, insightSubjectId]);
+
+  useEffect(() => { void loadReadiness(); }, [loadReadiness]);
 
   async function createSubject() {
     if (!classId || !subjectName.trim()) return;
@@ -104,6 +121,7 @@ export default function TeachingHubPage() {
         </div>
         <div className="p-5"><Label>Lớp học</Label><Select value={classId} onChange={(e) => setClassId(e.target.value)} className="max-w-xl">{classes.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.subject || 'Chưa đặt môn'} · {item.studentCount} học viên</option>)}</Select></div>
       </Card>
+      <TeachingReadinessCard readiness={readiness} />
       <TeachingInsightsCard subjects={subjects} selectedSubjectId={insightSubjectId} onSubjectChange={setInsightSubjectId} insights={insights} />
       <div className="mb-5 flex flex-wrap items-center justify-end gap-2"><Button variant="secondary" onClick={() => void exportPostLessonReport('xlsx')} disabled={exporting} aria-label="Xuất báo cáo sau tiết dạng XLSX"><i className="fas fa-file-excel" /> {exporting ? 'Đang xuất…' : 'Xuất XLSX'}</Button><Button variant="secondary" onClick={() => void exportPostLessonReport('csv')} disabled={exporting} aria-label="Xuất báo cáo sau tiết dạng CSV"><i className="fas fa-file-csv" /> Xuất CSV</Button></div>
       <div className="mb-3 flex items-center justify-between"><div><h2 className="font-black text-slate-800">Môn học của {selectedClass?.name}</h2><p className="text-sm text-slate-500">Mỗi môn có cây chương trình, bài giảng và học liệu riêng.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{subjects.length} môn</span></div>
@@ -111,6 +129,18 @@ export default function TeachingHubPage() {
     </>}
     <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Tạo môn học"><div className="space-y-4"><div><Label>Tên môn học</Label><Input value={subjectName} onChange={(e) => setSubjectName(e.target.value)} placeholder="Ví dụ: Vật lý 10" autoFocus /></div><p className="rounded-sm bg-blue-50 p-3 text-xs leading-5 text-blue-900"><i className="fas fa-circle-info mr-1" /> Sau khi tạo, bạn có thể thêm chương trình, bài giảng, PDF/PPTX, video và liên kết game cho môn này.</p><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setCreateOpen(false)}>Hủy</Button><Button onClick={() => void createSubject()} disabled={busy || !subjectName.trim()}>{busy ? 'Đang tạo…' : 'Tạo môn học'}</Button></div></div></Modal>
   </div>;
+}
+
+function TeachingReadinessCard({ readiness }: { readiness: TeachingReadiness | null }) {
+  if (!readiness) return <Card className="mb-5 p-4"><div className="flex items-center gap-2 text-sm text-slate-500"><Spinner /> Đang kiểm tra học liệu trước giờ dạy…</div></Card>;
+  const { curriculum, materials } = readiness;
+  const checks = [
+    ['fa-diagram-project', 'Mục chương trình đã liên kết', `${curriculum.linkedLectureCount}/${curriculum.itemCount}`],
+    ['fa-file-pdf', 'Sẵn sàng trên canvas PDF', String(materials.pdfCanvasReadyCount)],
+    ['fa-file-powerpoint', 'PPTX cần chuyển đổi', String(materials.pptxPendingConversionCount)],
+    ['fa-video', 'Video đã liên kết', String(materials.videoCount)],
+  ];
+  return <Card className="mb-5 overflow-hidden"><div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-5 py-3"><i className="fas fa-clipboard-check text-emerald-700" /><div><h2 className="font-black text-emerald-950">Sẵn sàng trước giờ dạy</h2><p className="text-xs text-emerald-800">Kiểm kê theo lớp và môn đang chọn; không đánh giá chất lượng buổi dạy.</p></div></div><div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-4">{checks.map(([icon, label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-semibold text-slate-500"><i className={`fas ${icon} mr-1 text-emerald-700`} />{label}</p><p className="mt-1 text-2xl font-black text-slate-800">{value}</p></div>)}</div>{materials.pptxPendingConversionCount > 0 && <p className="border-t border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"><i className="fas fa-circle-info mr-1" />Mở workspace để chuyển PPTX sang PDF và dùng công cụ chú thích.</p>}</Card>;
 }
 
 function TeachingInsightsCard({ subjects, selectedSubjectId, onSubjectChange, insights }: { subjects: Subject[]; selectedSubjectId: string; onSubjectChange: (value: string) => void; insights: TeachingInsights | null }) {

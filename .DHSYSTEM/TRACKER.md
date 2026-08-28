@@ -93,6 +93,13 @@
 | T-1501 | Tự phát hiện/chuyển đổi PPTX an toàn, có phân quyền | P15 | done | REST regression |
 | T-1502 | Khôi phục chuyển đổi PPTX trực tiếp trong Teaching Mode | P15 | done | Browser workflow |
 
+## Phase 16 — Classroom Preflight
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1601 | Kiểm kê mức sẵn sàng theo lớp/môn có phân quyền | P16 | done | REST scope regression |
+| T-1602 | Thẻ preflight trước khi vào Teaching Mode | P16 | done | Browser workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.

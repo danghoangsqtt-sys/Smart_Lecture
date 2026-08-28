@@ -371,6 +371,45 @@ router.post(
   })
 );
 
+router.get(
+  '/classes/:classId/teaching-readiness',
+  h(async (req, res) => {
+    const cls = getClassOrThrow(String(req.params.classId));
+    if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền kiểm tra mức sẵn sàng giảng dạy');
+    const subjectId = typeof req.query.subjectId === 'string' ? req.query.subjectId : undefined;
+    if (subjectId) {
+      const subject = db.prepare('SELECT 1 FROM subjects WHERE id = ? AND class_id = ?').get(subjectId, cls.id);
+      if (!subject) throw new HttpError(400, 'BAD_INPUT', 'Môn học không thuộc lớp');
+    }
+    const lectureFilter = subjectId ? ' AND l.subject_id = ?' : '';
+    const lectureParams = subjectId ? [cls.id, subjectId] : [cls.id];
+    const materials = db.prepare(
+      `SELECT m.id, m.type, m.converted_from_id FROM materials m JOIN lectures l ON l.id = m.lecture_id
+       WHERE l.class_id = ?${lectureFilter}`
+    ).all(...lectureParams) as Array<{ id: string; type: string; converted_from_id: string | null }>;
+    const convertedPptxIds = new Set(materials.flatMap((material) => material.converted_from_id ? [material.converted_from_id] : []));
+    const pptx = materials.filter((material) => material.type === 'pptx');
+    let curriculumSql = `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN ci.lecture_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS linked
+      FROM curriculum_items ci JOIN teaching_plans tp ON tp.id = ci.teaching_plan_id WHERE tp.class_id = ?`;
+    const curriculumParams: string[] = [cls.id];
+    if (subjectId) { curriculumSql += ' AND tp.subject_id = ?'; curriculumParams.push(subjectId); }
+    const curriculum = db.prepare(curriculumSql).get(...curriculumParams) as { total: number; linked: number };
+    res.json({
+      scope: { classId: cls.id, subjectId: subjectId ?? null },
+      curriculum: { itemCount: curriculum.total, linkedLectureCount: curriculum.linked },
+      materials: {
+        presentationCount: materials.filter((material) => material.type === 'pdf' || material.type === 'pptx').length,
+        pdfCanvasReadyCount: materials.filter((material) => material.type === 'pdf').length,
+        pptxCount: pptx.length,
+        pptxPendingConversionCount: pptx.filter((material) => !convertedPptxIds.has(material.id)).length,
+        videoCount: materials.filter((material) => material.type === 'video').length,
+        linkCount: materials.filter((material) => material.type === 'link').length,
+      },
+      note: 'Các số liệu là kiểm kê học liệu đã liên kết; chúng không đánh giá chất lượng hoặc mức độ hoàn thành của buổi dạy.',
+    });
+  })
+);
+
 router.post(
   '/materials/:id/convert-pptx',
   h(async (req, res) => {

@@ -58,7 +58,7 @@ if (classId) {
   });
   check('student cannot create prepared game', deniedPrepared.status === 403);
 
-  const lecture = await request('POST', `/classes/${classId}/lectures`, teacherToken, { chapter: 'Regression', title: 'Lecture link', description: '' });
+  const lecture = await request('POST', `/classes/${classId}/lectures`, teacherToken, { chapter: 'Regression', title: 'Lecture link', description: '', subjectId });
   const linkMaterial = await request('POST', `/lectures/${lecture.data?.id}/materials/link`, teacherToken, { title: 'Regression link', linkUrl: 'https://example.test/material' });
   const invalidPptxConversion = await request('POST', `/materials/${linkMaterial.data?.id}/convert-pptx`, teacherToken);
   const uploadedPptx = await uploadMaterial(lecture.data?.id, teacherToken, 'invalid-slides.pptx', 'not a real PowerPoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
@@ -70,6 +70,11 @@ if (classId) {
   const item = await request('POST', `/teaching-plans/${plan.data?.id}/items`, teacherToken, {
     week: 1, chapter: 'Regression', topic: 'PATCH semantics', plannedPeriods: 2, lectureId: lecture.data?.id,
   });
+  const readiness = await request('GET', `/classes/${classId}/teaching-readiness?subjectId=${subjectId}`, teacherToken);
+  const deniedReadiness = await request('GET', `/classes/${classId}/teaching-readiness`, studentToken);
+  const invalidReadinessScope = await request('GET', `/classes/${classId}/teaching-readiness?subjectId=not-a-subject`, teacherToken);
+  check('teaching preflight inventories only the selected class and subject', readiness.status === 200 && readiness.data?.scope?.classId === classId && readiness.data?.scope?.subjectId === subjectId && readiness.data?.curriculum?.linkedLectureCount >= 1 && readiness.data?.materials?.pptxCount >= 1);
+  check('teaching preflight rejects student and invalid subject scope', deniedReadiness.status === 403 && invalidReadinessScope.status === 400);
   const complete = await request('PATCH', `/curriculum-items/${item.data?.id}`, teacherToken, { status: 'completed' });
   const unlink = await request('PATCH', `/curriculum-items/${item.data?.id}`, teacherToken, { lectureId: null });
   const readPlan = await request('GET', `/classes/${classId}/teaching-plans/${plan.data?.id}`, teacherToken);
