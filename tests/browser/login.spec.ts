@@ -60,4 +60,6 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.getByTitle('Hạ game xuống').click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
 });

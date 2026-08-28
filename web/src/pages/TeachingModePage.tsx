@@ -75,12 +75,40 @@ interface TeachingLog {
 
 type ContentMode = 'slides' | 'video' | 'links' | 'game';
 
+interface TeachingWorkspaceSnapshot {
+  selectedPlanId: string | null;
+  selectedItemId: string | null;
+  contentMode: ContentMode;
+  gameDockOpen: boolean;
+  gameDockMinimized: boolean;
+  videoMaterialId: string | null;
+}
+
 const CONTENT_MODE_LABELS: Record<ContentMode, string> = {
   slides: '📊 Trang chiếu',
   video: '🎬 Video',
   links: '🔗 Tài liệu',
   game: '🎮 Game',
 };
+
+function workspaceStorageKey(classId: string, subjectId: string): string {
+  return `smartlecture:teaching-workspace:${classId}:${subjectId}`;
+}
+
+function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWorkspaceSnapshot | null {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(workspaceStorageKey(classId, subjectId)) ?? 'null') as Partial<TeachingWorkspaceSnapshot> | null;
+    if (!parsed || !['slides', 'video', 'links', 'game'].includes(String(parsed.contentMode))) return null;
+    return {
+      selectedPlanId: typeof parsed.selectedPlanId === 'string' ? parsed.selectedPlanId : null,
+      selectedItemId: typeof parsed.selectedItemId === 'string' ? parsed.selectedItemId : null,
+      contentMode: parsed.contentMode as ContentMode,
+      gameDockOpen: parsed.gameDockOpen === true,
+      gameDockMinimized: parsed.gameDockMinimized === true,
+      videoMaterialId: typeof parsed.videoMaterialId === 'string' ? parsed.videoMaterialId : null,
+    };
+  } catch { return null; }
+}
 
 function getTeachingMaterialsByType(lecture: TeachingLecture | null, type: ContentMode) {
   if (!lecture) return [];
@@ -123,6 +151,7 @@ export default function TeachingModePage() {
   const [videoDockMaterial, setVideoDockMaterial] = useState<TeachingMaterial | null>(null);
   const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
+  const workspaceRestoredRef = useRef(false);
 
   const canManage = !!user && (user.role === 'admin' || user.role === 'teacher');
 
@@ -138,10 +167,22 @@ export default function TeachingModePage() {
       ]);
       setSubject(subjectsRes.subjects.find((s) => s.id === subjectId) ?? null);
       const subjectPlans = plansRes.plans.filter((p) => p.subjectId === subjectId);
+      const subjectLectures = lecturesRes.lectures.filter((l) => l.subjectId === subjectId);
+      const snapshot = workspaceRestoredRef.current ? null : readWorkspaceSnapshot(classId, subjectId);
       setPlans(subjectPlans);
-      setLectures(lecturesRes.lectures.filter((l) => l.subjectId === subjectId));
+      setLectures(subjectLectures);
       setActiveLog(activeLogRes.log);
-      setSelectedPlanId((prev) => (prev && subjectPlans.some((p) => p.id === prev) ? prev : subjectPlans[0]?.id ?? null));
+      setSelectedPlanId((prev) => (prev && subjectPlans.some((p) => p.id === prev) ? prev : snapshot?.selectedPlanId && subjectPlans.some((p) => p.id === snapshot.selectedPlanId) ? snapshot.selectedPlanId : subjectPlans[0]?.id ?? null));
+      if (!workspaceRestoredRef.current) {
+        const itemIds = new Set(subjectPlans.flatMap((plan) => plan.items.map((item) => item.id)));
+        setSelectedItemId(snapshot?.selectedItemId && itemIds.has(snapshot.selectedItemId) ? snapshot.selectedItemId : null);
+        setContentMode(snapshot?.contentMode ?? 'slides');
+        setGameDockOpen(snapshot?.gameDockOpen === true);
+        setGameDockMinimized(snapshot?.gameDockMinimized === true);
+        const savedVideo = snapshot?.videoMaterialId ? subjectLectures.flatMap((lecture) => lecture.materials as TeachingMaterial[]).find((material) => material.id === snapshot.videoMaterialId && material.type === 'video') ?? null : null;
+        setVideoDockMaterial(savedVideo);
+        workspaceRestoredRef.current = true;
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi tải dữ liệu');
     } finally {
@@ -149,7 +190,15 @@ export default function TeachingModePage() {
     }
   }, [canManage, classId, subjectId]);
 
+  useEffect(() => { workspaceRestoredRef.current = false; }, [classId, subjectId]);
   useEffect(() => { void loadData(); }, [loadData]);
+  useEffect(() => {
+    if (!workspaceRestoredRef.current || !classId || !subjectId) return;
+    const snapshot: TeachingWorkspaceSnapshot = {
+      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoMaterialId: videoDockMaterial?.id ?? null,
+    };
+    sessionStorage.setItem(workspaceStorageKey(classId, subjectId), JSON.stringify(snapshot));
+  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoDockMaterial]);
 
   async function updateItemStatus(itemId: string, status: CurriculumItem['status']) {
     try {

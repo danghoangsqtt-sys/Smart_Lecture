@@ -107,6 +107,13 @@
 | T-1701 | Hiển thị trạng thái LibreOffice đã cache trong preflight | P17 | done | REST regression |
 | T-1702 | Chỉ dẫn cài đặt/chuyển đổi trực quan cho giáo viên | P17 | done | Browser workflow |
 
+## Phase 18 — Teaching Workspace Recovery
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1801 | Lưu/khôi phục ngữ cảnh workspace theo phiên trình duyệt | P18 | done | Typecheck + guarded restore |
+| T-1802 | Hồi quy reload Teaching Mode không mất game dock | P18 | done | Browser workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
