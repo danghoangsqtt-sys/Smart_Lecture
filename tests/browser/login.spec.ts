@@ -32,6 +32,17 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   const classId = (await created.json() as { class: { id: string } }).class.id;
   const subjects = await request.get(`/api/classes/${classId}/subjects`, { headers: { Authorization: `Bearer ${teacherToken}` } });
   const subjectId = (await subjects.json() as { subjects: Array<{ id: string }> }).subjects[0]!.id;
+  const lecture = await request.post(`/api/classes/${classId}/lectures`, { headers: { Authorization: `Bearer ${teacherToken}` }, data: { chapter: 'Browser', title: 'Browser PPTX', description: '', subjectId } });
+  const lectureId = (await lecture.json() as { id: string }).id;
+  const plan = await request.post(`/api/classes/${classId}/teaching-plans`, { headers: { Authorization: `Bearer ${teacherToken}` }, data: { name: 'Browser plan', description: '', subjectId } });
+  const planId = (await plan.json() as { id: string }).id;
+  const item = await request.post(`/api/teaching-plans/${planId}/items`, { headers: { Authorization: `Bearer ${teacherToken}` }, data: { week: 1, chapter: 'Browser', topic: 'PPTX fallback', plannedPeriods: 1, lectureId } });
+  expect(item.ok()).toBeTruthy();
+  const pptx = await request.post(`/api/lectures/${lectureId}/materials`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    multipart: { file: { name: 'browser-slides.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: Buffer.from('not a real PowerPoint') } },
+  });
+  expect(pptx.ok()).toBeTruthy();
 
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');
@@ -43,6 +54,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.getByRole('button', { name: /XLSX/ }).click();
   expect((await reportDownload).suggestedFilename()).toContain('.xlsx');
   await page.goto(`/classes/${classId}/teach/${subjectId}`);
+  await expect(page.getByRole('button', { name: 'Chuyển sang PDF' })).toBeVisible();
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.getByTitle('Hạ game xuống').click();

@@ -86,6 +86,13 @@
 | T-1401 | Hợp đồng báo cáo sau tiết, chất lượng dữ liệu và phân quyền | P14 | done | API reconciliation + authorization regression |
 | T-1402 | Báo cáo giáo viên và xuất XLSX/CSV có xác thực | P14 | done | Browser/export workflow |
 
+## Phase 15 — PPTX Readiness
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1501 | Tự phát hiện/chuyển đổi PPTX an toàn, có phân quyền | P15 | done | REST regression |
+| T-1502 | Khôi phục chuyển đổi PPTX trực tiếp trong Teaching Mode | P15 | done | Browser workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.

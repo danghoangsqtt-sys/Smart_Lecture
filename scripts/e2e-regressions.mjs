@@ -23,6 +23,17 @@ async function request(method, pathname, token, body) {
   return { status: response.status, data };
 }
 
+async function uploadMaterial(lectureId, token, filename, content, mimeType) {
+  const form = new FormData();
+  form.append('file', new Blob([content], { type: mimeType }), filename);
+  const response = await fetch(`${base}/api/lectures/${lectureId}/materials`, {
+    method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form,
+  });
+  let data = null;
+  try { data = await response.json(); } catch { /* response without JSON */ }
+  return { status: response.status, data };
+}
+
 async function login(username, password) {
   const result = await request('POST', '/auth/login', null, { username, password });
   return result.data?.token ?? '';
@@ -48,6 +59,13 @@ if (classId) {
   check('student cannot create prepared game', deniedPrepared.status === 403);
 
   const lecture = await request('POST', `/classes/${classId}/lectures`, teacherToken, { chapter: 'Regression', title: 'Lecture link', description: '' });
+  const linkMaterial = await request('POST', `/lectures/${lecture.data?.id}/materials/link`, teacherToken, { title: 'Regression link', linkUrl: 'https://example.test/material' });
+  const invalidPptxConversion = await request('POST', `/materials/${linkMaterial.data?.id}/convert-pptx`, teacherToken);
+  const uploadedPptx = await uploadMaterial(lecture.data?.id, teacherToken, 'invalid-slides.pptx', 'not a real PowerPoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+  const deniedPptxConversion = await request('POST', `/materials/${uploadedPptx.data?.id}/convert-pptx`, studentToken);
+  const unavailableOrFailedPptxConversion = await request('POST', `/materials/${uploadedPptx.data?.id}/convert-pptx`, teacherToken);
+  check('PowerPoint conversion is teacher-only and rejects non-PPTX materials', linkMaterial.status === 201 && invalidPptxConversion.status === 400 && uploadedPptx.status === 201 && deniedPptxConversion.status === 403);
+  check('PowerPoint conversion reports a recoverable unavailable or failed state', [409, 422].includes(unavailableOrFailedPptxConversion.status));
   const plan = await request('POST', `/classes/${classId}/teaching-plans`, teacherToken, { name: 'Regression plan', description: '', subjectId });
   const item = await request('POST', `/teaching-plans/${plan.data?.id}/items`, teacherToken, {
     week: 1, chapter: 'Regression', topic: 'PATCH semantics', plannedPeriods: 2, lectureId: lecture.data?.id,

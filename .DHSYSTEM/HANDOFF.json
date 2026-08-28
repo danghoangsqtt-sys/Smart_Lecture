@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-14-completed",
-  "phase_current": "P14-post-lesson-reporting",
+  "status": "phase-15-completed",
+  "phase_current": "P15-pptx-readiness",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P14 completed. Next milestone should validate the teaching and post-lesson workflow with representative school materials and acceptance criteria on the classroom projector."
+  "next_action": "P15 completed. Next milestone should run classroom acceptance with genuine PDF/PPTX/video assets on the target projector and record any hardware-specific adjustments."
 }

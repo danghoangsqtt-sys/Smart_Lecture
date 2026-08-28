@@ -262,6 +262,7 @@ export default function TeachingModePage() {
             materials={teachingMaterials}
             contentMode={contentMode}
             token={token}
+            onRefresh={loadData}
           />
           <TeachingControls
             contentMode={contentMode}
@@ -412,12 +413,14 @@ function TeachingContentViewer({
   materials,
   contentMode,
   token,
+  onRefresh,
 }: {
   selectedItem: CurriculumItem | null;
   lecture: TeachingLecture | null;
   materials: TeachingMaterial[];
   contentMode: ContentMode;
   token: string | null;
+  onRefresh: () => Promise<void>;
 }) {
   if (!selectedItem || !lecture) {
     return (
@@ -432,7 +435,7 @@ function TeachingContentViewer({
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-950 p-6">
       <div className="w-full max-w-4xl">
-        {contentMode === 'slides' && materials.length > 0 && <SlidesContent lecture={lecture} materials={materials} token={token} />}
+        {contentMode === 'slides' && materials.length > 0 && <SlidesContent lecture={lecture} materials={materials} token={token} onRefresh={onRefresh} />}
         {contentMode === 'video' && materials.length > 0 && (
           <div className="space-y-4">
             <h4 className="text-sm uppercase tracking-wide text-slate-400">Video</h4>
@@ -464,7 +467,17 @@ function TeachingContentViewer({
   );
 }
 
-function SlidesContent({ lecture, materials, token }: { lecture: TeachingLecture; materials: TeachingMaterial[]; token: string | null }) {
+function SlidesContent({ lecture, materials, token, onRefresh }: { lecture: TeachingLecture; materials: TeachingMaterial[]; token: string | null; onRefresh: () => Promise<void> }) {
+  const [convertingMaterialId, setConvertingMaterialId] = useState<string | null>(null);
+  async function convertPowerPoint(material: TeachingMaterial) {
+    setConvertingMaterialId(material.id);
+    try {
+      await api<{ status: 'ready'; convertedMaterialId: string }>(`/materials/${material.id}/convert-pptx`, { method: 'POST' });
+      await onRefresh();
+      toast.success('Đã chuyển PowerPoint sang PDF. Bạn có thể chú thích trực tiếp trên bản trình chiếu.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể chuyển đổi PowerPoint'); }
+    finally { setConvertingMaterialId(null); }
+  }
   return (
     <div className="space-y-4">
       <h4 className="text-sm uppercase tracking-wide text-slate-400">Trang chiếu (PPTX/PDF)</h4>
@@ -486,6 +499,7 @@ function SlidesContent({ lecture, materials, token }: { lecture: TeachingLecture
             ) : (
               <div className="flex h-32 flex-col items-center justify-center gap-1 rounded border border-dashed border-slate-600 text-sm text-slate-400"><span>Không thể xem trước PowerPoint trực tiếp</span><span className="text-xs">Dùng “Mở toàn màn hình” để mở tệp gốc</span></div>
             )}
+            {material.type === 'pptx' && !sibling && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100"><span>Chuyển sang PDF để dùng bút, highlight, laser và điều hướng trang ngay trong lớp học.</span><Button variant="secondary" className="!py-1" disabled={convertingMaterialId === material.id} onClick={() => void convertPowerPoint(material)}>{convertingMaterialId === material.id ? 'Đang chuyển đổi…' : 'Chuyển sang PDF'}</Button></div>}
           </div>
         );
       })}

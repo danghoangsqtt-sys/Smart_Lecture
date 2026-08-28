@@ -147,15 +147,24 @@ export function insertMaterial(params: {
   return id;
 }
 
-export async function maybeConvertPptx(lectureId: string, materialType: string, filename: string, originalName: string, materialId: string): Promise<void> {
-  if (materialType !== 'pptx') return;
-  const { isLibreOfficeAvailable } = await import('./system.routes.js');
-  if (!isLibreOfficeAvailable()) return;
+type PptxConversionResult =
+  | { status: 'ready'; convertedMaterialId: string }
+  | { status: 'unavailable' }
+  | { status: 'failed' };
+
+export async function maybeConvertPptx(lectureId: string, materialType: string, filename: string, originalName: string, materialId: string): Promise<PptxConversionResult | null> {
+  if (materialType !== 'pptx') return null;
+  const existing = db.prepare('SELECT id FROM materials WHERE converted_from_id = ?').get(materialId) as { id: string } | undefined;
+  if (existing) return { status: 'ready', convertedMaterialId: existing.id };
+  const { detectLibreOffice, isLibreOfficeAvailable } = await import('./system.routes.js');
+  if (!isLibreOfficeAvailable() && !(await detectLibreOffice())) return { status: 'unavailable' };
   const { convertPptxToPdf } = await import('../services/officeConvert.js');
   const result = await convertPptxToPdf(path.join(MEDIA_DIR, filename));
-  if (!result) return;
+  if (!result) return { status: 'failed' };
+  const convertedAfterWait = db.prepare('SELECT id FROM materials WHERE converted_from_id = ?').get(materialId) as { id: string } | undefined;
+  if (convertedAfterWait) return { status: 'ready', convertedMaterialId: convertedAfterWait.id };
   const base = path.basename(originalName, path.extname(originalName));
-  insertMaterial({
+  const convertedMaterialId = insertMaterial({
     lectureId,
     type: 'pdf',
     title: `${base} (PDF)`,
@@ -165,6 +174,7 @@ export async function maybeConvertPptx(lectureId: string, materialType: string, 
     sizeBytes: result.sizeBytes,
     convertedFromId: materialId,
   });
+  return { status: 'ready', convertedMaterialId };
 }
 
 function getLectureOrThrow(id: string): LectureRow {
@@ -358,6 +368,24 @@ router.post(
     });
     res.status(201).json({ id, type: meta.type, title });
     void maybeConvertPptx(lecture.id, meta.type, file.filename, file.originalname, id);
+  })
+);
+
+router.post(
+  '/materials/:id/convert-pptx',
+  h(async (req, res) => {
+    const material = db.prepare('SELECT * FROM materials WHERE id = ?').get(String(req.params.id)) as MaterialRow | undefined;
+    if (!material) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy tài liệu');
+    const lecture = getLectureOrThrow(material.lecture_id);
+    assertLectureAccess(lecture, (req as AuthedRequest).user!, true);
+    if (material.type !== 'pptx' || !material.file_path) throw new HttpError(400, 'BAD_INPUT', 'Chỉ có thể chuyển đổi tệp PowerPoint');
+    const result = await maybeConvertPptx(lecture.id, material.type, material.file_path, material.original_name, material.id);
+    if (result?.status === 'ready') {
+      res.json({ status: result.status, convertedMaterialId: result.convertedMaterialId });
+      return;
+    }
+    if (result?.status === 'unavailable') throw new HttpError(409, 'PPTX_CONVERSION_UNAVAILABLE', 'Cần cài LibreOffice để chuyển PowerPoint thành PDF cho chế độ trình chiếu');
+    throw new HttpError(422, 'PPTX_CONVERSION_FAILED', 'Không thể chuyển đổi tệp PowerPoint này');
   })
 );
 
