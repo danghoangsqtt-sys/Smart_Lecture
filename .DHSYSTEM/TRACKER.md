@@ -141,6 +141,12 @@
 |---|---|---|---|---|
 | T-2201 | Không tự bật hướng dẫn game che workspace giảng dạy | P22 | done | typecheck + production build + Browser E2E 2/2 |
 
+## Phase 23 — Background video dock
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2301 | Video thu nhỏ vẫn phát và được khôi phục theo workspace | P23 | done | typecheck + production build + Browser E2E 2/2 |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.

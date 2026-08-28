@@ -65,6 +65,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
     multipart: { file: { name: 'browser-slides.pdf', mimeType: 'application/pdf', buffer: createPdfFixture() } },
   });
   expect(pdf.ok()).toBeTruthy();
+  const video = await request.post(`/api/lectures/${lectureId}/materials`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    multipart: { file: { name: 'browser-video.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video-fixture') } },
+  });
+  expect(video.ok()).toBeTruthy();
 
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');
@@ -93,6 +98,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.mouse.move(surfaceBox!.x + 140, surfaceBox!.y + 90);
   await page.mouse.up();
   await expect(annotationSurface.locator('polyline')).toHaveCount(1);
+  await page.getByRole('button', { name: /Mở.*Video/ }).click();
+  const videoDock = page.getByLabel('Trình phát video nổi');
+  await expect(videoDock.locator('video')).toBeVisible();
+  await videoDock.getByRole('button', { name: 'Thu nhỏ video' }).click();
+  await expect(videoDock.locator('video')).toBeAttached();
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.getByTitle('Hạ game xuống').click();
@@ -100,6 +110,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.reload();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByLabel('Trình phát video nổi').locator('video')).toBeAttached();
   await expect(page.locator('main svg polyline')).toHaveCount(1);
   await expect(page.locator('main svg polyline')).toHaveAttribute('stroke', '#2563eb');
   await page.getByRole('button', { name: 'Tẩy từng nét' }).click();

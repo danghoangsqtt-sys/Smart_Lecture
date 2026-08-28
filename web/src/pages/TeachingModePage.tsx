@@ -82,6 +82,7 @@ interface TeachingWorkspaceSnapshot {
   gameDockOpen: boolean;
   gameDockMinimized: boolean;
   videoMaterialId: string | null;
+  videoDockMinimized: boolean;
 }
 
 const CONTENT_MODE_LABELS: Record<ContentMode, string> = {
@@ -106,6 +107,7 @@ function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWork
       gameDockOpen: parsed.gameDockOpen === true,
       gameDockMinimized: parsed.gameDockMinimized === true,
       videoMaterialId: typeof parsed.videoMaterialId === 'string' ? parsed.videoMaterialId : null,
+      videoDockMinimized: parsed.videoDockMinimized === true,
     };
   } catch { return null; }
 }
@@ -149,6 +151,7 @@ export default function TeachingModePage() {
   const [gameDockOpen, setGameDockOpen] = useState(false);
   const [gameDockMinimized, setGameDockMinimized] = useState(false);
   const [videoDockMaterial, setVideoDockMaterial] = useState<TeachingMaterial | null>(null);
+  const [videoDockMinimized, setVideoDockMinimized] = useState(false);
   const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
   const workspaceRestoredRef = useRef(false);
@@ -181,6 +184,7 @@ export default function TeachingModePage() {
         setGameDockMinimized(snapshot?.gameDockMinimized === true);
         const savedVideo = snapshot?.videoMaterialId ? subjectLectures.flatMap((lecture) => lecture.materials as TeachingMaterial[]).find((material) => material.id === snapshot.videoMaterialId && material.type === 'video') ?? null : null;
         setVideoDockMaterial(savedVideo);
+        setVideoDockMinimized(snapshot?.videoDockMinimized === true);
         workspaceRestoredRef.current = true;
       }
     } catch (e) {
@@ -195,10 +199,10 @@ export default function TeachingModePage() {
   useEffect(() => {
     if (!workspaceRestoredRef.current || !classId || !subjectId) return;
     const snapshot: TeachingWorkspaceSnapshot = {
-      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoMaterialId: videoDockMaterial?.id ?? null,
+      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoMaterialId: videoDockMaterial?.id ?? null, videoDockMinimized,
     };
     sessionStorage.setItem(workspaceStorageKey(classId, subjectId), JSON.stringify(snapshot));
-  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoDockMaterial]);
+  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoDockMaterial, videoDockMinimized]);
 
   async function updateItemStatus(itemId: string, status: CurriculumItem['status']) {
     try {
@@ -326,7 +330,7 @@ export default function TeachingModePage() {
               }
               if (nextMode === 'video') {
                 const video = videoMaterials[0];
-                if (video) { setVideoDockMaterial(video); void recordTeachingAction('video', video.id); }
+                if (video) { setVideoDockMaterial(video); setVideoDockMinimized(false); void recordTeachingAction('video', video.id); }
                 return;
               }
               const actionKind = nextMode === 'slides' ? 'slide' : null;
@@ -359,7 +363,7 @@ export default function TeachingModePage() {
           onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
-      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} onClose={() => setVideoDockMaterial(null)} />}
+      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); }} />}
       {finishModalOpen && activeLog && (
         <FinishSessionModal
           log={activeLog}
@@ -620,18 +624,18 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
   );
 }
 
-function TeachingVideoDock({ material, token, onClose }: { material: TeachingMaterial; token: string | null; onClose: () => void }) {
+function TeachingVideoDock({ material, token, minimized, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; onToggleMinimized: () => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [minimized, setMinimized] = useState(false);
   const [position, setPosition] = useState({ x: 16, y: 64 });
+  const [isPlaying, setIsPlaying] = useState(false);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const requestPiP = async () => {
     try { await videoRef.current?.requestPictureInPicture(); }
     catch { toast.info('Trình duyệt không hỗ trợ Picture-in-Picture; dùng khung video thu nhỏ.'); }
   };
-  return <div style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
-    <div onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}</span><div className="flex gap-1"><button type="button" onClick={() => setMinimized((value) => !value)} aria-label="Thu nhỏ video" className="rounded px-2 hover:bg-white/15">−</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
-    {!minimized && <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay className="w-full bg-black" />}
+  return <div aria-label="Trình phát video nổi" style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
+    <div onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
+    <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
   </div>;
 }
 
