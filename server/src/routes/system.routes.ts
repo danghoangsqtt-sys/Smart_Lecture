@@ -52,6 +52,10 @@ export function isLibreOfficeAvailable(): boolean {
   return libreOfficeAvailable === true;
 }
 
+export function getLibreOfficeAvailability(): boolean | null {
+  return libreOfficeAvailable;
+}
+
 export function detectLibreOffice(): Promise<boolean> {
   return new Promise((resolve) => {
     execFile('soffice', ['--version'], { timeout: 8000 }, (err) => {

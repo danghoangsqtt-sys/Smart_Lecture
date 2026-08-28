@@ -100,6 +100,13 @@
 | T-1601 | Kiểm kê mức sẵn sàng theo lớp/môn có phân quyền | P16 | done | REST scope regression |
 | T-1602 | Thẻ preflight trước khi vào Teaching Mode | P16 | done | Browser workflow |
 
+## Phase 17 — PowerPoint Converter Preflight
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1701 | Hiển thị trạng thái LibreOffice đã cache trong preflight | P17 | done | REST regression |
+| T-1702 | Chỉ dẫn cài đặt/chuyển đổi trực quan cho giáo viên | P17 | done | Browser workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.

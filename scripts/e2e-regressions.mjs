@@ -73,7 +73,7 @@ if (classId) {
   const readiness = await request('GET', `/classes/${classId}/teaching-readiness?subjectId=${subjectId}`, teacherToken);
   const deniedReadiness = await request('GET', `/classes/${classId}/teaching-readiness`, studentToken);
   const invalidReadinessScope = await request('GET', `/classes/${classId}/teaching-readiness?subjectId=not-a-subject`, teacherToken);
-  check('teaching preflight inventories only the selected class and subject', readiness.status === 200 && readiness.data?.scope?.classId === classId && readiness.data?.scope?.subjectId === subjectId && readiness.data?.curriculum?.linkedLectureCount >= 1 && readiness.data?.materials?.pptxCount >= 1);
+  check('teaching preflight inventories only the selected class and subject', readiness.status === 200 && readiness.data?.scope?.classId === classId && readiness.data?.scope?.subjectId === subjectId && readiness.data?.curriculum?.linkedLectureCount >= 1 && readiness.data?.materials?.pptxCount >= 1 && readiness.data?.powerPointConversion?.required === true && typeof readiness.data?.powerPointConversion?.available === 'boolean');
   check('teaching preflight rejects student and invalid subject scope', deniedReadiness.status === 403 && invalidReadinessScope.status === 400);
   const complete = await request('PATCH', `/curriculum-items/${item.data?.id}`, teacherToken, { status: 'completed' });
   const unlink = await request('PATCH', `/curriculum-items/${item.data?.id}`, teacherToken, { lectureId: null });

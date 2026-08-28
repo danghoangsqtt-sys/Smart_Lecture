@@ -389,6 +389,11 @@ router.get(
     ).all(...lectureParams) as Array<{ id: string; type: string; converted_from_id: string | null }>;
     const convertedPptxIds = new Set(materials.flatMap((material) => material.converted_from_id ? [material.converted_from_id] : []));
     const pptx = materials.filter((material) => material.type === 'pptx');
+    let powerPointConversionAvailable: boolean | null = null;
+    if (pptx.length > 0) {
+      const { detectLibreOffice, getLibreOfficeAvailability } = await import('./system.routes.js');
+      powerPointConversionAvailable = getLibreOfficeAvailability() ?? await detectLibreOffice();
+    }
     let curriculumSql = `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN ci.lecture_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS linked
       FROM curriculum_items ci JOIN teaching_plans tp ON tp.id = ci.teaching_plan_id WHERE tp.class_id = ?`;
     const curriculumParams: string[] = [cls.id];
@@ -404,6 +409,11 @@ router.get(
         pptxPendingConversionCount: pptx.filter((material) => !convertedPptxIds.has(material.id)).length,
         videoCount: materials.filter((material) => material.type === 'video').length,
         linkCount: materials.filter((material) => material.type === 'link').length,
+      },
+      powerPointConversion: {
+        required: pptx.length > 0,
+        available: powerPointConversionAvailable,
+        note: pptx.length === 0 ? 'Không có PowerPoint trong phạm vi đang chọn.' : powerPointConversionAvailable ? 'Máy chủ có thể chuyển PowerPoint sang PDF cho canvas chú thích.' : 'Cần cài LibreOffice trên máy chủ để chuyển PowerPoint sang PDF cho canvas chú thích.',
       },
       note: 'Các số liệu là kiểm kê học liệu đã liên kết; chúng không đánh giá chất lượng hoặc mức độ hoàn thành của buổi dạy.',
     });
