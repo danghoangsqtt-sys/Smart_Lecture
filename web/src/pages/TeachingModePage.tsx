@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuthStore } from '../stores/authStore';
@@ -120,6 +120,7 @@ export default function TeachingModePage() {
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [gameDockOpen, setGameDockOpen] = useState(false);
   const [gameDockMinimized, setGameDockMinimized] = useState(false);
+  const [videoDockMaterial, setVideoDockMaterial] = useState<TeachingMaterial | null>(null);
   const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
 
@@ -234,6 +235,7 @@ export default function TeachingModePage() {
   const selectedItem = getSelectedItem();
   const linkedLecture = selectedItem ? getLinkedLecture(selectedItem) : null;
   const teachingMaterials = linkedLecture ? getTeachingMaterialsByType(linkedLecture, contentMode) : [];
+  const videoMaterials = linkedLecture ? getTeachingMaterialsByType(linkedLecture, 'video') : [];
 
   return (
     <div className="flex h-screen flex-col bg-slate-900">
@@ -272,7 +274,12 @@ export default function TeachingModePage() {
                 setGameDockOpen(true); setGameDockMinimized(false);
                 return;
               }
-              const actionKind = nextMode === 'slides' ? 'slide' : nextMode === 'video' ? 'video' : null;
+              if (nextMode === 'video') {
+                const video = videoMaterials[0];
+                if (video) { setVideoDockMaterial(video); void recordTeachingAction('video', video.id); }
+                return;
+              }
+              const actionKind = nextMode === 'slides' ? 'slide' : null;
               if (actionKind) teachingMaterials.forEach((material) => void recordTeachingAction(actionKind, material.id));
               setContentMode(nextMode);
             }}
@@ -302,6 +309,7 @@ export default function TeachingModePage() {
           onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
+      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} onClose={() => setVideoDockMaterial(null)} />}
       {finishModalOpen && activeLog && (
         <FinishSessionModal
           log={activeLog}
@@ -524,9 +532,20 @@ function TeachingControls({
 }
 
 function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, onClose, onGameLaunched }: { classId: string; subjectId: string; minimized: boolean; onToggleMinimized: () => void; onClose: () => void; onGameLaunched: (gameId: string) => void }) {
+  const [position, setPosition] = useState({ x: 16, y: 16 });
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const dragStart = (event: PointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest('button')) return;
+    dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const dragMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current; if (!drag) return;
+    setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 48, event.clientY - drag.y)) });
+  };
   return (
-    <div className={`fixed bottom-4 right-4 z-[60] overflow-hidden rounded-lg border border-blue-400 bg-slate-950 shadow-2xl transition-[height,width] duration-300 ${minimized ? 'h-12 w-64' : 'h-[min(78vh,720px)] w-[min(94vw,1100px)]'}`}>
-      <div className="flex h-12 items-center justify-between bg-blue-900 px-3 text-white">
+    <div style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-blue-400 bg-slate-950 shadow-2xl transition-[height,width] duration-300 ${minimized ? 'h-12 w-64' : 'h-[min(78vh,720px)] w-[min(94vw,1100px)]'}`}>
+      <div onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={() => { dragRef.current = null; }} className="flex h-12 cursor-move touch-none items-center justify-between bg-blue-900 px-3 text-white">
         <span className="text-sm font-black"><i className="fas fa-gamepad mr-2 text-amber-300" />Game đang chuẩn bị / điều hành</span>
         <div className="flex gap-1">
           <button onClick={onToggleMinimized} className="rounded px-2 py-1 text-xs hover:bg-white/15" title={minimized ? 'Mở lại game' : 'Hạ game xuống'}><i className={`fas ${minimized ? 'fa-up-right-and-down-left-from-center' : 'fa-window-minimize'}`} /></button>
@@ -536,6 +555,19 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
       <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
     </div>
   );
+}
+
+function TeachingVideoDock({ material, token, onClose }: { material: TeachingMaterial; token: string | null; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [minimized, setMinimized] = useState(false);
+  const requestPiP = async () => {
+    try { await videoRef.current?.requestPictureInPicture(); }
+    catch { toast.info('Trình duyệt không hỗ trợ Picture-in-Picture; dùng khung video thu nhỏ.'); }
+  };
+  return <div className={`fixed bottom-4 left-4 z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
+    <div className="flex h-10 items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}</span><div className="flex gap-1"><button type="button" onClick={() => setMinimized((value) => !value)} aria-label="Thu nhỏ video" className="rounded px-2 hover:bg-white/15">−</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
+    {!minimized && <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay className="w-full bg-black" />}
+  </div>;
 }
 
 function FinishSessionModal({ log, onClose, onFinish }: { log: TeachingLog; onClose: () => void; onFinish: (notes: string) => Promise<void> }) {
