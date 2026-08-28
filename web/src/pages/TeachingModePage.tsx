@@ -615,7 +615,7 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
           <button onClick={() => { if (window.confirm('Đóng khung game? Phiên game trên máy chủ vẫn tiếp tục.')) onClose(); }} className="rounded px-2 py-1 text-xs hover:bg-white/15" title="Đóng game"><i className="fas fa-xmark" /></button>
         </div>
       </div>
-      <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
+      <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} autoShowGuides={false} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
     </div>
   );
 }

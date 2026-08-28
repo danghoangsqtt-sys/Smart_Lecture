@@ -99,9 +99,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.reload();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
-  const dismissGameGuide = page.getByRole('button', { name: /Đã hiểu/i });
-  await expect(dismissGameGuide).toBeVisible();
-  await dismissGameGuide.click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('main svg polyline')).toHaveCount(1);
   await expect(page.locator('main svg polyline')).toHaveAttribute('stroke', '#2563eb');
   await page.getByRole('button', { name: 'Tẩy từng nét' }).click();

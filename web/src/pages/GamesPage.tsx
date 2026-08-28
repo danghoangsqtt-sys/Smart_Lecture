@@ -210,16 +210,18 @@ export default function GamesPage({
   initialClassId = '',
   initialSubjectId = '',
   lockedClassId = '',
+  autoShowGuides = true,
   onGameLaunched,
 }: {
   initialClassId?: string;
   initialSubjectId?: string;
   lockedClassId?: string;
+  autoShowGuides?: boolean;
   onGameLaunched?: (session: GameSessionInfo) => void;
 }) {
   const [tab, setTab] = useState<GameMode | 'picker' | 'saved'>('quick_quiz');
   const [session, setSession] = useState<GameSessionInfo | null>(null);
-  const [guideMode, setGuideMode] = useState<GameMode | null>(() => shouldHideGameGuides() ? null : 'quick_quiz');
+  const [guideMode, setGuideMode] = useState<GameMode | null>(() => autoShowGuides && !shouldHideGameGuides() ? 'quick_quiz' : null);
 
   function launchSession(nextSession: GameSessionInfo) {
     setSession(nextSession);
@@ -228,7 +230,7 @@ export default function GamesPage({
 
   function selectGame(mode: GameMode) {
     setTab(mode);
-    if (!shouldHideGameGuides()) setGuideMode(mode);
+    if (autoShowGuides && !shouldHideGameGuides()) setGuideMode(mode);
   }
 
   function closeGuide(remember = false) {
