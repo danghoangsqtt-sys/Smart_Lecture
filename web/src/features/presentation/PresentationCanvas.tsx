@@ -1,6 +1,6 @@
 import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -8,6 +8,9 @@ interface PresentationCanvasProps {
   title: string;
   sourceUrl: string;
 }
+
+type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser';
+interface Stroke { tool: Exclude<Tool, 'laser'>; points: Array<{ x: number; y: number }>; page: number; }
 
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -17,6 +20,12 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [pageCount, setPageCount] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [surface, setSurface] = useState({ width: 0, height: 0 });
+  const [tool, setTool] = useState<Tool>('pen');
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [redo, setRedo] = useState<Stroke[]>([]);
+  const [draft, setDraft] = useState<Stroke | null>(null);
+  const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +46,13 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   }, [sourceUrl]);
 
   useEffect(() => {
+    try { setStrokes(JSON.parse(sessionStorage.getItem(`smartlecture:annotations:${sourceUrl}`) ?? '[]') as Stroke[]); } catch { setStrokes([]); }
+  }, [sourceUrl]);
+  useEffect(() => {
+    sessionStorage.setItem(`smartlecture:annotations:${sourceUrl}`, JSON.stringify(strokes.slice(-100)));
+  }, [sourceUrl, strokes]);
+
+  useEffect(() => {
     let cancelled = false;
     void (async () => {
       const document = documentRef.current;
@@ -49,6 +65,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       canvas.height = Math.floor(viewport.height * ratio);
       canvas.style.width = `${Math.floor(viewport.width)}px`;
       canvas.style.height = `${Math.floor(viewport.height)}px`;
+      setSurface({ width: Math.floor(viewport.width), height: Math.floor(viewport.height) });
       const context = canvas.getContext('2d');
       if (!context) return;
       await page.render({ canvas, canvasContext: context, viewport, transform: [ratio, 0, 0, ratio, 0, 0] }).promise;
@@ -66,6 +83,32 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [pageCount]);
 
+  const point = (event: PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+  };
+  const start = (event: PointerEvent<SVGSVGElement>) => {
+    const next = point(event); event.currentTarget.setPointerCapture(event.pointerId);
+    if (tool === 'laser') { setLaser(next); return; }
+    setDraft({ tool, page: pageNumber, points: [next] });
+  };
+  const move = (event: PointerEvent<SVGSVGElement>) => {
+    const next = point(event);
+    if (tool === 'laser') { setLaser(next); return; }
+    setDraft((value) => value ? { ...value, points: [...value.points, next] } : null);
+  };
+  const finish = () => {
+    if (tool === 'laser') { setLaser(null); return; }
+    if (draft && draft.points.length > 1) { setStrokes((items) => [...items.slice(-99), draft]); setRedo([]); }
+    setDraft(null);
+  };
+  const renderStroke = (stroke: Stroke, key: string) => {
+    const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
+    const style = stroke.tool === 'highlight' ? { stroke: '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
+    if (stroke.tool === 'ellipse' && stroke.points.length > 1) { const a = stroke.points[0]!; const b = stroke.points.at(-1)!; return <ellipse key={key} cx={(a.x + b.x) * surface.width / 2} cy={(a.y + b.y) * surface.height / 2} rx={Math.abs(a.x - b.x) * surface.width / 2} ry={Math.abs(a.y - b.y) * surface.height / 2} fill="none" {...style} />; }
+    return <polyline key={key} points={points} fill="none" strokeLinecap="round" strokeLinejoin="round" {...style} />;
+  };
+
   if (error) return <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">{error}</div>;
   return <section className="overflow-hidden rounded-lg border border-slate-700 bg-slate-900" aria-label={`Trình chiếu ${title}`}>
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 px-3 py-2 text-sm text-slate-200">
@@ -78,10 +121,21 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         <span>{Math.round(zoom * 100)}%</span>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setZoom((value) => Math.min(2.5, value + 0.1))} aria-label="Phóng to">+</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void containerRef.current?.requestFullscreen()} aria-label="Toàn màn hình">⛶</button>
+        {(['pen', 'highlight', 'ellipse', 'line', 'underline', 'laser'] as Tool[]).map((item) => <button key={item} type="button" onClick={() => setTool(item)} className={`rounded px-2 py-1 ${tool === item ? 'bg-blue-600' : 'hover:bg-slate-700'}`} aria-label={item}>{item}</button>)}
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setStrokes((items) => { const removed = items.at(-1); if (removed) setRedo((history) => [...history, removed]); return items.slice(0, -1); })} aria-label="Hoàn tác">↶</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={redo.length === 0} onClick={() => setRedo((history) => { const restored = history.at(-1); if (restored) setStrokes((items) => [...items, restored]); return history.slice(0, -1); })} aria-label="Làm lại">↷</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
       </div>
     </div>
     <div ref={containerRef} className="flex max-h-[70vh] min-h-96 justify-center overflow-auto bg-slate-950 p-3">
-      <canvas ref={canvasRef} className="max-w-none bg-white shadow-xl" />
+      <div className="relative" style={{ width: surface.width || undefined, height: surface.height || undefined }}>
+        <canvas ref={canvasRef} className="max-w-none bg-white shadow-xl" />
+        {surface.width > 0 && <svg className="absolute inset-0 touch-none" width={surface.width} height={surface.height} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
+          {strokes.filter((item) => item.page === pageNumber).map((item, index) => renderStroke(item, `${item.page}-${index}`))}
+          {draft && renderStroke(draft, 'draft')}
+          {laser && <circle cx={laser.x * surface.width} cy={laser.y * surface.height} r="8" fill="#ef4444" fillOpacity="0.8" />}
+        </svg>}
+      </div>
     </div>
   </section>;
 }
