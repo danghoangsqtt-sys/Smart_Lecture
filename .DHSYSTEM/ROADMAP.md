@@ -105,7 +105,7 @@
 - [x] Khóa ngữ cảnh lớp trong Game dock để không trộn game của lớp khác vào một phiên dạy.
 - [x] Tổng quan sau tiết hiển thị các game đã dùng dưới tên dễ đọc và có regression cho liên kết này.
 
-## Phase 12 — Release hardening ⏳
+## Phase 12 — Release hardening ✅
 
 - [x] Đồng bộ version, metadata và tài liệu vận hành với development target v0.9.0 (P11 functional baseline v0.8.0).
 - [ ] Triage/rút bỏ rủi ro dependency Excel mức high bằng ADR và regression.
@@ -114,7 +114,7 @@
 
 **Exit criteria P12:** không còn high/critical dependency chưa triage; typecheck, build sạch, API/Socket/browser E2E, backup/restore và Windows runbook đều đạt.
 
-## Phase 13 — Teaching Continuity Canvas ⏳
+## Phase 13 — Teaching Continuity Canvas ✅
 
 - [ ] Presentation canvas cho PDF và PPTX đã chuyển đổi: điều hướng trang, zoom, fullscreen và fallback minh bạch.
 - [ ] Pen, highlight, khoanh tròn, gạch chân, laser, tẩy, undo/redo trên lớp overlay không sửa tệp nguồn.
