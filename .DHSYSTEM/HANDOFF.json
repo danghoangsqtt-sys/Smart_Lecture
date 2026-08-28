@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Close P12 quality gates, then start P13 T-1301 Presentation Canvas for PDF/PPTX pages."
+  "next_action": "T-1301 đang thực hiện: spike PDF renderer cho canvas theo trang và tích hợp PowerPoint đã chuyển đổi PDF."
 }

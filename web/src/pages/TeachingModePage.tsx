@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore';
 import { Button, Input, Label, Modal, Select, Spinner } from '../components/ui';
 import toast from '../stores/toastStore';
 import { toISODate } from '../lib/dateUtils';
+import { PresentationCanvas } from '../features/presentation/PresentationCanvas';
 
 const TEACHING_TYPES = ['Lý thuyết', 'Thực hành', 'Bài tập', 'Ôn tập', 'Kiểm tra', 'Thảo luận/Xemina', 'Trực tuyến'];
 const EmbeddedGamesPage = lazy(() => import('./GamesPage'));
@@ -473,7 +474,7 @@ function SlidesContent({ lecture, materials, token }: { lecture: TeachingLecture
               </div>
             </div>
             {inlineTarget.type === 'pdf' ? (
-              <iframe src={streamUrl} sandbox="allow-same-origin" className="h-96 w-full rounded border-slate-700 bg-white" title={material.title} />
+              <PresentationCanvas title={material.title} sourceUrl={streamUrl} />
             ) : (
               <div className="flex h-32 flex-col items-center justify-center gap-1 rounded border border-dashed border-slate-600 text-sm text-slate-400"><span>Không thể xem trước PowerPoint trực tiếp</span><span className="text-xs">Dùng “Mở toàn màn hình” để mở tệp gốc</span></div>
             )}

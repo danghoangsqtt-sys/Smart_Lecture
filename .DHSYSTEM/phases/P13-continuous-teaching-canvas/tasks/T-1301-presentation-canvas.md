@@ -30,3 +30,7 @@ Thay PDF iframe hiện tại bằng viewer có quyền điều khiển trang và
 ## Verification
 
 Typecheck; production build; browser tests for PDF/PPTX/authorization; existing E2E.
+
+## Execution Log
+
+- 2026-08-28: started after P12 completion. Renderer/dependency and current Teaching Mode material flow are being inventoried before production changes.
