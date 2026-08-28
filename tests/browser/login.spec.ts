@@ -37,6 +37,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.locator('#username').fill('browser.teacher');
   await page.locator('#password').fill('Teacher@1234');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.goto('/teaching');
+  await expect(page.getByRole('button', { name: /XLSX/ })).toBeVisible();
+  const reportDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: /XLSX/ }).click();
+  expect((await reportDownload).suggestedFilename()).toContain('.xlsx');
   await page.goto(`/classes/${classId}/teach/${subjectId}`);
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();

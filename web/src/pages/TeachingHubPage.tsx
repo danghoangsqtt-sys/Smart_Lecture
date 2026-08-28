@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
+import { useAuthStore } from '../stores/authStore';
 import toast from '../stores/toastStore';
 
 interface ClassInfo { id: string; name: string; subject: string; academicYear: string; studentCount: number; }
@@ -10,8 +11,9 @@ interface TeachingInsights {
   summary: {
     sessionCount: number; activeSessionCount: number; completedSessionCount: number; totalDurationMinutes: number;
     attendanceLinkedCount: number; uniqueSlidesShown: number; uniqueVideosPlayed: number; uniqueGamesRun: number;
-    curriculumTotal: number; curriculumCompleted: number; curriculumProgressPercent: number;
+    kttxRecordedCount: number; curriculumTotal: number; curriculumCompleted: number; curriculumProgressPercent: number;
   };
+  dataQuality: { sessionsWithoutAttendanceRecord: number; sessionsWithoutAttendanceLink: number; sessionsWithoutActivityTelemetry: number; note: string };
   recent: Array<{ id: string; subjectName: string | null; curriculumTopic: string | null; startedAt: string; endedAt: string | null; attendanceTaken: boolean; activityCount: number; games: Array<{ id: string; title: string; gameType: string }>; notes: string }>;
 }
 
@@ -26,6 +28,7 @@ export default function TeachingHubPage() {
   const [busy, setBusy] = useState(false);
   const [insightSubjectId, setInsightSubjectId] = useState('');
   const [insights, setInsights] = useState<TeachingInsights | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const loadClasses = useCallback(async () => {
     setLoading(true);
@@ -67,6 +70,27 @@ export default function TeachingHubPage() {
     finally { setBusy(false); }
   }
 
+  async function exportPostLessonReport(format: 'xlsx' | 'csv') {
+    if (!classId) return;
+    setExporting(true);
+    try {
+      const token = useAuthStore.getState().token;
+      const subjectQuery = insightSubjectId ? `&subjectId=${encodeURIComponent(insightSubjectId)}` : '';
+      const response = await fetch(`/api/classes/${classId}/teaching-logs/export?format=${format}${subjectQuery}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Không thể xuất báo cáo sau tiết');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bao-cao-sau-tiet.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Đã xuất báo cáo ${format.toUpperCase()}`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Không thể xuất báo cáo sau tiết'); }
+    finally { setExporting(false); }
+  }
+
   const selectedClass = classes.find((item) => item.id === classId);
   if (loading) return <Spinner />;
 
@@ -81,6 +105,7 @@ export default function TeachingHubPage() {
         <div className="p-5"><Label>Lớp học</Label><Select value={classId} onChange={(e) => setClassId(e.target.value)} className="max-w-xl">{classes.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.subject || 'Chưa đặt môn'} · {item.studentCount} học viên</option>)}</Select></div>
       </Card>
       <TeachingInsightsCard subjects={subjects} selectedSubjectId={insightSubjectId} onSubjectChange={setInsightSubjectId} insights={insights} />
+      <div className="mb-5 flex flex-wrap items-center justify-end gap-2"><Button variant="secondary" onClick={() => void exportPostLessonReport('xlsx')} disabled={exporting} aria-label="Xuất báo cáo sau tiết dạng XLSX"><i className="fas fa-file-excel" /> {exporting ? 'Đang xuất…' : 'Xuất XLSX'}</Button><Button variant="secondary" onClick={() => void exportPostLessonReport('csv')} disabled={exporting} aria-label="Xuất báo cáo sau tiết dạng CSV"><i className="fas fa-file-csv" /> Xuất CSV</Button></div>
       <div className="mb-3 flex items-center justify-between"><div><h2 className="font-black text-slate-800">Môn học của {selectedClass?.name}</h2><p className="text-sm text-slate-500">Mỗi môn có cây chương trình, bài giảng và học liệu riêng.</p></div><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{subjects.length} môn</span></div>
       {subjects.length === 0 ? <Card className="p-8"><EmptyState message="Chưa có môn học. Tạo môn đầu tiên để xây dựng cây nội dung." /></Card> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{subjects.map((subject) => <Card key={subject.id} className="group relative overflow-hidden p-5 transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-lg"><div className="absolute right-[-8px] top-[-10px] text-7xl text-blue-50"><i className="fas fa-book-bookmark" /></div><p className="relative text-[10px] font-black uppercase tracking-widest text-blue-600">Môn học</p><h3 className="relative mt-2 text-lg font-black text-slate-800">{subject.name}</h3><p className="relative mt-2 text-sm text-slate-500">Sắp xếp bài giảng theo cây chương trình, rồi mở workspace khi bắt đầu tiết học.</p><Button className="relative mt-5 w-full" onClick={() => navigate(`/classes/${classId}/teach/${subject.id}`)}>Mở workspace <i className="fas fa-arrow-right" /></Button></Card>)}</div>}
     </>}
@@ -98,6 +123,7 @@ function TeachingInsightsCard({ subjects, selectedSubjectId, onSubjectChange, in
     ['fa-gamepad', 'Hoạt động game', String(summary.uniqueGamesRun)],
   ];
   return <Card className="mb-5 overflow-hidden">
+    <div className="border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"><i className="fas fa-circle-info mr-1" />{insights.dataQuality.sessionsWithoutAttendanceRecord} phiên chưa ghi nhận điểm danh · {insights.dataQuality.sessionsWithoutActivityTelemetry} phiên chưa có hoạt động được ghi log. Đây là dữ liệu chưa ghi nhận, không phải đánh giá kết quả học tập.</div>
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3"><div><h2 className="font-black text-slate-800">Tổng quan sau tiết học</h2><p className="text-xs text-slate-500">Dữ liệu được tổng hợp từ các phiên dạy đã lưu.</p></div><Select value={selectedSubjectId} onChange={(event) => onSubjectChange(event.target.value)} className="w-52"><option value="">Tất cả môn học</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</Select></div>
     <div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-4">{stats.map(([icon, label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-semibold text-slate-500"><i className={`fas ${icon} mr-1 text-blue-600`} />{label}</p><p className="mt-1 text-2xl font-black text-slate-800">{value}</p></div>)}</div>
     <div className="grid gap-4 p-5 lg:grid-cols-[1fr_1.25fr]"><div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-950"><p className="font-bold">Học liệu đã dùng</p><p className="mt-2">{summary.uniqueSlidesShown} trình chiếu · {summary.uniqueVideosPlayed} video</p><p className="mt-1">{summary.totalDurationMinutes} phút dạy đã kết thúc · {summary.activeSessionCount} phiên đang mở</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100"><div className="h-full bg-blue-700" style={{ width: `${summary.curriculumProgressPercent}%` }} /></div><p className="mt-1 text-xs">{summary.curriculumCompleted}/{summary.curriculumTotal} mục giáo án hoàn thành</p></div><div><p className="mb-2 text-sm font-bold text-slate-700">Phiên gần đây</p>{insights.recent.length === 0 ? <p className="text-sm text-slate-500">Chưa có phiên dạy nào được tổng kết.</p> : <ul className="space-y-2">{insights.recent.map((session) => <li key={session.id} className="rounded border border-slate-100 px-3 py-2 text-sm"><div className="flex justify-between gap-3"><span className="truncate font-semibold text-slate-700">{session.curriculumTopic || session.subjectName || 'Phiên dạy'}</span><span className={`shrink-0 text-xs font-bold ${session.endedAt ? 'text-emerald-700' : 'text-amber-700'}`}>{session.endedAt ? 'Đã kết thúc' : 'Đang diễn ra'}</span></div><p className="mt-1 text-xs text-slate-500">{new Date(session.startedAt).toLocaleString('vi-VN')} · {session.activityCount} hoạt động · {session.attendanceTaken ? 'đã điểm danh' : 'chưa điểm danh'}</p>{session.games.length > 0 && <p className="mt-1 truncate text-xs font-medium text-violet-700"><i className="fas fa-gamepad mr-1" />{session.games.map((game) => game.title).join(' · ')}</p>}</li>)}</ul>}</div></div>

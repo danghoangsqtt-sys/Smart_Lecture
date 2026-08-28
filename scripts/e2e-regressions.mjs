@@ -109,8 +109,13 @@ if (classId) {
   check('teaching session closes and clears active session', closedTeachingSession.status === 200 && afterClosingSession.data?.log === null);
   const insights = await request('GET', `/classes/${classId}/teaching-logs/summary?subjectId=${subjectId}`, teacherToken);
   const deniedInsights = await request('GET', `/classes/${classId}/teaching-logs/summary`, studentToken);
+  const report = await request('GET', `/classes/${classId}/teaching-logs/report?subjectId=${subjectId}`, teacherToken);
+  const deniedReport = await request('GET', `/classes/${classId}/teaching-logs/report`, studentToken);
+  const invalidReportScope = await request('GET', `/classes/${classId}/teaching-logs/report?subjectId=not-a-subject`, teacherToken);
   check('post-lesson insights aggregate scoped game activity', insights.status === 200 && insights.data?.summary?.completedSessionCount >= 1 && insights.data?.summary?.uniqueSlidesShown >= 1 && insights.data?.summary?.uniqueGamesRun >= 1 && insights.data?.recent?.[0]?.games?.some((game) => game.id === teachingGame.data?.id && game.title === 'Math race in teaching log') && insights.data?.recent?.[0]?.notes === 'Regression session');
   check('student cannot read teacher post-lesson insights', deniedInsights.status === 403);
+  check('auditable report includes scoped session evidence and explicit data quality', report.status === 200 && report.data?.report?.classId === classId && report.data?.report?.subjectId === subjectId && report.data?.sessions?.some((entry) => entry.id === sessionId && entry.games?.some((game) => game.id === teachingGame.data?.id)) && typeof report.data?.dataQuality?.sessionsWithoutAttendanceRecord === 'number');
+  check('post-lesson report rejects student and invalid subject scope', deniedReport.status === 403 && invalidReportScope.status === 400);
 
   const traversal = await request('POST', `/subjects/${subjectId}/pending-files/ingest`, teacherToken, {
     filenames: ['../../package.json'], mode: 'new-lecture-per-file',

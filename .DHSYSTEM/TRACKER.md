@@ -79,6 +79,13 @@
 | T-1303 | Video/Game Continuity Dock kéo thả, minimize, PiP fallback | P13 | done | draggable docks + PiP fallback + E2E regression |
 | T-1304 | Thanh tác vụ và full-flow Teaching Mode | P13 | done | Teaching Mode Browser E2E + build + E2E regression |
 
+## Phase 14 — Post-lesson Reporting
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1401 | Hợp đồng báo cáo sau tiết, chất lượng dữ liệu và phân quyền | P14 | done | API reconciliation + authorization regression |
+| T-1402 | Báo cáo giáo viên và xuất XLSX/CSV có xác thực | P14 | done | Browser/export workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
