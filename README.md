@@ -80,6 +80,7 @@ scripts/ E2E cô lập/idempotent · autostart · seed helper
 ```powershell
 npm run typecheck       # TypeScript strict cho server + web
 npm run test:e2e        # DB tạm riêng: REST 82/82, Socket 10/10, restore–restart
+npm run test:browser    # Chrome/Chromium headless, DB tạm riêng
 ```
 
 CI GitHub Actions chạy typecheck, production build và E2E cô lập cho mọi push/PR.

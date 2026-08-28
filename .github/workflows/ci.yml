@@ -28,3 +28,9 @@ jobs:
 
       - name: End-to-end tests (isolated SQLite)
         run: node scripts/e2e-isolated.mjs
+
+      - name: Install Chromium for browser E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser E2E (isolated SQLite)
+        run: node scripts/e2e-browser-isolated.mjs

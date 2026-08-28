@@ -12,7 +12,7 @@
 | T-1201 Baseline/version/docs | done | — | typecheck, clean build, documentation consistency scan |
 | T-1202 Excel/dependency security | done | T-1201 | audit, ADR, XLSX route regression |
 | T-1203 Windows lifecycle | done | T-1201 | 3 builds + PID/port/API healthcheck + isolated E2E |
-| T-1204 Browser quality gate | planned | T-1201 | isolated browser E2E in CI |
+| T-1204 Browser quality gate | done | T-1201 | 3 local browser runs + CI Chromium gate |
 
 ## T-1202 Result
 

@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "T-1204: thiết lập browser E2E cô lập cho luồng lớp học trọng yếu trước khi chuyển sang P13 Teaching Continuity Canvas."
+  "next_action": "Close P12 quality gates, then start P13 T-1301 Presentation Canvas for PDF/PPTX pages."
 }

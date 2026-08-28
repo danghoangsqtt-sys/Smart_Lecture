@@ -14,9 +14,11 @@
     "build": "npm run build -w web && npm run build -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
     "seed:demo-quiz": "node scripts/seed-demo-quiz.mjs",
-    "test:e2e": "npm run build -w server && node scripts/e2e-isolated.mjs"
+    "test:e2e": "npm run build -w server && node scripts/e2e-isolated.mjs",
+    "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.2"
   }
 }

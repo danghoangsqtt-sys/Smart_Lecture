@@ -27,3 +27,7 @@ Bổ sung kiểm chứng browser tự động cho các luồng lớp học quan 
 ## Verification
 
 Browser test command; `npm run typecheck`; build; `npm run test:e2e`.
+
+## Execution Log
+
+- 2026-08-28: started after T-1203 persistence gate passed. The existing CI has only API/socket E2E; framework compatibility, browser availability and isolated-server integration are being inventoried before adding a browser dependency.
