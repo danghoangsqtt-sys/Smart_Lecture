@@ -70,6 +70,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.locator('#username').fill('browser.teacher');
   await page.locator('#password').fill('Teacher@1234');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
   await page.goto('/teaching');
   await expect(page.getByText(/Sẵn sàng trước giờ dạy/)).toBeVisible();
   await expect(page.getByRole('button', { name: /XLSX/ })).toBeVisible();
@@ -82,6 +83,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Highlight' })).toBeVisible();
   await page.getByRole('button', { name: 'Bút lông' }).click();
+  await page.getByRole('button', { name: 'Màu xanh dương' }).click();
   const annotationSurface = page.locator('main svg');
   await expect(annotationSurface).toBeVisible();
   const surfaceBox = await annotationSurface.boundingBox();
@@ -97,5 +99,16 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.reload();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
+  const dismissGameGuide = page.getByRole('button', { name: /Đã hiểu/i });
+  await expect(dismissGameGuide).toBeVisible();
+  await dismissGameGuide.click();
   await expect(page.locator('main svg polyline')).toHaveCount(1);
+  await expect(page.locator('main svg polyline')).toHaveAttribute('stroke', '#2563eb');
+  await page.getByRole('button', { name: 'Tẩy từng nét' }).click();
+  const restoredSurface = page.locator('main svg');
+  const restoredStroke = restoredSurface.locator('polyline');
+  const restoredStrokeBox = await restoredStroke.boundingBox();
+  expect(restoredStrokeBox).not.toBeNull();
+  await page.mouse.click(restoredStrokeBox!.x + restoredStrokeBox!.width / 2, restoredStrokeBox!.y + restoredStrokeBox!.height / 2);
+  await expect(restoredSurface.locator('polyline')).toHaveCount(0);
 });

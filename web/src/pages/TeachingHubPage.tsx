@@ -77,6 +77,11 @@ export default function TeachingHubPage() {
   }, [classId, insightSubjectId]);
 
   useEffect(() => { void loadReadiness(); }, [loadReadiness]);
+  useEffect(() => {
+    if (!readiness?.powerPointConversion.required || readiness.powerPointConversion.available !== null) return;
+    const retry = window.setTimeout(() => { void loadReadiness(); }, 1000);
+    return () => window.clearTimeout(retry);
+  }, [readiness, loadReadiness]);
 
   async function createSubject() {
     if (!classId || !subjectName.trim()) return;
@@ -141,7 +146,8 @@ function TeachingReadinessCard({ readiness }: { readiness: TeachingReadiness | n
     ['fa-file-powerpoint', 'PPTX cần chuyển đổi', String(materials.pptxPendingConversionCount)],
     ['fa-video', 'Video đã liên kết', String(materials.videoCount)],
   ];
-  return <Card className="mb-5 overflow-hidden"><div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-5 py-3"><i className="fas fa-clipboard-check text-emerald-700" /><div><h2 className="font-black text-emerald-950">Sẵn sàng trước giờ dạy</h2><p className="text-xs text-emerald-800">Kiểm kê theo lớp và môn đang chọn; không đánh giá chất lượng buổi dạy.</p></div></div><div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-4">{checks.map(([icon, label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-semibold text-slate-500"><i className={`fas ${icon} mr-1 text-emerald-700`} />{label}</p><p className="mt-1 text-2xl font-black text-slate-800">{value}</p></div>)}</div>{readiness.powerPointConversion.required && <p className={`border-t px-5 py-2 text-xs ${readiness.powerPointConversion.available ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}><i className={`fas ${readiness.powerPointConversion.available ? 'fa-circle-check' : 'fa-triangle-exclamation'} mr-1`} />{readiness.powerPointConversion.note}</p>}{materials.pptxPendingConversionCount > 0 && <p className="border-t border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"><i className="fas fa-circle-info mr-1" />Mở workspace để chuyển PPTX sang PDF và dùng công cụ chú thích.</p>}</Card>;
+  const converterState = readiness.powerPointConversion.available;
+  return <Card className="mb-5 overflow-hidden"><div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50 px-5 py-3"><i className="fas fa-clipboard-check text-emerald-700" /><div><h2 className="font-black text-emerald-950">Sẵn sàng trước giờ dạy</h2><p className="text-xs text-emerald-800">Kiểm kê theo lớp và môn đang chọn; không đánh giá chất lượng buổi dạy.</p></div></div><div className="grid gap-px bg-slate-100 sm:grid-cols-2 xl:grid-cols-4">{checks.map(([icon, label, value]) => <div key={label} className="bg-white p-4"><p className="text-xs font-semibold text-slate-500"><i className={`fas ${icon} mr-1 text-emerald-700`} />{label}</p><p className="mt-1 text-2xl font-black text-slate-800">{value}</p></div>)}</div>{readiness.powerPointConversion.required && <p className={`border-t px-5 py-2 text-xs ${converterState === true ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : converterState === false ? 'border-amber-200 bg-amber-50 text-amber-950' : 'border-blue-200 bg-blue-50 text-blue-950'}`}><i className={`fas ${converterState === true ? 'fa-circle-check' : converterState === false ? 'fa-triangle-exclamation' : 'fa-spinner fa-spin'} mr-1`} />{readiness.powerPointConversion.note}</p>}{materials.pptxPendingConversionCount > 0 && <p className="border-t border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-950"><i className="fas fa-circle-info mr-1" />Mở workspace để chuyển PPTX sang PDF và dùng công cụ chú thích.</p>}</Card>;
 }
 
 function TeachingInsightsCard({ subjects, selectedSubjectId, onSubjectChange, insights }: { subjects: Subject[]; selectedSubjectId: string; onSubjectChange: (value: string) => void; insights: TeachingInsights | null }) {

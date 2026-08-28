@@ -392,7 +392,8 @@ router.get(
     let powerPointConversionAvailable: boolean | null = null;
     if (pptx.length > 0) {
       const { detectLibreOffice, getLibreOfficeAvailability } = await import('./system.routes.js');
-      powerPointConversionAvailable = getLibreOfficeAvailability() ?? await detectLibreOffice();
+      powerPointConversionAvailable = getLibreOfficeAvailability();
+      if (powerPointConversionAvailable === null) void detectLibreOffice();
     }
     let curriculumSql = `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN ci.lecture_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS linked
       FROM curriculum_items ci JOIN teaching_plans tp ON tp.id = ci.teaching_plan_id WHERE tp.class_id = ?`;
@@ -413,7 +414,7 @@ router.get(
       powerPointConversion: {
         required: pptx.length > 0,
         available: powerPointConversionAvailable,
-        note: pptx.length === 0 ? 'Không có PowerPoint trong phạm vi đang chọn.' : powerPointConversionAvailable ? 'Máy chủ có thể chuyển PowerPoint sang PDF cho canvas chú thích.' : 'Cần cài LibreOffice trên máy chủ để chuyển PowerPoint sang PDF cho canvas chú thích.',
+        note: pptx.length === 0 ? 'Không có PowerPoint trong phạm vi đang chọn.' : powerPointConversionAvailable === null ? 'Đang kiểm tra bộ chuyển PowerPoint trên máy chủ…' : powerPointConversionAvailable ? 'Máy chủ có thể chuyển PowerPoint sang PDF cho canvas chú thích.' : 'Cần cài LibreOffice trên máy chủ để chuyển PowerPoint sang PDF cho canvas chú thích.',
       },
       note: 'Các số liệu là kiểm kê học liệu đã liên kết; chúng không đánh giá chất lượng hoặc mức độ hoàn thành của buổi dạy.',
     });

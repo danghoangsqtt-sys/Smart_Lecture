@@ -9,8 +9,8 @@ interface PresentationCanvasProps {
   sourceUrl: string;
 }
 
-type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser';
-interface Stroke { tool: Exclude<Tool, 'laser'>; points: Array<{ x: number; y: number }>; page: number; }
+type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser' | 'eraser';
+interface Stroke { tool: Exclude<Tool, 'laser' | 'eraser'>; points: Array<{ x: number; y: number }>; page: number; color?: string; }
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
   { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu' },
@@ -24,6 +24,15 @@ const ADVANCED_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string }>
   { tool: 'line', label: 'Đường thẳng', icon: 'fa-minus' },
 ];
 
+const INK_COLORS = [
+  { label: 'Màu đỏ', value: '#ef4444' }, { label: 'Màu xanh dương', value: '#2563eb' },
+  { label: 'Màu xanh lá', value: '#16a34a' }, { label: 'Màu đen', value: '#111827' },
+];
+const HIGHLIGHT_COLORS = [
+  { label: 'Highlight vàng', value: '#facc15' }, { label: 'Highlight xanh lá', value: '#84cc16' },
+  { label: 'Highlight hồng', value: '#f472b6' }, { label: 'Highlight xanh dương', value: '#60a5fa' },
+];
+
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -34,10 +43,16 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [error, setError] = useState<string | null>(null);
   const [surface, setSurface] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState<Tool>('pen');
+  const [inkColor, setInkColor] = useState('#ef4444');
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [redo, setRedo] = useState<Stroke[]>([]);
   const [draft, setDraft] = useState<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
+  const selectTool = (nextTool: Tool) => {
+    setTool(nextTool);
+    if (nextTool === 'highlight' && !HIGHLIGHT_COLORS.some((color) => color.value === inkColor)) setInkColor(HIGHLIGHT_COLORS[0]!.value);
+    if (nextTool === 'pen' && !INK_COLORS.some((color) => color.value === inkColor)) setInkColor(INK_COLORS[0]!.value);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -102,23 +117,48 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const start = (event: PointerEvent<SVGSVGElement>) => {
     const next = point(event); event.currentTarget.setPointerCapture(event.pointerId);
     if (tool === 'laser') { setLaser(next); return; }
-    setDraft({ tool, page: pageNumber, points: [next] });
+    if (tool === 'eraser') { eraseAt(next); return; }
+    setDraft({ tool, page: pageNumber, points: [next], color: inkColor });
   };
   const move = (event: PointerEvent<SVGSVGElement>) => {
     const next = point(event);
     if (tool === 'laser') { setLaser(next); return; }
+    if (tool === 'eraser') return;
     setDraft((value) => value ? { ...value, points: [...value.points, next] } : null);
   };
   const finish = () => {
     if (tool === 'laser') { setLaser(null); return; }
+    if (tool === 'eraser') return;
     if (draft && draft.points.length > 1) { setStrokes((items) => [...items.slice(-99), draft]); setRedo([]); }
     setDraft(null);
   };
+  const eraseAt = (target: { x: number; y: number }) => setStrokes((items) => {
+    let index = -1;
+    for (let candidate = items.length - 1; candidate >= 0; candidate -= 1) {
+      const stroke = items[candidate]!;
+      const threshold = stroke.tool === 'highlight' ? 0.045 : 0.025;
+      if (stroke.page === pageNumber && stroke.points.some((point) => Math.hypot(point.x - target.x, point.y - target.y) <= threshold)) { index = candidate; break; }
+    }
+    if (index < 0) return items;
+    const removed = items[index]!;
+    setRedo((history) => [...history, removed]);
+    return [...items.slice(0, index), ...items.slice(index + 1)];
+  });
+  const eraseStroke = (target: Stroke) => {
+    if (tool !== 'eraser') return;
+    setStrokes((items) => {
+      const index = items.lastIndexOf(target);
+      if (index < 0) return items;
+      setRedo((history) => [...history, target]);
+      return [...items.slice(0, index), ...items.slice(index + 1)];
+    });
+  };
   const renderStroke = (stroke: Stroke, key: string) => {
     const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
-    const style = stroke.tool === 'highlight' ? { stroke: '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
-    if (stroke.tool === 'ellipse' && stroke.points.length > 1) { const a = stroke.points[0]!; const b = stroke.points.at(-1)!; return <ellipse key={key} cx={(a.x + b.x) * surface.width / 2} cy={(a.y + b.y) * surface.height / 2} rx={Math.abs(a.x - b.x) * surface.width / 2} ry={Math.abs(a.y - b.y) * surface.height / 2} fill="none" {...style} />; }
-    return <polyline key={key} points={points} fill="none" strokeLinecap="round" strokeLinejoin="round" {...style} />;
+    const style = stroke.tool === 'highlight' ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
+    const removeOnTouch = tool === 'eraser' ? (event: PointerEvent<SVGElement>) => { event.preventDefault(); event.stopPropagation(); eraseStroke(stroke); } : undefined;
+    if (stroke.tool === 'ellipse' && stroke.points.length > 1) { const a = stroke.points[0]!; const b = stroke.points.at(-1)!; return <ellipse key={key} cx={(a.x + b.x) * surface.width / 2} cy={(a.y + b.y) * surface.height / 2} rx={Math.abs(a.x - b.x) * surface.width / 2} ry={Math.abs(a.y - b.y) * surface.height / 2} fill="none" onPointerDown={removeOnTouch} {...style} />; }
+    return <polyline key={key} points={points} fill="none" strokeLinecap="round" strokeLinejoin="round" onPointerDown={removeOnTouch} {...style} />;
   };
 
   if (error) return <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">{error}</div>;
@@ -150,10 +190,12 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     </div>
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-3">
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-xl border border-slate-500/70 bg-slate-950/95 p-1.5 shadow-2xl backdrop-blur" role="toolbar" aria-label="Công cụ bút trình chiếu">
-        {PRIMARY_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => setTool(item.tool)} title={item.hint} aria-label={item.label} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition ${tool === item.tool ? item.tool === 'highlight' ? 'bg-yellow-300 text-slate-950' : item.tool === 'laser' ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} />{item.label}</button>)}
+        {PRIMARY_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.hint} aria-label={item.label} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition ${tool === item.tool ? item.tool === 'highlight' ? 'bg-yellow-300 text-slate-950' : item.tool === 'laser' ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} />{item.label}</button>)}
+        {(tool === 'pen' || tool === 'highlight') && <><span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />{(tool === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS).map((color) => <button key={color.value} type="button" aria-label={color.label} title={color.label} onClick={() => setInkColor(color.value)} className={`h-6 w-6 rounded-full border-2 ${inkColor === color.value ? 'border-white scale-110' : 'border-slate-500'} transition`} style={{ backgroundColor: color.value }} />)}</>}
         <span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />
-        {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => setTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
+        {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
         <button type="button" onClick={() => setStrokes((items) => { const removed = items.at(-1); if (removed) setRedo((history) => [...history, removed]); return items.slice(0, -1); })} title="Hoàn tác nét vừa vẽ" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>
+        <button type="button" onClick={() => selectTool('eraser')} title="Chạm vào một nét để xóa" aria-label="Tẩy từng nét" className={`rounded-lg px-2.5 py-2 ${tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className="fas fa-eraser" /></button>
         <button type="button" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} title="Xóa tất cả nét của trang hiện tại" aria-label="Xóa nét trang hiện tại" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-eraser" /></button>
       </div>
     </div>

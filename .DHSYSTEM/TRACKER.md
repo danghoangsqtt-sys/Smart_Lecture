@@ -128,6 +128,13 @@
 | T-2001 | Thanh Tia laser/Bút lông/Highlight khi trình chiếu | P20 | done | Browser annotation workflow |
 | T-2002 | Các công cụ chú thích mở rộng có nhãn truy cập | P20 | done | Accessibility names |
 
+## Phase 21 — Ink colors and per-stroke eraser
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2101 | Màu bút lông/highlight được lưu theo từng nét | P21 | done | Browser PDF canvas + reload |
+| T-2102 | Tẩy từng nét và preflight PPTX không chặn Teaching Hub | P21 | done | Browser E2E + REST 86/86 + regression 22/22 |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.

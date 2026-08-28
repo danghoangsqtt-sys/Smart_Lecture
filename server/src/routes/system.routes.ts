@@ -47,6 +47,7 @@ export function detectDocling(): Promise<boolean> {
 }
 
 let libreOfficeAvailable: boolean | null = null;
+let libreOfficeDetection: Promise<boolean> | null = null;
 
 export function isLibreOfficeAvailable(): boolean {
   return libreOfficeAvailable === true;
@@ -57,12 +58,16 @@ export function getLibreOfficeAvailability(): boolean | null {
 }
 
 export function detectLibreOffice(): Promise<boolean> {
-  return new Promise((resolve) => {
+  if (libreOfficeAvailable !== null) return Promise.resolve(libreOfficeAvailable);
+  if (libreOfficeDetection) return libreOfficeDetection;
+  libreOfficeDetection = new Promise((resolve) => {
     execFile('soffice', ['--version'], { timeout: 8000 }, (err) => {
       libreOfficeAvailable = !err;
       resolve(libreOfficeAvailable);
     });
   });
+  void libreOfficeDetection.finally(() => { libreOfficeDetection = null; });
+  return libreOfficeDetection;
 }
 
 router.get(
