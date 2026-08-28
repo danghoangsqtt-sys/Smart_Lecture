@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-19-completed",
-  "phase_current": "P19-presentation-canvas-validation",
+  "status": "phase-20-completed",
+  "phase_current": "P20-presentation-pointer-toolbar",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P19 completed. Next milestone should execute real classroom acceptance with representative PDF/PPTX/video assets and projector hardware."
+  "next_action": "P20 completed. Next milestone should execute real classroom acceptance with representative PDF/PPTX/video assets and projector hardware."
 }

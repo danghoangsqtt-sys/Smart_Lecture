@@ -79,7 +79,9 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.goto(`/classes/${classId}/teach/${subjectId}`);
   await expect(page.getByRole('button', { name: 'Chuyển sang PDF' })).toBeVisible();
   await expect(page.locator('canvas')).toBeVisible();
-  await page.getByRole('button', { name: 'pen' }).click();
+  await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Highlight' })).toBeVisible();
+  await page.getByRole('button', { name: 'Bút lông' }).click();
   const annotationSurface = page.locator('main svg');
   await expect(annotationSurface).toBeVisible();
   const surfaceBox = await annotationSurface.boundingBox();

@@ -121,6 +121,13 @@
 | T-1901 | PDF thật trong Browser E2E | P19 | done | Canvas render + pointer annotation |
 | T-1902 | Hồi quy persistence chú thích sau reload | P19 | done | Browser reload workflow |
 
+## Phase 20 — Presentation Pointer Toolbar
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2001 | Thanh Tia laser/Bút lông/Highlight khi trình chiếu | P20 | done | Browser annotation workflow |
+| T-2002 | Các công cụ chú thích mở rộng có nhãn truy cập | P20 | done | Accessibility names |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
