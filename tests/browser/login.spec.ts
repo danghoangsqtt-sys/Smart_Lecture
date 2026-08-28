@@ -2,6 +2,23 @@ import { expect, test } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+function createPdfFixture(): Buffer {
+  const stream = 'BT /F1 24 Tf 72 720 Td (SmartLecture PDF fixture) Tj ET';
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n',
+    `5 0 obj\n<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream\nendobj\n`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const object of objects) { offsets.push(Buffer.byteLength(pdf)); pdf += object; }
+  const xrefOffset = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf);
+}
+
 test('admin can change the initial password and log in through the browser', async ({ page, request }) => {
   const firstLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'admin123' } });
   expect(firstLogin.ok()).toBeTruthy();
@@ -43,6 +60,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
     multipart: { file: { name: 'browser-slides.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: Buffer.from('not a real PowerPoint') } },
   });
   expect(pptx.ok()).toBeTruthy();
+  const pdf = await request.post(`/api/lectures/${lectureId}/materials`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    multipart: { file: { name: 'browser-slides.pdf', mimeType: 'application/pdf', buffer: createPdfFixture() } },
+  });
+  expect(pdf.ok()).toBeTruthy();
 
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');
@@ -56,10 +78,22 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   expect((await reportDownload).suggestedFilename()).toContain('.xlsx');
   await page.goto(`/classes/${classId}/teach/${subjectId}`);
   await expect(page.getByRole('button', { name: 'Chuyển sang PDF' })).toBeVisible();
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'pen' }).click();
+  const annotationSurface = page.locator('main svg');
+  await expect(annotationSurface).toBeVisible();
+  const surfaceBox = await annotationSurface.boundingBox();
+  expect(surfaceBox).not.toBeNull();
+  await page.mouse.move(surfaceBox!.x + 40, surfaceBox!.y + 40);
+  await page.mouse.down();
+  await page.mouse.move(surfaceBox!.x + 140, surfaceBox!.y + 90);
+  await page.mouse.up();
+  await expect(annotationSurface.locator('polyline')).toHaveCount(1);
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.getByTitle('Hạ game xuống').click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.reload();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
+  await expect(page.locator('main svg polyline')).toHaveCount(1);
 });

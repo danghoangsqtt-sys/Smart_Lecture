@@ -114,6 +114,13 @@
 | T-1801 | Lưu/khôi phục ngữ cảnh workspace theo phiên trình duyệt | P18 | done | Typecheck + guarded restore |
 | T-1802 | Hồi quy reload Teaching Mode không mất game dock | P18 | done | Browser workflow |
 
+## Phase 19 — Presentation Canvas Validation
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-1901 | PDF thật trong Browser E2E | P19 | done | Canvas render + pointer annotation |
+| T-1902 | Hồi quy persistence chú thích sau reload | P19 | done | Browser reload workflow |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
