@@ -159,6 +159,23 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   })).toBeTruthy();
   await expect.poll(async () => (await page.getByLabel('Kéo khung video').boundingBox())?.x ?? 0).toBeGreaterThan(initialVideoBox!.x + 50);
   await expect.poll(async () => (await page.getByLabel('Kéo khung game').boundingBox())?.x ?? 0).toBeGreaterThan(initialGameBox!.x + 35);
+  await page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find((item) => item.startsWith('smartlecture:teaching-workspace:'))!;
+    const snapshot = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+    snapshot.gameDockPosition = { x: 99_999, y: 99_999 };
+    snapshot.videoDockPosition = { x: 99_999, y: 99_999 };
+    sessionStorage.setItem(key, JSON.stringify(snapshot));
+  });
+  await page.reload();
+  const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  const clampedVideoBox = await page.getByLabel('Kéo khung video').boundingBox();
+  const clampedGameBox = await page.getByLabel('Kéo khung game').boundingBox();
+  expect(clampedVideoBox).not.toBeNull();
+  expect(clampedGameBox).not.toBeNull();
+  expect(clampedVideoBox!.x).toBeLessThanOrEqual(viewport.width - 259);
+  expect(clampedVideoBox!.y).toBeLessThanOrEqual(viewport.height - 39);
+  expect(clampedGameBox!.x).toBeLessThanOrEqual(viewport.width - 259);
+  expect(clampedGameBox!.y).toBeLessThanOrEqual(viewport.height - 47);
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('smartlecture:annotation')).every((key) => !key.includes('token=')))).toBeTruthy();
   await expect(page.getByRole('button', { name: 'Màu xanh dương' })).toHaveClass(/border-white/);
   await expect(page.locator('main svg polyline')).toHaveCount(1);

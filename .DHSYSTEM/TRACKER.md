@@ -189,6 +189,7 @@
 |---|---|---|---|---|
 | T-3001 | Reducer thuần cho chú thích và cleanup kéo-thả | P30 | done | typecheck + build + Browser E2E 2/2 + React Doctor 73, 0 errors |
 | T-3101 | Lưu mốc phát video và khôi phục an toàn sau reload | P31 | done | typecheck + build + Browser E2E 2/2 + React Doctor 84, 0 errors |
+| T-3201 | Giữ dock video/game trong vùng nhìn thấy khi đổi viewport | P32 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
