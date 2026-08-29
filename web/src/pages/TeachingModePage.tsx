@@ -75,9 +75,11 @@ interface TeachingLog {
 
 type ContentMode = 'slides' | 'video' | 'links' | 'game';
 interface DockPosition { x: number; y: number; }
+interface VideoPlaybackCheckpoint { positionSeconds: number; shouldResume: boolean; }
 
 const DEFAULT_GAME_DOCK_POSITION: DockPosition = { x: 16, y: 16 };
 const DEFAULT_VIDEO_DOCK_POSITION: DockPosition = { x: 16, y: 64 };
+const DEFAULT_VIDEO_PLAYBACK_CHECKPOINT: VideoPlaybackCheckpoint = { positionSeconds: 0, shouldResume: false };
 
 interface TeachingWorkspaceSnapshot {
   selectedPlanId: string | null;
@@ -89,6 +91,7 @@ interface TeachingWorkspaceSnapshot {
   videoMaterialId: string | null;
   videoDockMinimized: boolean;
   videoDockPosition: DockPosition;
+  videoPlayback: VideoPlaybackCheckpoint;
 }
 
 const CONTENT_MODE_LABELS: Record<ContentMode, string> = {
@@ -109,6 +112,15 @@ function readDockPosition(value: unknown, fallback: DockPosition): DockPosition 
   return { x: Math.max(0, candidate.x!), y: Math.max(0, candidate.y!) };
 }
 
+function readVideoPlaybackCheckpoint(value: unknown): VideoPlaybackCheckpoint {
+  if (!value || typeof value !== 'object') return DEFAULT_VIDEO_PLAYBACK_CHECKPOINT;
+  const candidate = value as Partial<VideoPlaybackCheckpoint>;
+  return {
+    positionSeconds: Number.isFinite(candidate.positionSeconds) ? Math.max(0, candidate.positionSeconds!) : 0,
+    shouldResume: candidate.shouldResume === true,
+  };
+}
+
 function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWorkspaceSnapshot | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(workspaceStorageKey(classId, subjectId)) ?? 'null') as Partial<TeachingWorkspaceSnapshot> | null;
@@ -123,6 +135,7 @@ function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWork
       videoMaterialId: typeof parsed.videoMaterialId === 'string' ? parsed.videoMaterialId : null,
       videoDockMinimized: parsed.videoDockMinimized === true,
       videoDockPosition: readDockPosition(parsed.videoDockPosition, DEFAULT_VIDEO_DOCK_POSITION),
+      videoPlayback: readVideoPlaybackCheckpoint(parsed.videoPlayback),
     };
   } catch { return null; }
 }
@@ -169,6 +182,7 @@ export default function TeachingModePage() {
   const [videoDockMaterial, setVideoDockMaterial] = useState<TeachingMaterial | null>(null);
   const [videoDockMinimized, setVideoDockMinimized] = useState(false);
   const [videoDockPosition, setVideoDockPosition] = useState<DockPosition>(DEFAULT_VIDEO_DOCK_POSITION);
+  const [videoPlayback, setVideoPlayback] = useState<VideoPlaybackCheckpoint>(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT);
   const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
   const workspaceRestoredRef = useRef(false);
@@ -204,6 +218,7 @@ export default function TeachingModePage() {
         setVideoDockMaterial(savedVideo);
         setVideoDockMinimized(snapshot?.videoDockMinimized === true);
         setVideoDockPosition(snapshot?.videoDockPosition ?? DEFAULT_VIDEO_DOCK_POSITION);
+        setVideoPlayback(savedVideo ? snapshot?.videoPlayback ?? DEFAULT_VIDEO_PLAYBACK_CHECKPOINT : DEFAULT_VIDEO_PLAYBACK_CHECKPOINT);
         workspaceRestoredRef.current = true;
       }
     } catch (e) {
@@ -218,10 +233,10 @@ export default function TeachingModePage() {
   useEffect(() => {
     if (!workspaceRestoredRef.current || !classId || !subjectId) return;
     const snapshot: TeachingWorkspaceSnapshot = {
-      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoMaterialId: videoDockMaterial?.id ?? null, videoDockMinimized, videoDockPosition,
+      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoMaterialId: videoDockMaterial?.id ?? null, videoDockMinimized, videoDockPosition, videoPlayback,
     };
     sessionStorage.setItem(workspaceStorageKey(classId, subjectId), JSON.stringify(snapshot));
-  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoDockMaterial, videoDockMinimized, videoDockPosition]);
+  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoDockMaterial, videoDockMinimized, videoDockPosition, videoPlayback]);
 
   async function updateItemStatus(itemId: string, status: CurriculumItem['status']) {
     try {
@@ -349,7 +364,7 @@ export default function TeachingModePage() {
               }
               if (nextMode === 'video') {
                 const video = videoMaterials[0];
-                if (video) { setVideoDockMaterial(video); setVideoDockMinimized(false); void recordTeachingAction('video', video.id); }
+                if (video) { setVideoDockMaterial(video); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); void recordTeachingAction('video', video.id); }
                 return;
               }
               const actionKind = nextMode === 'slides' ? 'slide' : null;
@@ -384,7 +399,7 @@ export default function TeachingModePage() {
           onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
-      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} position={videoDockPosition} onPositionChange={setVideoDockPosition} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); }} />}
+      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} position={videoDockPosition} playback={videoPlayback} onPlaybackChange={setVideoPlayback} onPositionChange={setVideoDockPosition} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); }} />}
       {finishModalOpen && activeLog && (
         <FinishSessionModal
           log={activeLog}
@@ -644,17 +659,47 @@ function TeachingGameDock({ classId, subjectId, minimized, position, onPositionC
   );
 }
 
-function TeachingVideoDock({ material, token, minimized, position, onPositionChange, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; position: DockPosition; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void }) {
+function formatPlaybackTime(seconds: number): string {
+  const wholeSeconds = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, '0')}`;
+}
+
+function TeachingVideoDock({ material, token, minimized, position, playback, onPlaybackChange, onPositionChange, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; position: DockPosition; playback: VideoPlaybackCheckpoint; onPlaybackChange: (checkpoint: VideoPlaybackCheckpoint) => void; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [resumeNeedsGesture, setResumeNeedsGesture] = useState(false);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const restoredRef = useRef(false);
+  const lastCheckpointRef = useRef(-1);
+  const checkpoint = (shouldResume: boolean, force = false) => {
+    const positionSeconds = videoRef.current?.currentTime ?? playback.positionSeconds;
+    if (!force && Math.abs(positionSeconds - lastCheckpointRef.current) < 5 && shouldResume === playback.shouldResume) return;
+    lastCheckpointRef.current = positionSeconds;
+    onPlaybackChange({ positionSeconds: Number.isFinite(positionSeconds) ? Math.max(0, positionSeconds) : 0, shouldResume });
+  };
+  const continuePlayback = async () => {
+    try {
+      await videoRef.current?.play();
+      setResumeNeedsGesture(false);
+    } catch {
+      setResumeNeedsGesture(true);
+      toast.info('Trình duyệt cần thao tác trực tiếp để tiếp tục video có âm thanh.');
+    }
+  };
+  const restorePlayback = () => {
+    const video = videoRef.current;
+    if (!video || restoredRef.current) return;
+    restoredRef.current = true;
+    if (playback.positionSeconds > 0 && Number.isFinite(video.duration)) video.currentTime = Math.min(playback.positionSeconds, Math.max(0, video.duration - 0.1));
+    if (playback.shouldResume) void continuePlayback();
+  };
   const requestPiP = async () => {
     try { await videoRef.current?.requestPictureInPicture(); }
     catch { toast.info('Trình duyệt không hỗ trợ Picture-in-Picture; dùng khung video thu nhỏ.'); }
   };
   return <div aria-label="Trình phát video nổi" style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
-    <div aria-label="Kéo khung video" onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) onPositionChange({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
-    <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
+    <div aria-label="Kéo khung video" onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) onPositionChange({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : resumeNeedsGesture ? `Tiếp tục từ ${formatPlaybackTime(playback.positionSeconds)}` : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button>{resumeNeedsGesture && <button type="button" onClick={() => void continuePlayback()} aria-label="Tiếp tục video đã khôi phục" className="rounded px-2 text-xs hover:bg-white/15">Tiếp tục</button>}<button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
+    <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay onLoadedMetadata={restorePlayback} onPlay={() => { setIsPlaying(true); checkpoint(true, true); }} onPause={() => { setIsPlaying(false); checkpoint(false, true); }} onTimeUpdate={() => checkpoint(true)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
   </div>;
 }
 

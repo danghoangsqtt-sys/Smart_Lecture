@@ -117,6 +117,16 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.mouse.move(initialVideoBox!.x + 180, initialVideoBox!.y + 70);
   await page.mouse.up();
   await expect.poll(async () => (await videoHandle.boundingBox())?.x ?? 0).toBeGreaterThan(initialVideoBox!.x + 50);
+  await page.evaluate(() => {
+    const video = document.querySelector('[aria-label="Trình phát video nổi"] video')!;
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 73 });
+    video.dispatchEvent(new Event('play'));
+    video.dispatchEvent(new Event('timeupdate'));
+  });
+  await expect.poll(async () => page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find((item) => item.startsWith('smartlecture:teaching-workspace:'))!;
+    return JSON.parse(sessionStorage.getItem(key) ?? '{}').videoPlayback?.positionSeconds ?? 0;
+  })).toBe(73);
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await page.getByTitle('Hạ game xuống').click();
@@ -133,6 +143,20 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByLabel('Trình phát video nổi').locator('video')).toBeAttached();
+  const restoredVideoPosition = await page.evaluate(() => {
+    const video = document.querySelector('[aria-label="Trình phát video nổi"] video')!;
+    let observedPosition = -1;
+    Object.defineProperty(video, 'duration', { configurable: true, value: 120 });
+    Object.defineProperty(video, 'currentTime', { configurable: true, get: () => 0, set: (value) => { observedPosition = Number(value); } });
+    video.dispatchEvent(new Event('loadedmetadata'));
+    return observedPosition;
+  });
+  expect(restoredVideoPosition).toBe(73);
+  await expect.poll(async () => page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find((item) => item.startsWith('smartlecture:teaching-workspace:'))!;
+    const checkpoint = JSON.parse(sessionStorage.getItem(key) ?? '{}').videoPlayback;
+    return checkpoint?.positionSeconds === 73 && checkpoint?.shouldResume === true;
+  })).toBeTruthy();
   await expect.poll(async () => (await page.getByLabel('Kéo khung video').boundingBox())?.x ?? 0).toBeGreaterThan(initialVideoBox!.x + 50);
   await expect.poll(async () => (await page.getByLabel('Kéo khung game').boundingBox())?.x ?? 0).toBeGreaterThan(initialGameBox!.x + 35);
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('smartlecture:annotation')).every((key) => !key.includes('token=')))).toBeTruthy();
