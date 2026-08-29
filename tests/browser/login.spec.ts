@@ -149,4 +149,12 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(restoredSurface.locator('polyline')).toHaveCount(1);
   await page.getByRole('button', { name: 'Làm lại', exact: true }).click();
   await expect(restoredSurface.locator('polyline')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hoàn tác', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Xóa nét trang hiện tại', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hoàn tác', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Làm lại', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(0);
 });

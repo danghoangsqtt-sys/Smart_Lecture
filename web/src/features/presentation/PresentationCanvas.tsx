@@ -12,7 +12,12 @@ interface PresentationCanvasProps {
 type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser' | 'eraser';
 interface Stroke { tool: Exclude<Tool, 'laser' | 'eraser'>; points: Array<{ x: number; y: number }>; page: number; color?: string; }
 interface AnnotationSettings { penColor?: string; highlightColor?: string; }
-interface AnnotationAction { kind: 'add' | 'remove'; stroke: Stroke; index: number; }
+interface AnnotationAction {
+  kind: 'add' | 'remove' | 'clear-page';
+  stroke?: Stroke;
+  index?: number;
+  removed?: Array<{ stroke: Stroke; index: number }>;
+}
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
   { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu (phím L)' },
@@ -187,20 +192,29 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       return [...items.slice(0, index), ...items.slice(index + 1)];
     });
   };
-  const restoreAt = (items: Stroke[], action: AnnotationAction) => items.some((item) => item === action.stroke) ? items : [...items.slice(0, action.index), action.stroke, ...items.slice(action.index)];
+  const restoreAt = (items: Stroke[], stroke: Stroke, index: number) => items.some((item) => item === stroke) ? items : [...items.slice(0, index), stroke, ...items.slice(index)];
+  const restoreRemoved = (items: Stroke[], removed: Array<{ stroke: Stroke; index: number }>) => removed.slice().sort((a, b) => a.index - b.index).reduce((next, item) => restoreAt(next, item.stroke, item.index), items);
+  const removeActionStrokes = (items: Stroke[], action: AnnotationAction) => action.kind === 'clear-page' ? items.filter((item) => !action.removed?.some((removed) => removed.stroke === item)) : items.filter((item) => item !== action.stroke);
   const undo = () => setUndoHistory((history) => {
     const action = history.at(-1);
     if (!action) return history;
-    setStrokes((items) => action.kind === 'add' ? items.filter((item) => item !== action.stroke) : restoreAt(items, action));
+    setStrokes((items) => action.kind === 'add' ? removeActionStrokes(items, action) : action.kind === 'remove' && action.stroke ? restoreAt(items, action.stroke, action.index ?? items.length) : restoreRemoved(items, action.removed ?? []));
     setRedoHistory((redo) => [...redo.slice(-99), action]);
     return history.slice(0, -1);
   });
   const redo = () => setRedoHistory((history) => {
     const action = history.at(-1);
     if (!action) return history;
-    setStrokes((items) => action.kind === 'add' ? restoreAt(items, action) : items.filter((item) => item !== action.stroke));
+    setStrokes((items) => action.kind === 'add' && action.stroke ? restoreAt(items, action.stroke, action.index ?? items.length) : removeActionStrokes(items, action));
     setUndoHistory((undoItems) => [...undoItems.slice(-99), action]);
     return history.slice(0, -1);
+  });
+  const clearCurrentPage = () => setStrokes((items) => {
+    const removed = items.flatMap((stroke, index) => stroke.page === pageNumber ? [{ stroke, index }] : []);
+    if (removed.length === 0) return items;
+    setUndoHistory((history) => [...history.slice(-99), { kind: 'clear-page', removed }]);
+    setRedoHistory([]);
+    return items.filter((item) => item.page !== pageNumber);
   });
   const renderStroke = (stroke: Stroke, key: string) => {
     const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
@@ -224,7 +238,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void containerRef.current?.requestFullscreen()} aria-label="Toàn màn hình">⛶</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={undoHistory.length === 0} onClick={undo} aria-label="Hoàn tác">↶</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={redoHistory.length === 0} onClick={redo} aria-label="Làm lại">↷</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={clearCurrentPage} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
       </div>
     </div>
     <div ref={containerRef} className="flex max-h-[70vh] min-h-96 justify-center overflow-auto bg-slate-950 p-3">
@@ -245,7 +259,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
         <button type="button" onClick={undo} title="Hoàn tác thao tác vừa thực hiện" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>
         <button type="button" onClick={() => selectTool('eraser')} title="Chạm vào một nét để xóa" aria-label="Tẩy từng nét" className={`rounded-lg px-2.5 py-2 ${tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className="fas fa-eraser" /></button>
-        <button type="button" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} title="Xóa tất cả nét của trang hiện tại" aria-label="Xóa nét trang hiện tại" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-eraser" /></button>
+        <button type="button" onClick={clearCurrentPage} title="Xóa tất cả nét của trang hiện tại" aria-label="Xóa nét trang hiện tại" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-eraser" /></button>
       </div>
     </div>
   </section>;

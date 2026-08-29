@@ -171,6 +171,12 @@
 |---|---|---|---|---|
 | T-2701 | Hoàn tác/làm lại đúng cho vẽ và tẩy từng nét | P27 | done | typecheck + production build + Browser E2E 2/2 |
 
+## Phase 28 — Clear-page history
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2801 | Hoàn tác/làm lại khi xóa toàn bộ nét của trang | P28 | done | typecheck + production build + Browser E2E 2/2 |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
