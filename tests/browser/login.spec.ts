@@ -115,10 +115,13 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(annotationSurface).toBeVisible();
   const surfaceBox = await annotationSurface.boundingBox();
   expect(surfaceBox).not.toBeNull();
-  await page.mouse.move(surfaceBox!.x + 40, surfaceBox!.y + 40);
-  await page.mouse.down();
-  await page.mouse.move(surfaceBox!.x + 140, surfaceBox!.y + 90);
-  await page.mouse.up();
+  await annotationSurface.evaluate((surface, box) => {
+    Object.defineProperty(surface, 'setPointerCapture', { configurable: true, value: () => undefined });
+    const fire = (type: string, clientX: number, clientY: number) => surface.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 42, clientX, clientY }));
+    fire('pointerdown', box.x + 40, box.y + 40);
+    fire('pointermove', box.x + 140, box.y + 90);
+    fire('pointerup', box.x + 140, box.y + 90);
+  }, surfaceBox!);
   await expect(annotationSurface.locator('polyline')).toHaveCount(1);
   await page.getByRole('button', { name: /Mở.*Video/ }).click();
   await expect(page.getByRole('menu', { name: 'Chọn video giảng dạy' })).toBeVisible();

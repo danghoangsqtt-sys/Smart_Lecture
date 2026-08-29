@@ -113,6 +113,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [annotationsReadyFor, setAnnotationsReadyFor] = useState<string | null>(null);
   const [annotations, dispatchAnnotations] = useReducer(annotationReducer, { strokes: [], undoHistory: [], redoHistory: [] });
   const [draft, setDraft] = useState<Stroke | null>(null);
+  const draftRef = useRef<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
@@ -226,18 +227,26 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     const next = point(event); event.currentTarget.setPointerCapture(event.pointerId);
     if (tool === 'laser') { setLaser(next); return; }
     if (tool === 'eraser') { eraseAt(next); return; }
-    setDraft({ tool, page: pageNumber, points: [next], color: inkColor });
+    const nextDraft = { tool, page: pageNumber, points: [next], color: inkColor } as Stroke;
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
   };
   const move = (event: PointerEvent<SVGSVGElement>) => {
     const next = point(event);
     if (tool === 'laser') { setLaser(next); return; }
     if (tool === 'eraser') return;
-    setDraft((value) => value ? { ...value, points: [...value.points, next] } : null);
+    const value = draftRef.current;
+    if (!value) return;
+    const nextDraft = { ...value, points: [...value.points, next] };
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
   };
   const finish = () => {
     if (tool === 'laser') { setLaser(null); return; }
     if (tool === 'eraser') return;
-    if (draft && draft.points.length > 1) dispatchAnnotations({ type: 'add', stroke: draft });
+    const value = draftRef.current;
+    if (value && value.points.length > 1) dispatchAnnotations({ type: 'add', stroke: value });
+    draftRef.current = null;
     setDraft(null);
   };
   const eraseAt = (target: { x: number; y: number }) => dispatchAnnotations({ type: 'erase-at', target, page: pageNumber });
