@@ -375,6 +375,8 @@ export default function TeachingModePage() {
             contentMode={contentMode}
             gameDockOpen={gameDockOpen}
             gameDockMinimized={gameDockMinimized}
+            videoMaterials={videoMaterials}
+            videoDockOpen={!!videoDockMaterial}
             selectedItem={selectedItem}
             canManage={canManage}
             onModeChange={(nextMode) => {
@@ -395,6 +397,7 @@ export default function TeachingModePage() {
               if (actionKind) teachingMaterials.forEach((material) => void recordTeachingAction(actionKind, material.id));
               setContentMode(nextMode);
             }}
+            onOpenVideo={(video) => { setVideoDockMaterial(video); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); void recordTeachingAction('video', video.id); }}
             onStatusChange={(status) => selectedItem && void updateItemStatus(selectedItem.id, status)}
             onOpenAttendance={() => setSessionModalOpen(true)}
           />
@@ -624,27 +627,37 @@ function TeachingControls({
   contentMode,
   gameDockOpen,
   gameDockMinimized,
+  videoMaterials,
+  videoDockOpen,
   selectedItem,
   canManage,
   onModeChange,
+  onOpenVideo,
   onStatusChange,
   onOpenAttendance,
 }: {
   contentMode: ContentMode;
   gameDockOpen: boolean;
   gameDockMinimized: boolean;
+  videoMaterials: TeachingMaterial[];
+  videoDockOpen: boolean;
   selectedItem: CurriculumItem | null;
   canManage: boolean;
   onModeChange: (mode: ContentMode) => void;
+  onOpenVideo: (video: TeachingMaterial) => void;
   onStatusChange: (status: CurriculumItem['status']) => void;
   onOpenAttendance: () => void;
 }) {
+  const [videoPickerOpen, setVideoPickerOpen] = useState(false);
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-700 bg-slate-800 p-3">
       <div className="flex gap-1">
-        {(Object.keys(CONTENT_MODE_LABELS) as ContentMode[]).map((mode) => (
-          <button key={mode} aria-label={`Mở ${CONTENT_MODE_LABELS[mode]}`} onClick={() => onModeChange(mode)} className={`rounded px-3 py-1.5 text-xs font-medium transition ${mode === 'game' ? gameDockOpen && !gameDockMinimized ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600' : contentMode === mode ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{CONTENT_MODE_LABELS[mode]}</button>
-        ))}
+        {(Object.keys(CONTENT_MODE_LABELS) as ContentMode[]).map((mode) => mode === 'video' ? (
+          <div key={mode} className="relative">
+            <button aria-label={`Mở ${CONTENT_MODE_LABELS[mode]}`} disabled={videoMaterials.length === 0} onClick={() => { if (videoDockOpen || videoMaterials.length <= 1) onModeChange(mode); else setVideoPickerOpen((open) => !open); }} className={`rounded px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${videoDockOpen ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{CONTENT_MODE_LABELS[mode]}</button>
+            {videoPickerOpen && <div role="menu" aria-label="Chọn video giảng dạy" className="absolute bottom-full left-0 z-30 mb-2 w-64 rounded-lg border border-slate-600 bg-slate-900 p-2 shadow-2xl"><p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Chọn video mở nổi</p>{videoMaterials.map((video) => <button key={video.id} type="button" role="menuitem" onClick={() => { onOpenVideo(video); setVideoPickerOpen(false); }} className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs text-slate-100 hover:bg-slate-700"><i className="fas fa-circle-play text-rose-400" /><span className="truncate">{video.title}</span></button>)}</div>}
+          </div>
+        ) : <button key={mode} aria-label={`Mở ${CONTENT_MODE_LABELS[mode]}`} onClick={() => onModeChange(mode)} className={`rounded px-3 py-1.5 text-xs font-medium transition ${mode === 'game' ? gameDockOpen && !gameDockMinimized ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600' : contentMode === mode ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{CONTENT_MODE_LABELS[mode]}</button>)}
       </div>
       {selectedItem && canManage && (
         <div className="flex flex-wrap items-center gap-2">

@@ -67,9 +67,14 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   expect(pdf.ok()).toBeTruthy();
   const video = await request.post(`/api/lectures/${lectureId}/materials`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
-    multipart: { file: { name: 'browser-video.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video-fixture') } },
+    multipart: { file: { name: 'browser-video-primary.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video-fixture') } },
   });
   expect(video.ok()).toBeTruthy();
+  const secondVideo = await request.post(`/api/lectures/${lectureId}/materials`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    multipart: { file: { name: 'browser-video-secondary.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video-fixture') } },
+  });
+  expect(secondVideo.ok()).toBeTruthy();
 
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');
@@ -105,6 +110,8 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.mouse.up();
   await expect(annotationSurface.locator('polyline')).toHaveCount(1);
   await page.getByRole('button', { name: /Mở.*Video/ }).click();
+  await expect(page.getByRole('menu', { name: 'Chọn video giảng dạy' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'browser-video-primary' }).click();
   const videoDock = page.getByLabel('Trình phát video nổi');
   await expect(videoDock.locator('video')).toBeVisible();
   await videoDock.getByRole('button', { name: 'Thu nhỏ video' }).click();
