@@ -13,9 +13,9 @@ type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser' | '
 interface Stroke { tool: Exclude<Tool, 'laser' | 'eraser'>; points: Array<{ x: number; y: number }>; page: number; color?: string; }
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
-  { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu' },
-  { tool: 'pen', label: 'Bút lông', icon: 'fa-pen', hint: 'Vẽ và ghi chú trực tiếp lên trang chiếu' },
-  { tool: 'highlight', label: 'Highlight', icon: 'fa-highlighter', hint: 'Tô sáng nội dung trọng tâm' },
+  { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu (phím L)' },
+  { tool: 'pen', label: 'Bút lông', icon: 'fa-pen', hint: 'Vẽ và ghi chú trực tiếp lên trang chiếu (phím P)' },
+  { tool: 'highlight', label: 'Highlight', icon: 'fa-highlighter', hint: 'Tô sáng nội dung trọng tâm (phím H)' },
 ];
 
 const ADVANCED_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string }> = [
@@ -103,12 +103,18 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.ctrlKey || event.metaKey || event.altKey || target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')) return;
       if (event.key === 'ArrowRight' || event.key === 'PageDown') setPageNumber((page) => Math.min(page + 1, pageCount));
       if (event.key === 'ArrowLeft' || event.key === 'PageUp') setPageNumber((page) => Math.max(page - 1, 1));
+      if (event.key.toLowerCase() === 'l') { event.preventDefault(); selectTool('laser'); }
+      if (event.key.toLowerCase() === 'p') { event.preventDefault(); selectTool('pen'); }
+      if (event.key.toLowerCase() === 'h') { event.preventDefault(); selectTool('highlight'); }
+      if (event.key.toLowerCase() === 'e') { event.preventDefault(); selectTool('eraser'); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [pageCount]);
+  }, [pageCount, inkColor]);
 
   const point = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
