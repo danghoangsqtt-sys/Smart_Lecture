@@ -92,6 +92,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Highlight' })).toBeVisible();
+  await page.getByRole('button', { name: 'Toàn màn hình' }).click();
+  await expect.poll(async () => page.evaluate(() => document.fullscreenElement?.getAttribute('aria-label'))).toMatch(/Trình chiếu/);
+  await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
+  await page.getByRole('button', { name: 'Thoát toàn màn hình' }).click();
+  await expect.poll(async () => page.evaluate(() => document.fullscreenElement === null)).toBeTruthy();
   await page.keyboard.press('l');
   await expect(page.getByRole('button', { name: 'Tia laser' })).toHaveClass(/bg-rose-600/);
   await page.keyboard.press('h');

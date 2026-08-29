@@ -192,6 +192,7 @@
 | T-3201 | Giữ dock video/game trong vùng nhìn thấy khi đổi viewport | P32 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
 | T-3301 | Mở lại video nổi đang chạy mà không reset mốc phát | P33 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
 | T-3401 | Chọn đúng video trong bài giảng nhiều video | P34 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
+| T-3501 | Giữ thanh công cụ bút/laser trong fullscreen trình chiếu | P35 | done | build + Browser E2E 2/2 + React Doctor 77, 0 errors |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

@@ -99,7 +99,7 @@ function annotationReducer(state: AnnotationState, event: AnnotationEvent): Anno
 
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const presentationRef = useRef<HTMLElement>(null);
   const documentRef = useRef<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
@@ -114,6 +114,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [annotations, dispatchAnnotations] = useReducer(annotationReducer, { strokes: [], undoHistory: [], redoHistory: [] });
   const [draft, setDraft] = useState<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
   const selectTool = (nextTool: Tool) => setTool(nextTool);
   const annotationKey = annotationStorageKey('annotations', sourceUrl);
@@ -208,6 +209,12 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [pageCount, penColor, highlightColor]);
 
+  useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(document.fullscreenElement === presentationRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
   const point = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
@@ -238,6 +245,10 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const undo = () => dispatchAnnotations({ type: 'undo' });
   const redo = () => dispatchAnnotations({ type: 'redo' });
   const clearCurrentPage = () => dispatchAnnotations({ type: 'clear-page', page: pageNumber });
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement === presentationRef.current) await document.exitFullscreen();
+    else await presentationRef.current?.requestFullscreen();
+  };
   const renderStroke = (stroke: Stroke, key: string) => {
     const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
     const style = stroke.tool === 'highlight' ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
@@ -247,7 +258,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   };
 
   if (error) return <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">{error}</div>;
-  return <section className="relative overflow-hidden rounded-lg border border-slate-700 bg-slate-900" aria-label={`Trình chiếu ${title}`}>
+  return <section ref={presentationRef} className="relative flex flex-col overflow-hidden rounded-lg border border-slate-700 bg-slate-900 fullscreen:h-screen fullscreen:rounded-none" aria-label={`Trình chiếu ${title}`}>
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 px-3 py-2 text-sm text-slate-200">
       <span className="truncate font-medium">{title}</span>
       <div className="flex items-center gap-2">
@@ -257,13 +268,13 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setZoom((value) => Math.max(0.5, value - 0.1))} aria-label="Thu nhỏ">−</button>
         <span>{Math.round(zoom * 100)}%</span>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setZoom((value) => Math.min(2.5, value + 0.1))} aria-label="Phóng to">+</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void containerRef.current?.requestFullscreen()} aria-label="Toàn màn hình">⛶</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void toggleFullscreen()} aria-label={isFullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}>{isFullscreen ? '×' : '⛶'}</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={annotations.undoHistory.length === 0} onClick={undo} aria-label="Hoàn tác">↶</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={annotations.redoHistory.length === 0} onClick={redo} aria-label="Làm lại">↷</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={clearCurrentPage} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
       </div>
     </div>
-    <div ref={containerRef} className="flex max-h-[70vh] min-h-96 justify-center overflow-auto bg-slate-950 p-3">
+    <div className="flex max-h-[70vh] min-h-96 flex-1 justify-center overflow-auto bg-slate-950 p-3 fullscreen:max-h-none">
       <div className="relative" style={{ width: surface.width || undefined, height: surface.height || undefined }}>
         <canvas ref={canvasRef} className="max-w-none bg-white shadow-xl" />
         {surface.width > 0 && <svg className="absolute inset-0 touch-none" width={surface.width} height={surface.height} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
