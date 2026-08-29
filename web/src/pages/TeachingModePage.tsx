@@ -74,6 +74,10 @@ interface TeachingLog {
 }
 
 type ContentMode = 'slides' | 'video' | 'links' | 'game';
+interface DockPosition { x: number; y: number; }
+
+const DEFAULT_GAME_DOCK_POSITION: DockPosition = { x: 16, y: 16 };
+const DEFAULT_VIDEO_DOCK_POSITION: DockPosition = { x: 16, y: 64 };
 
 interface TeachingWorkspaceSnapshot {
   selectedPlanId: string | null;
@@ -81,8 +85,10 @@ interface TeachingWorkspaceSnapshot {
   contentMode: ContentMode;
   gameDockOpen: boolean;
   gameDockMinimized: boolean;
+  gameDockPosition: DockPosition;
   videoMaterialId: string | null;
   videoDockMinimized: boolean;
+  videoDockPosition: DockPosition;
 }
 
 const CONTENT_MODE_LABELS: Record<ContentMode, string> = {
@@ -96,6 +102,13 @@ function workspaceStorageKey(classId: string, subjectId: string): string {
   return `smartlecture:teaching-workspace:${classId}:${subjectId}`;
 }
 
+function readDockPosition(value: unknown, fallback: DockPosition): DockPosition {
+  if (!value || typeof value !== 'object') return fallback;
+  const candidate = value as Partial<DockPosition>;
+  if (!Number.isFinite(candidate.x) || !Number.isFinite(candidate.y)) return fallback;
+  return { x: Math.max(0, candidate.x!), y: Math.max(0, candidate.y!) };
+}
+
 function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWorkspaceSnapshot | null {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(workspaceStorageKey(classId, subjectId)) ?? 'null') as Partial<TeachingWorkspaceSnapshot> | null;
@@ -106,8 +119,10 @@ function readWorkspaceSnapshot(classId: string, subjectId: string): TeachingWork
       contentMode: parsed.contentMode as ContentMode,
       gameDockOpen: parsed.gameDockOpen === true,
       gameDockMinimized: parsed.gameDockMinimized === true,
+      gameDockPosition: readDockPosition(parsed.gameDockPosition, DEFAULT_GAME_DOCK_POSITION),
       videoMaterialId: typeof parsed.videoMaterialId === 'string' ? parsed.videoMaterialId : null,
       videoDockMinimized: parsed.videoDockMinimized === true,
+      videoDockPosition: readDockPosition(parsed.videoDockPosition, DEFAULT_VIDEO_DOCK_POSITION),
     };
   } catch { return null; }
 }
@@ -150,8 +165,10 @@ export default function TeachingModePage() {
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
   const [gameDockOpen, setGameDockOpen] = useState(false);
   const [gameDockMinimized, setGameDockMinimized] = useState(false);
+  const [gameDockPosition, setGameDockPosition] = useState<DockPosition>(DEFAULT_GAME_DOCK_POSITION);
   const [videoDockMaterial, setVideoDockMaterial] = useState<TeachingMaterial | null>(null);
   const [videoDockMinimized, setVideoDockMinimized] = useState(false);
+  const [videoDockPosition, setVideoDockPosition] = useState<DockPosition>(DEFAULT_VIDEO_DOCK_POSITION);
   const [activeLog, setActiveLog] = useState<TeachingLog | null>(null);
   const [finishModalOpen, setFinishModalOpen] = useState(false);
   const workspaceRestoredRef = useRef(false);
@@ -182,9 +199,11 @@ export default function TeachingModePage() {
         setContentMode(snapshot?.contentMode ?? 'slides');
         setGameDockOpen(snapshot?.gameDockOpen === true);
         setGameDockMinimized(snapshot?.gameDockMinimized === true);
+        setGameDockPosition(snapshot?.gameDockPosition ?? DEFAULT_GAME_DOCK_POSITION);
         const savedVideo = snapshot?.videoMaterialId ? subjectLectures.flatMap((lecture) => lecture.materials as TeachingMaterial[]).find((material) => material.id === snapshot.videoMaterialId && material.type === 'video') ?? null : null;
         setVideoDockMaterial(savedVideo);
         setVideoDockMinimized(snapshot?.videoDockMinimized === true);
+        setVideoDockPosition(snapshot?.videoDockPosition ?? DEFAULT_VIDEO_DOCK_POSITION);
         workspaceRestoredRef.current = true;
       }
     } catch (e) {
@@ -199,10 +218,10 @@ export default function TeachingModePage() {
   useEffect(() => {
     if (!workspaceRestoredRef.current || !classId || !subjectId) return;
     const snapshot: TeachingWorkspaceSnapshot = {
-      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoMaterialId: videoDockMaterial?.id ?? null, videoDockMinimized,
+      selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoMaterialId: videoDockMaterial?.id ?? null, videoDockMinimized, videoDockPosition,
     };
     sessionStorage.setItem(workspaceStorageKey(classId, subjectId), JSON.stringify(snapshot));
-  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, videoDockMaterial, videoDockMinimized]);
+  }, [classId, subjectId, selectedPlanId, selectedItemId, contentMode, gameDockOpen, gameDockMinimized, gameDockPosition, videoDockMaterial, videoDockMinimized, videoDockPosition]);
 
   async function updateItemStatus(itemId: string, status: CurriculumItem['status']) {
     try {
@@ -358,12 +377,14 @@ export default function TeachingModePage() {
           classId={classId}
           subjectId={subjectId ?? ''}
           minimized={gameDockMinimized}
+          position={gameDockPosition}
+          onPositionChange={setGameDockPosition}
           onToggleMinimized={() => setGameDockMinimized((value) => !value)}
           onClose={() => setGameDockOpen(false)}
           onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
-      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); }} />}
+      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} position={videoDockPosition} onPositionChange={setVideoDockPosition} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); }} />}
       {finishModalOpen && activeLog && (
         <FinishSessionModal
           log={activeLog}
@@ -598,8 +619,7 @@ function TeachingControls({
   );
 }
 
-function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, onClose, onGameLaunched }: { classId: string; subjectId: string; minimized: boolean; onToggleMinimized: () => void; onClose: () => void; onGameLaunched: (gameId: string) => void }) {
-  const [position, setPosition] = useState({ x: 16, y: 16 });
+function TeachingGameDock({ classId, subjectId, minimized, position, onPositionChange, onToggleMinimized, onClose, onGameLaunched }: { classId: string; subjectId: string; minimized: boolean; position: DockPosition; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void; onGameLaunched: (gameId: string) => void }) {
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const dragStart = (event: PointerEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest('button')) return;
@@ -608,11 +628,11 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
   };
   const dragMove = (event: PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current; if (!drag) return;
-    setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 48, event.clientY - drag.y)) });
+    onPositionChange({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 48, event.clientY - drag.y)) });
   };
   return (
     <div style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-blue-400 bg-slate-950 shadow-2xl transition-[height,width] duration-300 ${minimized ? 'h-12 w-64' : 'h-[min(78vh,720px)] w-[min(94vw,1100px)]'}`}>
-      <div onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={() => { dragRef.current = null; }} className="flex h-12 cursor-move touch-none items-center justify-between bg-blue-900 px-3 text-white">
+      <div aria-label="Kéo khung game" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={() => { dragRef.current = null; }} className="flex h-12 cursor-move touch-none items-center justify-between bg-blue-900 px-3 text-white">
         <span className="text-sm font-black"><i className="fas fa-gamepad mr-2 text-amber-300" />Game đang chuẩn bị / điều hành</span>
         <div className="flex gap-1">
           <button onClick={onToggleMinimized} className="rounded px-2 py-1 text-xs hover:bg-white/15" title={minimized ? 'Mở lại game' : 'Hạ game xuống'}><i className={`fas ${minimized ? 'fa-up-right-and-down-left-from-center' : 'fa-window-minimize'}`} /></button>
@@ -624,9 +644,8 @@ function TeachingGameDock({ classId, subjectId, minimized, onToggleMinimized, on
   );
 }
 
-function TeachingVideoDock({ material, token, minimized, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; onToggleMinimized: () => void; onClose: () => void }) {
+function TeachingVideoDock({ material, token, minimized, position, onPositionChange, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; position: DockPosition; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [position, setPosition] = useState({ x: 16, y: 64 });
   const [isPlaying, setIsPlaying] = useState(false);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const requestPiP = async () => {
@@ -634,7 +653,7 @@ function TeachingVideoDock({ material, token, minimized, onToggleMinimized, onCl
     catch { toast.info('Trình duyệt không hỗ trợ Picture-in-Picture; dùng khung video thu nhỏ.'); }
   };
   return <div aria-label="Trình phát video nổi" style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
-    <div onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) setPosition({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
+    <div aria-label="Kéo khung video" onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) onPositionChange({ x: Math.max(0, Math.min(window.innerWidth - 260, event.clientX - drag.x)), y: Math.max(0, Math.min(window.innerHeight - 40, event.clientY - drag.y)) }); }} onPointerUp={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button><button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
     <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
   </div>;
 }

@@ -153,6 +153,12 @@
 |---|---|---|---|---|
 | T-2401 | Phím tắt L/P/H/E cho công cụ trình chiếu | P24 | done | typecheck + production build + Browser E2E 2/2 |
 
+## Phase 25 — Persistent dock layout
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2501 | Lưu vị trí kéo-thả của khung video và game | P25 | done | typecheck + production build + Browser E2E 2/2 |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
