@@ -1,6 +1,6 @@
 import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useReducer, useRef, useState, type PointerEvent } from 'react';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -18,6 +18,15 @@ interface AnnotationAction {
   index?: number;
   removed?: Array<{ stroke: Stroke; index: number }>;
 }
+interface AnnotationState { strokes: Stroke[]; undoHistory: AnnotationAction[]; redoHistory: AnnotationAction[]; }
+type AnnotationEvent =
+  | { type: 'hydrate'; strokes: Stroke[] }
+  | { type: 'add'; stroke: Stroke }
+  | { type: 'erase-at'; target: { x: number; y: number }; page: number }
+  | { type: 'erase-stroke'; stroke: Stroke }
+  | { type: 'clear-page'; page: number }
+  | { type: 'undo' }
+  | { type: 'redo' };
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
   { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu (phím L)' },
@@ -45,6 +54,49 @@ function annotationStorageKey(kind: 'annotations' | 'annotation-settings', sourc
   return `smartlecture:${kind}:${materialId ?? sourceUrl}`;
 }
 
+function appendHistory<T>(history: T[], value: T): T[] { return [...history.slice(-99), value]; }
+function restoreAt(items: Stroke[], stroke: Stroke, index: number): Stroke[] { return items.some((item) => item === stroke) ? items : [...items.slice(0, index), stroke, ...items.slice(index)]; }
+function restoreRemoved(items: Stroke[], removed: Array<{ stroke: Stroke; index: number }>): Stroke[] { return removed.slice().sort((a, b) => a.index - b.index).reduce((next, item) => restoreAt(next, item.stroke, item.index), items); }
+function removeActionStrokes(items: Stroke[], action: AnnotationAction): Stroke[] { return action.kind === 'clear-page' ? items.filter((item) => !action.removed?.some((removed) => removed.stroke === item)) : items.filter((item) => item !== action.stroke); }
+function annotationReducer(state: AnnotationState, event: AnnotationEvent): AnnotationState {
+  if (event.type === 'hydrate') return { strokes: event.strokes, undoHistory: [], redoHistory: [] };
+  if (event.type === 'add') {
+    const strokes = [...state.strokes.slice(-99), event.stroke];
+    return { strokes, undoHistory: appendHistory(state.undoHistory, { kind: 'add', stroke: event.stroke, index: strokes.length - 1 }), redoHistory: [] };
+  }
+  if (event.type === 'erase-at') {
+    let index = -1;
+    for (let candidate = state.strokes.length - 1; candidate >= 0; candidate -= 1) {
+      const stroke = state.strokes[candidate]!;
+      const threshold = stroke.tool === 'highlight' ? 0.045 : 0.025;
+      if (stroke.page === event.page && stroke.points.some((point) => Math.hypot(point.x - event.target.x, point.y - event.target.y) <= threshold)) { index = candidate; break; }
+    }
+    if (index < 0) return state;
+    const stroke = state.strokes[index]!;
+    return { strokes: [...state.strokes.slice(0, index), ...state.strokes.slice(index + 1)], undoHistory: appendHistory(state.undoHistory, { kind: 'remove', stroke, index }), redoHistory: [] };
+  }
+  if (event.type === 'erase-stroke') {
+    const index = state.strokes.lastIndexOf(event.stroke);
+    if (index < 0) return state;
+    return { strokes: [...state.strokes.slice(0, index), ...state.strokes.slice(index + 1)], undoHistory: appendHistory(state.undoHistory, { kind: 'remove', stroke: event.stroke, index }), redoHistory: [] };
+  }
+  if (event.type === 'clear-page') {
+    const removed = state.strokes.flatMap((stroke, index) => stroke.page === event.page ? [{ stroke, index }] : []);
+    if (removed.length === 0) return state;
+    return { strokes: state.strokes.filter((stroke) => stroke.page !== event.page), undoHistory: appendHistory(state.undoHistory, { kind: 'clear-page', removed }), redoHistory: [] };
+  }
+  if (event.type === 'undo') {
+    const action = state.undoHistory.at(-1);
+    if (!action) return state;
+    const strokes = action.kind === 'add' ? removeActionStrokes(state.strokes, action) : action.kind === 'remove' && action.stroke ? restoreAt(state.strokes, action.stroke, action.index ?? state.strokes.length) : restoreRemoved(state.strokes, action.removed ?? []);
+    return { strokes, undoHistory: state.undoHistory.slice(0, -1), redoHistory: appendHistory(state.redoHistory, action) };
+  }
+  const action = state.redoHistory.at(-1);
+  if (!action) return state;
+  const strokes = action.kind === 'add' && action.stroke ? restoreAt(state.strokes, action.stroke, action.index ?? state.strokes.length) : removeActionStrokes(state.strokes, action);
+  return { strokes, undoHistory: appendHistory(state.undoHistory, action), redoHistory: state.redoHistory.slice(0, -1) };
+}
+
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,9 +111,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [highlightColor, setHighlightColor] = useState('#facc15');
   const [settingsReadyFor, setSettingsReadyFor] = useState<string | null>(null);
   const [annotationsReadyFor, setAnnotationsReadyFor] = useState<string | null>(null);
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [undoHistory, setUndoHistory] = useState<AnnotationAction[]>([]);
-  const [redoHistory, setRedoHistory] = useState<AnnotationAction[]>([]);
+  const [annotations, dispatchAnnotations] = useReducer(annotationReducer, { strokes: [], undoHistory: [], redoHistory: [] });
   const [draft, setDraft] = useState<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
@@ -92,16 +142,15 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     try {
       const legacyKey = `smartlecture:annotations:${sourceUrl}`;
       const saved = sessionStorage.getItem(annotationKey) ?? sessionStorage.getItem(legacyKey) ?? '[]';
-      setStrokes(JSON.parse(saved) as Stroke[]);
+      dispatchAnnotations({ type: 'hydrate', strokes: JSON.parse(saved) as Stroke[] });
       if (!sessionStorage.getItem(annotationKey) && sessionStorage.getItem(legacyKey)) sessionStorage.setItem(annotationKey, saved);
-    } catch { setStrokes([]); }
+    } catch { dispatchAnnotations({ type: 'hydrate', strokes: [] }); }
     setAnnotationsReadyFor(annotationKey);
-    setUndoHistory([]); setRedoHistory([]);
   }, [annotationKey, sourceUrl]);
   useEffect(() => {
     if (annotationsReadyFor !== annotationKey) return;
-    sessionStorage.setItem(annotationKey, JSON.stringify(strokes.slice(-100)));
-  }, [annotationKey, strokes, annotationsReadyFor]);
+    sessionStorage.setItem(annotationKey, JSON.stringify(annotations.strokes.slice(-100)));
+  }, [annotationKey, annotations.strokes, annotationsReadyFor]);
   useEffect(() => {
     setSettingsReadyFor(null);
     try {
@@ -178,63 +227,17 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const finish = () => {
     if (tool === 'laser') { setLaser(null); return; }
     if (tool === 'eraser') return;
-    if (draft && draft.points.length > 1) {
-      setStrokes((items) => {
-        const next = [...items.slice(-99), draft];
-        setUndoHistory((history) => [...history.slice(-99), { kind: 'add', stroke: draft, index: next.length - 1 }]);
-        return next;
-      });
-      setRedoHistory([]);
-    }
+    if (draft && draft.points.length > 1) dispatchAnnotations({ type: 'add', stroke: draft });
     setDraft(null);
   };
-  const eraseAt = (target: { x: number; y: number }) => setStrokes((items) => {
-    let index = -1;
-    for (let candidate = items.length - 1; candidate >= 0; candidate -= 1) {
-      const stroke = items[candidate]!;
-      const threshold = stroke.tool === 'highlight' ? 0.045 : 0.025;
-      if (stroke.page === pageNumber && stroke.points.some((point) => Math.hypot(point.x - target.x, point.y - target.y) <= threshold)) { index = candidate; break; }
-    }
-    if (index < 0) return items;
-    const removed = items[index]!;
-    setUndoHistory((history) => [...history.slice(-99), { kind: 'remove', stroke: removed, index }]);
-    setRedoHistory([]);
-    return [...items.slice(0, index), ...items.slice(index + 1)];
-  });
+  const eraseAt = (target: { x: number; y: number }) => dispatchAnnotations({ type: 'erase-at', target, page: pageNumber });
   const eraseStroke = (target: Stroke) => {
     if (tool !== 'eraser') return;
-    setStrokes((items) => {
-      const index = items.lastIndexOf(target);
-      if (index < 0) return items;
-      setUndoHistory((history) => [...history.slice(-99), { kind: 'remove', stroke: target, index }]);
-      setRedoHistory([]);
-      return [...items.slice(0, index), ...items.slice(index + 1)];
-    });
+    dispatchAnnotations({ type: 'erase-stroke', stroke: target });
   };
-  const restoreAt = (items: Stroke[], stroke: Stroke, index: number) => items.some((item) => item === stroke) ? items : [...items.slice(0, index), stroke, ...items.slice(index)];
-  const restoreRemoved = (items: Stroke[], removed: Array<{ stroke: Stroke; index: number }>) => removed.slice().sort((a, b) => a.index - b.index).reduce((next, item) => restoreAt(next, item.stroke, item.index), items);
-  const removeActionStrokes = (items: Stroke[], action: AnnotationAction) => action.kind === 'clear-page' ? items.filter((item) => !action.removed?.some((removed) => removed.stroke === item)) : items.filter((item) => item !== action.stroke);
-  const undo = () => setUndoHistory((history) => {
-    const action = history.at(-1);
-    if (!action) return history;
-    setStrokes((items) => action.kind === 'add' ? removeActionStrokes(items, action) : action.kind === 'remove' && action.stroke ? restoreAt(items, action.stroke, action.index ?? items.length) : restoreRemoved(items, action.removed ?? []));
-    setRedoHistory((redo) => [...redo.slice(-99), action]);
-    return history.slice(0, -1);
-  });
-  const redo = () => setRedoHistory((history) => {
-    const action = history.at(-1);
-    if (!action) return history;
-    setStrokes((items) => action.kind === 'add' && action.stroke ? restoreAt(items, action.stroke, action.index ?? items.length) : removeActionStrokes(items, action));
-    setUndoHistory((undoItems) => [...undoItems.slice(-99), action]);
-    return history.slice(0, -1);
-  });
-  const clearCurrentPage = () => setStrokes((items) => {
-    const removed = items.flatMap((stroke, index) => stroke.page === pageNumber ? [{ stroke, index }] : []);
-    if (removed.length === 0) return items;
-    setUndoHistory((history) => [...history.slice(-99), { kind: 'clear-page', removed }]);
-    setRedoHistory([]);
-    return items.filter((item) => item.page !== pageNumber);
-  });
+  const undo = () => dispatchAnnotations({ type: 'undo' });
+  const redo = () => dispatchAnnotations({ type: 'redo' });
+  const clearCurrentPage = () => dispatchAnnotations({ type: 'clear-page', page: pageNumber });
   const renderStroke = (stroke: Stroke, key: string) => {
     const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
     const style = stroke.tool === 'highlight' ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
@@ -255,8 +258,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         <span>{Math.round(zoom * 100)}%</span>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setZoom((value) => Math.min(2.5, value + 0.1))} aria-label="Phóng to">+</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void containerRef.current?.requestFullscreen()} aria-label="Toàn màn hình">⛶</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={undoHistory.length === 0} onClick={undo} aria-label="Hoàn tác">↶</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={redoHistory.length === 0} onClick={redo} aria-label="Làm lại">↷</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={annotations.undoHistory.length === 0} onClick={undo} aria-label="Hoàn tác">↶</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={annotations.redoHistory.length === 0} onClick={redo} aria-label="Làm lại">↷</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={clearCurrentPage} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
       </div>
     </div>
@@ -264,7 +267,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       <div className="relative" style={{ width: surface.width || undefined, height: surface.height || undefined }}>
         <canvas ref={canvasRef} className="max-w-none bg-white shadow-xl" />
         {surface.width > 0 && <svg className="absolute inset-0 touch-none" width={surface.width} height={surface.height} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
-          {strokes.filter((item) => item.page === pageNumber).map((item, index) => renderStroke(item, `${item.page}-${index}`))}
+          {annotations.strokes.filter((item) => item.page === pageNumber).map((item, index) => renderStroke(item, `${item.page}-${index}`))}
           {draft && renderStroke(draft, 'draft')}
           {laser && <circle cx={laser.x * surface.width} cy={laser.y * surface.height} r="8" fill="#ef4444" fillOpacity="0.8" />}
         </svg>}

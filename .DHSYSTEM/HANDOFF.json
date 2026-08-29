@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-29-completed",
-  "phase_current": "P29-stable-annotation-storage",
+  "status": "phase-30-completed",
+  "phase_current": "P30-annotation-reducer-quality",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P29 completed. Next milestone should execute real classroom acceptance with representative PDF/PPTX/video assets, projector hardware and touch/pen input."
+  "next_action": "P30 completed. Next milestone should execute real classroom acceptance with representative PDF/PPTX/video assets, projector hardware and touch/pen input."
 }

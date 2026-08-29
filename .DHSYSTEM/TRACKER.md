@@ -183,6 +183,12 @@
 |---|---|---|---|---|
 | T-2901 | Lưu chú thích theo mã học liệu, không theo URL token | P29 | done | typecheck + production build + Browser E2E 2/2 |
 
+## Phase 30 — Annotation reducer quality
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-3001 | Reducer thuần cho chú thích và cleanup kéo-thả | P30 | done | typecheck + build + Browser E2E 2/2 + React Doctor 73, 0 errors |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
