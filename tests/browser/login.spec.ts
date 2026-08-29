@@ -145,4 +145,8 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   expect(restoredStrokeBox).not.toBeNull();
   await page.mouse.click(restoredStrokeBox!.x + restoredStrokeBox!.width / 2, restoredStrokeBox!.y + restoredStrokeBox!.height / 2);
   await expect(restoredSurface.locator('polyline')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hoàn tác', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Làm lại', exact: true }).click();
+  await expect(restoredSurface.locator('polyline')).toHaveCount(0);
 });

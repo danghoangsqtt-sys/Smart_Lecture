@@ -12,6 +12,7 @@ interface PresentationCanvasProps {
 type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser' | 'eraser';
 interface Stroke { tool: Exclude<Tool, 'laser' | 'eraser'>; points: Array<{ x: number; y: number }>; page: number; color?: string; }
 interface AnnotationSettings { penColor?: string; highlightColor?: string; }
+interface AnnotationAction { kind: 'add' | 'remove'; stroke: Stroke; index: number; }
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
   { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu (phím L)' },
@@ -48,7 +49,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [highlightColor, setHighlightColor] = useState('#facc15');
   const [settingsReadyFor, setSettingsReadyFor] = useState<string | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [redo, setRedo] = useState<Stroke[]>([]);
+  const [undoHistory, setUndoHistory] = useState<AnnotationAction[]>([]);
+  const [redoHistory, setRedoHistory] = useState<AnnotationAction[]>([]);
   const [draft, setDraft] = useState<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
@@ -74,6 +76,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
 
   useEffect(() => {
     try { setStrokes(JSON.parse(sessionStorage.getItem(`smartlecture:annotations:${sourceUrl}`) ?? '[]') as Stroke[]); } catch { setStrokes([]); }
+    setUndoHistory([]); setRedoHistory([]);
   }, [sourceUrl]);
   useEffect(() => {
     sessionStorage.setItem(`smartlecture:annotations:${sourceUrl}`, JSON.stringify(strokes.slice(-100)));
@@ -151,7 +154,14 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const finish = () => {
     if (tool === 'laser') { setLaser(null); return; }
     if (tool === 'eraser') return;
-    if (draft && draft.points.length > 1) { setStrokes((items) => [...items.slice(-99), draft]); setRedo([]); }
+    if (draft && draft.points.length > 1) {
+      setStrokes((items) => {
+        const next = [...items.slice(-99), draft];
+        setUndoHistory((history) => [...history.slice(-99), { kind: 'add', stroke: draft, index: next.length - 1 }]);
+        return next;
+      });
+      setRedoHistory([]);
+    }
     setDraft(null);
   };
   const eraseAt = (target: { x: number; y: number }) => setStrokes((items) => {
@@ -163,7 +173,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     }
     if (index < 0) return items;
     const removed = items[index]!;
-    setRedo((history) => [...history, removed]);
+    setUndoHistory((history) => [...history.slice(-99), { kind: 'remove', stroke: removed, index }]);
+    setRedoHistory([]);
     return [...items.slice(0, index), ...items.slice(index + 1)];
   });
   const eraseStroke = (target: Stroke) => {
@@ -171,10 +182,26 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     setStrokes((items) => {
       const index = items.lastIndexOf(target);
       if (index < 0) return items;
-      setRedo((history) => [...history, target]);
+      setUndoHistory((history) => [...history.slice(-99), { kind: 'remove', stroke: target, index }]);
+      setRedoHistory([]);
       return [...items.slice(0, index), ...items.slice(index + 1)];
     });
   };
+  const restoreAt = (items: Stroke[], action: AnnotationAction) => items.some((item) => item === action.stroke) ? items : [...items.slice(0, action.index), action.stroke, ...items.slice(action.index)];
+  const undo = () => setUndoHistory((history) => {
+    const action = history.at(-1);
+    if (!action) return history;
+    setStrokes((items) => action.kind === 'add' ? items.filter((item) => item !== action.stroke) : restoreAt(items, action));
+    setRedoHistory((redo) => [...redo.slice(-99), action]);
+    return history.slice(0, -1);
+  });
+  const redo = () => setRedoHistory((history) => {
+    const action = history.at(-1);
+    if (!action) return history;
+    setStrokes((items) => action.kind === 'add' ? restoreAt(items, action) : items.filter((item) => item !== action.stroke));
+    setUndoHistory((undoItems) => [...undoItems.slice(-99), action]);
+    return history.slice(0, -1);
+  });
   const renderStroke = (stroke: Stroke, key: string) => {
     const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
     const style = stroke.tool === 'highlight' ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
@@ -195,8 +222,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         <span>{Math.round(zoom * 100)}%</span>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setZoom((value) => Math.min(2.5, value + 0.1))} aria-label="Phóng to">+</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => void containerRef.current?.requestFullscreen()} aria-label="Toàn màn hình">⛶</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setStrokes((items) => { const removed = items.at(-1); if (removed) setRedo((history) => [...history, removed]); return items.slice(0, -1); })} aria-label="Hoàn tác">↶</button>
-        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={redo.length === 0} onClick={() => setRedo((history) => { const restored = history.at(-1); if (restored) setStrokes((items) => [...items, restored]); return history.slice(0, -1); })} aria-label="Làm lại">↷</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={undoHistory.length === 0} onClick={undo} aria-label="Hoàn tác">↶</button>
+        <button type="button" className="rounded px-2 py-1 hover:bg-slate-700 disabled:opacity-40" disabled={redoHistory.length === 0} onClick={redo} aria-label="Làm lại">↷</button>
         <button type="button" className="rounded px-2 py-1 hover:bg-slate-700" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} aria-label="Xoá nét trang hiện tại">Xoá trang</button>
       </div>
     </div>
@@ -216,7 +243,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         {(tool === 'pen' || tool === 'highlight') && <><span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />{(tool === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS).map((color) => <button key={color.value} type="button" aria-label={color.label} title={color.label} onClick={() => tool === 'highlight' ? setHighlightColor(color.value) : setPenColor(color.value)} className={`h-6 w-6 rounded-full border-2 ${inkColor === color.value ? 'border-white scale-110' : 'border-slate-500'} transition`} style={{ backgroundColor: color.value }} />)}</>}
         <span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />
         {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
-        <button type="button" onClick={() => setStrokes((items) => { const removed = items.at(-1); if (removed) setRedo((history) => [...history, removed]); return items.slice(0, -1); })} title="Hoàn tác nét vừa vẽ" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>
+        <button type="button" onClick={undo} title="Hoàn tác thao tác vừa thực hiện" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>
         <button type="button" onClick={() => selectTool('eraser')} title="Chạm vào một nét để xóa" aria-label="Tẩy từng nét" className={`rounded-lg px-2.5 py-2 ${tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className="fas fa-eraser" /></button>
         <button type="button" onClick={() => setStrokes((items) => items.filter((item) => item.page !== pageNumber))} title="Xóa tất cả nét của trang hiện tại" aria-label="Xóa nét trang hiện tại" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-eraser" /></button>
       </div>
