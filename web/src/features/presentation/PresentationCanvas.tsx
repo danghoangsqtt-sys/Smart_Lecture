@@ -34,10 +34,10 @@ const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hi
   { tool: 'highlight', label: 'Highlight', icon: 'fa-highlighter', hint: 'Tô sáng nội dung trọng tâm (phím H)' },
 ];
 
-const ADVANCED_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string }> = [
-  { tool: 'ellipse', label: 'Khoanh tròn', icon: 'fa-circle' },
-  { tool: 'underline', label: 'Gạch chân', icon: 'fa-underline' },
-  { tool: 'line', label: 'Đường thẳng', icon: 'fa-minus' },
+const ADVANCED_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; shortcut: string }> = [
+  { tool: 'ellipse', label: 'Khoanh tròn', icon: 'fa-circle', shortcut: 'C' },
+  { tool: 'underline', label: 'Gạch chân', icon: 'fa-underline', shortcut: 'U' },
+  { tool: 'line', label: 'Đường thẳng', icon: 'fa-minus', shortcut: 'D' },
 ];
 
 const INK_COLORS = [
@@ -204,6 +204,9 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       if (event.key.toLowerCase() === 'p') { event.preventDefault(); selectTool('pen'); }
       if (event.key.toLowerCase() === 'h') { event.preventDefault(); selectTool('highlight'); }
       if (event.key.toLowerCase() === 'e') { event.preventDefault(); selectTool('eraser'); }
+      if (event.key.toLowerCase() === 'c') { event.preventDefault(); selectTool('ellipse'); }
+      if (event.key.toLowerCase() === 'u') { event.preventDefault(); selectTool('underline'); }
+      if (event.key.toLowerCase() === 'd') { event.preventDefault(); selectTool('line'); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -289,7 +292,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
         {PRIMARY_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.hint} aria-label={item.label} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition ${tool === item.tool ? item.tool === 'highlight' ? 'bg-yellow-300 text-slate-950' : item.tool === 'laser' ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} />{item.label}</button>)}
         {(tool === 'pen' || tool === 'highlight') && <><span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />{(tool === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS).map((color) => <button key={color.value} type="button" aria-label={color.label} title={color.label} onClick={() => tool === 'highlight' ? setHighlightColor(color.value) : setPenColor(color.value)} className={`h-6 w-6 rounded-full border-2 ${inkColor === color.value ? 'border-white scale-110' : 'border-slate-500'} transition`} style={{ backgroundColor: color.value }} />)}</>}
         <span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />
-        {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
+        {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={`${item.label} (phím ${item.shortcut})`} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
         <button type="button" onClick={undo} title="Hoàn tác thao tác vừa thực hiện" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>
         <button type="button" onClick={() => selectTool('eraser')} title="Chạm vào một nét để xóa" aria-label="Tẩy từng nét" className={`rounded-lg px-2.5 py-2 ${tool === 'eraser' ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className="fas fa-eraser" /></button>
         <button type="button" onClick={clearCurrentPage} title="Xóa tất cả nét của trang hiện tại" aria-label="Xóa nét trang hiện tại" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-eraser" /></button>
