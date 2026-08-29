@@ -135,6 +135,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByLabel('Trình phát video nổi').locator('video')).toBeAttached();
   await expect.poll(async () => (await page.getByLabel('Kéo khung video').boundingBox())?.x ?? 0).toBeGreaterThan(initialVideoBox!.x + 50);
   await expect.poll(async () => (await page.getByLabel('Kéo khung game').boundingBox())?.x ?? 0).toBeGreaterThan(initialGameBox!.x + 35);
+  await expect(page.getByRole('button', { name: 'Màu xanh dương' })).toHaveClass(/border-white/);
   await expect(page.locator('main svg polyline')).toHaveCount(1);
   await expect(page.locator('main svg polyline')).toHaveAttribute('stroke', '#2563eb');
   await page.getByRole('button', { name: 'Tẩy từng nét' }).click();

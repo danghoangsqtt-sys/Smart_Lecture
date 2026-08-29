@@ -11,6 +11,7 @@ interface PresentationCanvasProps {
 
 type Tool = 'pen' | 'highlight' | 'ellipse' | 'line' | 'underline' | 'laser' | 'eraser';
 interface Stroke { tool: Exclude<Tool, 'laser' | 'eraser'>; points: Array<{ x: number; y: number }>; page: number; color?: string; }
+interface AnnotationSettings { penColor?: string; highlightColor?: string; }
 
 const PRIMARY_POINTER_TOOLS: Array<{ tool: Tool; label: string; icon: string; hint: string }> = [
   { tool: 'laser', label: 'Tia laser', icon: 'fa-bullseye', hint: 'Chỉ hiện tạm thời khi đang chỉ trên trang chiếu (phím L)' },
@@ -43,16 +44,15 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [error, setError] = useState<string | null>(null);
   const [surface, setSurface] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState<Tool>('pen');
-  const [inkColor, setInkColor] = useState('#ef4444');
+  const [penColor, setPenColor] = useState('#ef4444');
+  const [highlightColor, setHighlightColor] = useState('#facc15');
+  const [settingsReadyFor, setSettingsReadyFor] = useState<string | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [redo, setRedo] = useState<Stroke[]>([]);
   const [draft, setDraft] = useState<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
-  const selectTool = (nextTool: Tool) => {
-    setTool(nextTool);
-    if (nextTool === 'highlight' && !HIGHLIGHT_COLORS.some((color) => color.value === inkColor)) setInkColor(HIGHLIGHT_COLORS[0]!.value);
-    if (nextTool === 'pen' && !INK_COLORS.some((color) => color.value === inkColor)) setInkColor(INK_COLORS[0]!.value);
-  };
+  const inkColor = tool === 'highlight' ? highlightColor : penColor;
+  const selectTool = (nextTool: Tool) => setTool(nextTool);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +78,22 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   useEffect(() => {
     sessionStorage.setItem(`smartlecture:annotations:${sourceUrl}`, JSON.stringify(strokes.slice(-100)));
   }, [sourceUrl, strokes]);
+  useEffect(() => {
+    setSettingsReadyFor(null);
+    try {
+      const settings = JSON.parse(sessionStorage.getItem(`smartlecture:annotation-settings:${sourceUrl}`) ?? '{}') as AnnotationSettings;
+      setPenColor(INK_COLORS.some((color) => color.value === settings.penColor) ? settings.penColor! : INK_COLORS[0]!.value);
+      setHighlightColor(HIGHLIGHT_COLORS.some((color) => color.value === settings.highlightColor) ? settings.highlightColor! : HIGHLIGHT_COLORS[0]!.value);
+    } catch {
+      setPenColor(INK_COLORS[0]!.value);
+      setHighlightColor(HIGHLIGHT_COLORS[0]!.value);
+    }
+    setSettingsReadyFor(sourceUrl);
+  }, [sourceUrl]);
+  useEffect(() => {
+    if (settingsReadyFor !== sourceUrl) return;
+    sessionStorage.setItem(`smartlecture:annotation-settings:${sourceUrl}`, JSON.stringify({ penColor, highlightColor } satisfies AnnotationSettings));
+  }, [sourceUrl, penColor, highlightColor, settingsReadyFor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +130,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [pageCount, inkColor]);
+  }, [pageCount, penColor, highlightColor]);
 
   const point = (event: PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -197,7 +213,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-3">
       <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1 rounded-xl border border-slate-500/70 bg-slate-950/95 p-1.5 shadow-2xl backdrop-blur" role="toolbar" aria-label="Công cụ bút trình chiếu">
         {PRIMARY_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.hint} aria-label={item.label} className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition ${tool === item.tool ? item.tool === 'highlight' ? 'bg-yellow-300 text-slate-950' : item.tool === 'laser' ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} />{item.label}</button>)}
-        {(tool === 'pen' || tool === 'highlight') && <><span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />{(tool === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS).map((color) => <button key={color.value} type="button" aria-label={color.label} title={color.label} onClick={() => setInkColor(color.value)} className={`h-6 w-6 rounded-full border-2 ${inkColor === color.value ? 'border-white scale-110' : 'border-slate-500'} transition`} style={{ backgroundColor: color.value }} />)}</>}
+        {(tool === 'pen' || tool === 'highlight') && <><span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />{(tool === 'highlight' ? HIGHLIGHT_COLORS : INK_COLORS).map((color) => <button key={color.value} type="button" aria-label={color.label} title={color.label} onClick={() => tool === 'highlight' ? setHighlightColor(color.value) : setPenColor(color.value)} className={`h-6 w-6 rounded-full border-2 ${inkColor === color.value ? 'border-white scale-110' : 'border-slate-500'} transition`} style={{ backgroundColor: color.value }} />)}</>}
         <span className="mx-1 h-7 w-px bg-slate-600" aria-hidden="true" />
         {ADVANCED_POINTER_TOOLS.map((item) => <button key={item.tool} type="button" onClick={() => selectTool(item.tool)} title={item.label} aria-label={item.label} className={`rounded-lg px-2.5 py-2 text-xs transition ${tool === item.tool ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-slate-700'}`}><i className={`fas ${item.icon}`} /></button>)}
         <button type="button" onClick={() => setStrokes((items) => { const removed = items.at(-1); if (removed) setRedo((history) => [...history, removed]); return items.slice(0, -1); })} title="Hoàn tác nét vừa vẽ" aria-label="Hoàn tác nét vẽ" className="rounded-lg px-2.5 py-2 text-slate-200 hover:bg-slate-700"><i className="fas fa-rotate-left" /></button>

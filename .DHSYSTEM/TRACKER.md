@@ -159,6 +159,12 @@
 |---|---|---|---|---|
 | T-2501 | Lưu vị trí kéo-thả của khung video và game | P25 | done | typecheck + production build + Browser E2E 2/2 |
 
+## Phase 26 — Persistent ink preferences
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-2601 | Nhớ riêng màu bút lông và highlight theo tài liệu | P26 | done | typecheck + production build + Browser E2E 2/2 |
+
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
