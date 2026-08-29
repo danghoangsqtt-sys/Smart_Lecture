@@ -176,6 +176,12 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   expect(clampedVideoBox!.y).toBeLessThanOrEqual(viewport.height - 39);
   expect(clampedGameBox!.x).toBeLessThanOrEqual(viewport.width - 259);
   expect(clampedGameBox!.y).toBeLessThanOrEqual(viewport.height - 47);
+  await page.getByRole('button', { name: /Mở.*Video/ }).click();
+  await expect(page.getByRole('button', { name: 'Thu nhỏ video' })).toBeVisible();
+  await expect.poll(async () => page.evaluate(() => {
+    const key = Object.keys(sessionStorage).find((item) => item.startsWith('smartlecture:teaching-workspace:'))!;
+    return JSON.parse(sessionStorage.getItem(key) ?? '{}').videoPlayback?.positionSeconds ?? 0;
+  })).toBe(73);
   expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.startsWith('smartlecture:annotation')).every((key) => !key.includes('token=')))).toBeTruthy();
   await expect(page.getByRole('button', { name: 'Màu xanh dương' })).toHaveClass(/border-white/);
   await expect(page.locator('main svg polyline')).toHaveCount(1);

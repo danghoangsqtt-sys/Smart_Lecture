@@ -383,6 +383,10 @@ export default function TeachingModePage() {
                 return;
               }
               if (nextMode === 'video') {
+                if (videoDockMaterial) {
+                  setVideoDockMinimized(false);
+                  return;
+                }
                 const video = videoMaterials[0];
                 if (video) { setVideoDockMaterial(video); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); void recordTeachingAction('video', video.id); }
                 return;
