@@ -40,6 +40,11 @@ const HIGHLIGHT_COLORS = [
   { label: 'Highlight hồng', value: '#f472b6' }, { label: 'Highlight xanh dương', value: '#60a5fa' },
 ];
 
+function annotationStorageKey(kind: 'annotations' | 'annotation-settings', sourceUrl: string): string {
+  const materialId = sourceUrl.match(/\/api\/media\/([^/]+)\/stream/)?.[1];
+  return `smartlecture:${kind}:${materialId ?? sourceUrl}`;
+}
+
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +58,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [penColor, setPenColor] = useState('#ef4444');
   const [highlightColor, setHighlightColor] = useState('#facc15');
   const [settingsReadyFor, setSettingsReadyFor] = useState<string | null>(null);
+  const [annotationsReadyFor, setAnnotationsReadyFor] = useState<string | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [undoHistory, setUndoHistory] = useState<AnnotationAction[]>([]);
   const [redoHistory, setRedoHistory] = useState<AnnotationAction[]>([]);
@@ -60,6 +66,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
   const selectTool = (nextTool: Tool) => setTool(nextTool);
+  const annotationKey = annotationStorageKey('annotations', sourceUrl);
+  const settingsKey = annotationStorageKey('annotation-settings', sourceUrl);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,28 +88,39 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   }, [sourceUrl]);
 
   useEffect(() => {
-    try { setStrokes(JSON.parse(sessionStorage.getItem(`smartlecture:annotations:${sourceUrl}`) ?? '[]') as Stroke[]); } catch { setStrokes([]); }
+    setAnnotationsReadyFor(null);
+    try {
+      const legacyKey = `smartlecture:annotations:${sourceUrl}`;
+      const saved = sessionStorage.getItem(annotationKey) ?? sessionStorage.getItem(legacyKey) ?? '[]';
+      setStrokes(JSON.parse(saved) as Stroke[]);
+      if (!sessionStorage.getItem(annotationKey) && sessionStorage.getItem(legacyKey)) sessionStorage.setItem(annotationKey, saved);
+    } catch { setStrokes([]); }
+    setAnnotationsReadyFor(annotationKey);
     setUndoHistory([]); setRedoHistory([]);
-  }, [sourceUrl]);
+  }, [annotationKey, sourceUrl]);
   useEffect(() => {
-    sessionStorage.setItem(`smartlecture:annotations:${sourceUrl}`, JSON.stringify(strokes.slice(-100)));
-  }, [sourceUrl, strokes]);
+    if (annotationsReadyFor !== annotationKey) return;
+    sessionStorage.setItem(annotationKey, JSON.stringify(strokes.slice(-100)));
+  }, [annotationKey, strokes, annotationsReadyFor]);
   useEffect(() => {
     setSettingsReadyFor(null);
     try {
-      const settings = JSON.parse(sessionStorage.getItem(`smartlecture:annotation-settings:${sourceUrl}`) ?? '{}') as AnnotationSettings;
+      const legacyKey = `smartlecture:annotation-settings:${sourceUrl}`;
+      const saved = sessionStorage.getItem(settingsKey) ?? sessionStorage.getItem(legacyKey) ?? '{}';
+      const settings = JSON.parse(saved) as AnnotationSettings;
       setPenColor(INK_COLORS.some((color) => color.value === settings.penColor) ? settings.penColor! : INK_COLORS[0]!.value);
       setHighlightColor(HIGHLIGHT_COLORS.some((color) => color.value === settings.highlightColor) ? settings.highlightColor! : HIGHLIGHT_COLORS[0]!.value);
+      if (!sessionStorage.getItem(settingsKey) && sessionStorage.getItem(legacyKey)) sessionStorage.setItem(settingsKey, saved);
     } catch {
       setPenColor(INK_COLORS[0]!.value);
       setHighlightColor(HIGHLIGHT_COLORS[0]!.value);
     }
-    setSettingsReadyFor(sourceUrl);
-  }, [sourceUrl]);
+    setSettingsReadyFor(settingsKey);
+  }, [settingsKey, sourceUrl]);
   useEffect(() => {
-    if (settingsReadyFor !== sourceUrl) return;
-    sessionStorage.setItem(`smartlecture:annotation-settings:${sourceUrl}`, JSON.stringify({ penColor, highlightColor } satisfies AnnotationSettings));
-  }, [sourceUrl, penColor, highlightColor, settingsReadyFor]);
+    if (settingsReadyFor !== settingsKey) return;
+    sessionStorage.setItem(settingsKey, JSON.stringify({ penColor, highlightColor } satisfies AnnotationSettings));
+  }, [settingsKey, penColor, highlightColor, settingsReadyFor]);
 
   useEffect(() => {
     let cancelled = false;
