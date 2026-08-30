@@ -34,7 +34,7 @@ interface NativeLogicAdapterOptions {
   pinsForType: (type: string) => readonly SimulationPin[] | undefined;
 }
 
-const gateTypes = new Set(['and', 'nand', 'or', 'nor', 'not', 'buf', 'xor', 'xnor', 'mux2']);
+const gateTypes = new Set(['and', 'nand', 'or', 'nor', 'not', 'buf', 'xor', 'xnor', 'mux2', 'half_adder', 'full_adder']);
 const pinKey = (componentId: string, pinId: string) => `${componentId}::${pinId}`;
 
 function evalGate(type: string, inputs: LogicState[]): LogicState {
@@ -51,6 +51,15 @@ function evalGate(type: string, inputs: LogicState[]): LogicState {
     case 'mux2': return inputs[2] ? !!inputs[1] : !!inputs[0];
     default: return false;
   }
+}
+
+function evaluateOutputs(type: string, inputs: LogicState[]): LogicState[] {
+  if (type === 'half_adder') return [!!inputs[0] !== !!inputs[1], !!inputs[0] && !!inputs[1]];
+  if (type === 'full_adder') {
+    const highCount = inputs.filter(Boolean).length;
+    return [highCount % 2 === 1, highCount >= 2];
+  }
+  return [evalGate(type, inputs)];
 }
 
 /**
@@ -106,15 +115,20 @@ export function createNativeLogicAdapter({ pinsForType }: NativeLogicAdapterOpti
         let changed = false;
         for (const component of components) {
           if (!gateTypes.has(component.type)) continue;
-          const pins = pinsForType(component.type) ?? [];
-          const inputs = pins.filter((pin) => pin.dir === 'in').map((pin) => read(pinKey(component.id, pin.id)));
-          const output = pins.find((pin) => pin.dir === 'out');
-          if (!output) continue;
-          const key = pinKey(component.id, output.id);
-          const value = evalGate(component.type, inputs);
-          if ((netValue.get(find(key)) ?? false) !== value) {
-            drive(key, value);
-            changed = true;
+          const inputs: LogicState[] = [];
+          const outputs: SimulationPin[] = [];
+          for (const pin of pinsForType(component.type) ?? []) {
+            if (pin.dir === 'in') inputs.push(read(pinKey(component.id, pin.id)));
+            else outputs.push(pin);
+          }
+          const values = evaluateOutputs(component.type, inputs);
+          for (const [index, output] of outputs.entries()) {
+            const key = pinKey(component.id, output.id);
+            const value = values[index] ?? false;
+            if ((netValue.get(find(key)) ?? false) !== value) {
+              drive(key, value);
+              changed = true;
+            }
           }
         }
         if (!changed) break;

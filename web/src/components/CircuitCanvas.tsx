@@ -117,6 +117,10 @@ const DEFS: Record<string, CompDef> = {
     pins: [lp('a', -41, -13, 'in', 'A'), lp('b', -41, 13, 'in', 'B'), lp('y', 41, 0, 'out', 'Y')] },
   mux2: { id: 'mux2', name: 'MUX 2:1', cat: 'logic', w: 78, h: 64, evaluable: true,
     pins: [lp('i0', -39, -18, 'in', 'I0'), lp('i1', -39, 0, 'in', 'I1'), lp('s', -39, 20, 'in', 'S'), lp('y', 39, 0, 'out', 'Y')] },
+  half_adder: { id: 'half_adder', name: 'Half Adder', cat: 'logic', w: 78, h: 58, evaluable: true,
+    pins: [lp('a', -39, -14, 'in', 'A'), lp('b', -39, 14, 'in', 'B'), lp('sum', 39, -14, 'out', 'S'), lp('carry', 39, 14, 'out', 'C')] },
+  full_adder: { id: 'full_adder', name: 'Full Adder', cat: 'logic', w: 82, h: 72, evaluable: true,
+    pins: [lp('a', -41, -22, 'in', 'A'), lp('b', -41, 0, 'in', 'B'), lp('cin', -41, 22, 'in', 'Cin'), lp('sum', 41, -14, 'out', 'S'), lp('cout', 41, 14, 'out', 'Cout')] },
 
   /* ---------- TRANSISTOR (visual) ---------- */
   npn: { id: 'npn', name: 'NPN', cat: 'transistor', w: 56, h: 56,
@@ -375,6 +379,9 @@ function SymbolBody({ comp }: { comp: Comp }) {
       return <GateBody type={comp.type} w={def.w} h={def.h} />;
     case 'mux2':
       return <><path d={`M ${-w / 2} ${-h / 2} L ${w / 2} ${-h * 0.32} L ${w / 2} ${h * 0.32} L ${-w / 2} ${h / 2} Z`} fill="#eff6ff" stroke={S} strokeWidth={SW} strokeLinejoin="round" /><text textAnchor="middle" y={4} fontSize={11} fontWeight={800} fill="#1d4ed8">MUX</text></>;
+    case 'half_adder':
+    case 'full_adder':
+      return <><rect x={-w / 2} y={-h / 2} width={w} height={h} rx={7} fill="#f5f3ff" stroke={S} strokeWidth={SW} /><text textAnchor="middle" y={-2} fontSize={12} fontWeight={800} fill="#6d28d9">{comp.type === 'half_adder' ? 'HA' : 'FA'}</text><text textAnchor="middle" y={14} fontSize={8} fontWeight={700} fill="#7c3aed">ADDER</text></>;
 
     /* ---- NPN (visual) ---- */
     case 'npn':
