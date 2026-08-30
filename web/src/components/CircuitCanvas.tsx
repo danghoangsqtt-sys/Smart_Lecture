@@ -74,6 +74,10 @@ const DEFS: Record<string, CompDef> = {
     pins: [lp('p1', -25, 0, 'in'), lp('p2', 25, 0, 'out')], defaults: { value: '100nF' } },
   inductor: { id: 'inductor', name: 'Cuộn cảm', cat: 'passive', w: 70, h: 28,
     pins: [lp('p1', -35, 0, 'in'), lp('p2', 35, 0, 'out')], defaults: { value: '10mH' } },
+  diode: { id: 'diode', name: 'Diode', cat: 'passive', w: 64, h: 30,
+    pins: [lp('anode', -32, 0, 'in', 'A'), lp('cathode', 32, 0, 'out', 'K')], defaults: { value: '1N4148' } },
+  relay: { id: 'relay', name: 'Relay SPST', cat: 'passive', w: 92, h: 58,
+    pins: [lp('coilA', -46, -17, 'in', 'A1'), lp('coilB', -46, 17, 'in', 'A2'), lp('com', 46, 16, 'in', 'COM'), lp('no', 46, -16, 'out', 'NO')] },
 
   /* ---------- SOURCE / POWER ---------- */
   vcc: { id: 'vcc', name: 'VCC (+5V)', cat: 'source', w: 34, h: 34,
@@ -111,10 +115,14 @@ const DEFS: Record<string, CompDef> = {
     pins: [lp('a', -39, -13, 'in', 'A'), lp('b', -39, 13, 'in', 'B'), lp('y', 39, 0, 'out', 'Y')] },
   xnor: { id: 'xnor', name: 'XNOR', cat: 'logic', w: 82, h: 52, evaluable: true,
     pins: [lp('a', -41, -13, 'in', 'A'), lp('b', -41, 13, 'in', 'B'), lp('y', 41, 0, 'out', 'Y')] },
+  mux2: { id: 'mux2', name: 'MUX 2:1', cat: 'logic', w: 78, h: 64, evaluable: true,
+    pins: [lp('i0', -39, -18, 'in', 'I0'), lp('i1', -39, 0, 'in', 'I1'), lp('s', -39, 20, 'in', 'S'), lp('y', 39, 0, 'out', 'Y')] },
 
   /* ---------- TRANSISTOR (visual) ---------- */
   npn: { id: 'npn', name: 'NPN', cat: 'transistor', w: 56, h: 56,
     pins: [lp('b', -28, 0, 'in', 'B'), lp('c', 14, -28, 'in', 'C'), lp('e', 14, 28, 'out', 'E')] },
+  mosfet_n: { id: 'mosfet_n', name: 'MOSFET N', cat: 'transistor', w: 64, h: 60,
+    pins: [lp('g', -32, 0, 'in', 'G'), lp('d', 16, -30, 'in', 'D'), lp('s', 16, 30, 'out', 'S')] },
 };
 
 const CAT_LABEL: Record<CompDef['cat'], string> = {
@@ -144,6 +152,7 @@ function evalGate(type: string, ins: LogicState[]): LogicState {
     case 'buf': return !!ins[0];
     case 'xor': return nTrue % 2 === 1;
     case 'xnor': return nTrue % 2 === 0;
+    case 'mux2': return ins[2] ? !!ins[1] : !!ins[0];
     default: return false;
   }
 }
@@ -195,7 +204,7 @@ function simulate(comps: Comp[], wires: Wire[], tSec: number): SimResult {
   }
 
   /* fixed-point gate propagation */
-  const GATES = ['and', 'nand', 'or', 'nor', 'not', 'buf', 'xor', 'xnor'];
+  const GATES = ['and', 'nand', 'or', 'nor', 'not', 'buf', 'xor', 'xnor', 'mux2'];
   const maxIter = comps.filter((c) => GATES.includes(c.type)).length + 2;
   for (let i = 0; i <= maxIter; i++) {
     let changed = false;
@@ -339,6 +348,31 @@ function SymbolBody({ comp }: { comp: Comp }) {
         </>
       );
     }
+    case 'diode':
+      return (
+        <>
+          <line x1={-w / 2} y1={0} x2={-12} y2={0} stroke={S} strokeWidth={SW} />
+          <path d="M -12 -13 L -12 13 L 10 0 Z" fill="#f8fafc" stroke={S} strokeWidth={SW} strokeLinejoin="round" />
+          <line x1={10} y1={-14} x2={10} y2={14} stroke={S} strokeWidth={SW + 0.7} />
+          <line x1={10} y1={0} x2={w / 2} y2={0} stroke={S} strokeWidth={SW} />
+          {val && <text y={-20} textAnchor="middle" fontSize={10} fill="#475569">{val}</text>}
+        </>
+      );
+    case 'relay':
+      return (
+        <>
+          <rect x={-31} y={-19} width={30} height={38} rx={4} fill="#f8fafc" stroke={S} strokeWidth={SW} />
+          <path d="M -25 -10 Q -14 -16 -7 -8 Q -14 0 -7 8 Q -14 16 -25 10" fill="none" stroke="#2563eb" strokeWidth={SW} />
+          <line x1={-w / 2} y1={-17} x2={-31} y2={-17} stroke={S} strokeWidth={SW} />
+          <line x1={-w / 2} y1={17} x2={-31} y2={17} stroke={S} strokeWidth={SW} />
+          <circle cx={18} cy={16} r={3} fill={S} />
+          <circle cx={31} cy={-16} r={3} fill={S} />
+          <line x1={18} y1={16} x2={30} y2={-7} stroke={S} strokeWidth={SW} />
+          <line x1={18} y1={16} x2={w / 2} y2={16} stroke={S} strokeWidth={SW} />
+          <line x1={31} y1={-16} x2={w / 2} y2={-16} stroke={S} strokeWidth={SW} />
+          <text x={-16} y={30} textAnchor="middle" fontSize={9} fontWeight={700} fill="#475569">RELAY</text>
+        </>
+      );
 
     /* ---- POWER ---- */
     case 'vcc':
@@ -433,6 +467,8 @@ function SymbolBody({ comp }: { comp: Comp }) {
     case 'and': case 'nand': case 'or': case 'nor':
     case 'xor': case 'xnor': case 'not': case 'buf':
       return <GateBody type={comp.type} w={def.w} h={def.h} />;
+    case 'mux2':
+      return <><path d={`M ${-w / 2} ${-h / 2} L ${w / 2} ${-h * 0.32} L ${w / 2} ${h * 0.32} L ${-w / 2} ${h / 2} Z`} fill="#eff6ff" stroke={S} strokeWidth={SW} strokeLinejoin="round" /><text textAnchor="middle" y={4} fontSize={11} fontWeight={800} fill="#1d4ed8">MUX</text></>;
 
     /* ---- NPN (visual) ---- */
     case 'npn':
@@ -446,6 +482,20 @@ function SymbolBody({ comp }: { comp: Comp }) {
           <line x1={-6} y1={0} x2={12} y2={14} stroke={S} strokeWidth={SW} />
           <line x1={12} y1={-14} x2={12} y2={-h / 2 + 2} stroke={S} strokeWidth={SW} />
           <line x1={12} y1={14} x2={12} y2={h / 2 - 2} stroke={S} strokeWidth={SW} />
+        </>
+      );
+    case 'mosfet_n':
+      return (
+        <>
+          <line x1={-w / 2} y1={0} x2={-8} y2={0} stroke={S} strokeWidth={SW} />
+          <line x1={-2} y1={-17} x2={-2} y2={17} stroke={S} strokeWidth={SW + 0.5} />
+          <line x1={8} y1={-20} x2={8} y2={20} stroke={S} strokeWidth={SW} />
+          <line x1={8} y1={-20} x2={16} y2={-20} stroke={S} strokeWidth={SW} />
+          <line x1={8} y1={20} x2={16} y2={20} stroke={S} strokeWidth={SW} />
+          <line x1={16} y1={-20} x2={16} y2={-h / 2} stroke={S} strokeWidth={SW} />
+          <line x1={16} y1={20} x2={16} y2={h / 2} stroke={S} strokeWidth={SW} />
+          <polygon points="11,14 3,13 8,20" fill={S} />
+          <text y={-35} textAnchor="middle" fontSize={9} fontWeight={700} fill="#475569">N-MOS</text>
         </>
       );
 
