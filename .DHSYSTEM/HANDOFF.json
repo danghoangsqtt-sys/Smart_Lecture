@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-41-completed",
-  "phase_current": "P41-circuit-simulation-adapter",
+  "status": "phase-42-completed",
+  "phase_current": "P42-wasm-engine-evaluation",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P41 completed. Next milestone: run an isolated license, bundle-size and browser-compatibility proof of concept for a MIT-licensed WebAssembly logic engine before enabling it as an optional adapter."
+  "next_action": "P42 completed. Continue the native adapter roadmap with sequential-logic support (starting with a D flip-flop) and unit-level truth-table coverage; do not add an external Logigator dependency."
 }
