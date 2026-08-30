@@ -1043,7 +1043,32 @@ function buildDigitalDefaults(): CircuitChallenge[] {
     points: 150,
   };
 
-  return [ch1, ch2, ch3];
+  /* 4 — D Flip-Flop + clock + probe */
+  const data = C('switch', 180, 110, { on: false });
+  const clock = C('clock', 180, 230, { freqHz: 1 });
+  const dff = C('dff', 390, 160);
+  const led = C('led', 570, 120, { color: '#a855f7' });
+  const probe = C('probe', 570, 230);
+  const ground = C('gnd', 570, 320);
+  const ch4: CircuitChallenge = {
+    id: 'digital_4',
+    title: 'D Flip-Flop — chốt dữ liệu theo xung clock',
+    description: 'Nối DATA vào D và CLOCK vào CLK. Quan sát Q trên LED và Probe/Oscilloscope; Q chỉ đổi ở cạnh lên của clock.',
+    targetBehavior: 'Q chốt giá trị DATA tại cạnh lên CLK và giữ nguyên giữa hai xung',
+    starterCircuit: { components: [data, clock, dff, led, probe, ground], wires: [] },
+    referenceCircuit: {
+      components: [data, clock, dff, led, probe, ground],
+      wires: [
+        W(data, 'out', dff, 'd'), W(clock, 'out', dff, 'clk'),
+        W(dff, 'q', led, 'anode'), W(dff, 'q', probe, 'in'),
+        W(led, 'cathode', ground, 'out'),
+      ],
+    },
+    testCases: [],
+    points: 200,
+  };
+
+  return [ch1, ch2, ch3, ch4];
 }
 
 function initCircuitSimulate(room: RoomState): void {
