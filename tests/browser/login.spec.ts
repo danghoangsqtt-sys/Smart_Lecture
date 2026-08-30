@@ -124,6 +124,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.getByRole('button', { name: 'Bút lông' })).toHaveClass(/bg-blue-600/);
   await page.keyboard.press('c');
   await expect(page.getByRole('button', { name: 'Khoanh tròn' })).toHaveClass(/bg-blue-600/);
+  await expect(page.getByRole('button', { name: 'Màu xanh lá' })).toBeVisible();
   await page.keyboard.press('u');
   await expect(page.getByRole('button', { name: 'Gạch chân' })).toHaveClass(/bg-blue-600/);
   await page.keyboard.press('d');
