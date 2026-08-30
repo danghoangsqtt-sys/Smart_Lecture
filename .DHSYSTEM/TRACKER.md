@@ -198,6 +198,7 @@
 | T-3801 | Telemetry slide chỉ ghi PDF/PPTX, không ghi nhầm link | P38 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
 | T-3901 | Chọn màu trực tiếp cho khoanh tròn/gạch chân/đường thẳng | P39 | done | build + Browser E2E 2/2 + React Doctor 77, 0 errors |
 | T-4001 | Mở rộng thư viện SVG mạch với diode, relay, MOSFET N và MUX 2:1 | P40 | done | typecheck + build + Browser E2E 2/2 + React Doctor 100/100 |
+| T-4101 | Tách bộ giải logic thành adapter thay thế được, giữ nguyên Canvas và CircuitData | P41 | done | typecheck + MUX truth table 8/8 + Browser E2E 2/2 + React Doctor 100/100 |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

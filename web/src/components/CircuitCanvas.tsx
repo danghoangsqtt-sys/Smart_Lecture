@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import toast from '../stores/toastStore';
+import { createNativeLogicAdapter, type LogicState } from './circuitLogicAdapter';
 
 /* ============================================================
    CONSTANTS & TYPES
@@ -8,7 +9,6 @@ const GRID = 20;
 const PIN_R = 4.5;
 const LED_COLORS = [['#ef4444', 'Đỏ'], ['#22c55e', 'Xanh'], ['#eab308', 'Vàng'], ['#3b82f6', 'Xanh dương']] as const;
 
-type LogicState = boolean;
 type EditorMode = 'select' | 'wire' | 'erase';
 
 interface Pt { x: number; y: number }
@@ -135,102 +135,8 @@ const CAT_LABEL: Record<CompDef['cat'], string> = {
 };
 const CAT_ORDER: CompDef['cat'][] = ['source', 'io', 'logic', 'passive', 'transistor', 'probe'];
 
-/* ============================================================
-   LOGIC SIMULATION ENGINE
-============================================================ */
 const pkey = (c: string, p: string) => `${c}::${p}`;
-
-function evalGate(type: string, ins: LogicState[]): LogicState {
-  const nTrue = ins.filter(Boolean).length;
-  switch (type) {
-    case 'and': return ins.length > 0 && nTrue === ins.length;
-    case 'nand': return !(ins.length > 0 && nTrue === ins.length);
-    case 'or': return nTrue > 0;
-    case 'nor': return nTrue === 0;
-    case 'not':
-    case 'buf_invert_placeholder': return !ins[0];
-    case 'buf': return !!ins[0];
-    case 'xor': return nTrue % 2 === 1;
-    case 'xnor': return nTrue % 2 === 0;
-    case 'mux2': return ins[2] ? !!ins[1] : !!ins[0];
-    default: return false;
-  }
-}
-
-interface SimResult {
-  pinVal: Record<string, LogicState>;
-  netRoot: Record<string, LogicState>;
-}
-
-function simulate(comps: Comp[], wires: Wire[], tSec: number): SimResult {
-  /* union-find nets */
-  const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    let r = x;
-    while (parent.get(r) !== r) r = parent.get(r)!;
-    return r;
-  };
-  for (const c of comps) for (const p of DEFS[c.type]?.pins ?? []) {
-    const k = pkey(c.id, p.id);
-    parent.set(k, k);
-  }
-  for (const w of wires) {
-    if (!parent.has(w.from) || !parent.has(w.to)) continue;
-    const ra = find(w.from), rb = find(w.to);
-    if (ra !== rb) parent.set(ra, rb);
-  }
-
-  const netVal = new Map<string, LogicState>();
-  const read = (k: string) => netVal.get(find(k)) ?? false;
-  const drive = (k: string, v: LogicState) => { netVal.set(find(k), v); };
-
-  /* seed sources */
-  for (const c of comps) {
-    const d = DEFS[c.type];
-    if (!d) continue;
-    const outPin = d.pins.find((p) => p.dir === 'out');
-    if (!outPin) continue;
-    const k = pkey(c.id, outPin.id);
-    switch (c.type) {
-      case 'vcc': drive(k, true); break;
-      case 'gnd': drive(k, false); break;
-      case 'clock': {
-        const f = Math.max(0.1, Number(c.props.freqHz) || 1);
-        drive(k, Math.floor(tSec * f * 2) % 2 === 1);
-        break;
-      }
-      case 'switch': drive(k, !!c.props.on); break;
-    }
-  }
-
-  /* fixed-point gate propagation */
-  const GATES = ['and', 'nand', 'or', 'nor', 'not', 'buf', 'xor', 'xnor', 'mux2'];
-  const maxIter = comps.filter((c) => GATES.includes(c.type)).length + 2;
-  for (let i = 0; i <= maxIter; i++) {
-    let changed = false;
-    for (const c of comps) {
-      if (!GATES.includes(c.type)) continue;
-      const d = DEFS[c.type];
-      const ins = d.pins.flatMap((pin) => pin.dir === 'in' ? [read(pkey(c.id, pin.id))] : []);
-      const out = evalGate(c.type, ins);
-      const op = d.pins.find((p) => p.dir === 'out');
-      if (!op) continue;
-      const k = pkey(c.id, op.id);
-      if ((netVal.get(find(k)) ?? false) !== out) { drive(k, out); changed = true; }
-    }
-    if (!changed) break;
-  }
-
-  const pinVal: Record<string, LogicState> = {};
-  const netRoot: Record<string, LogicState> = {};
-  for (const c of comps) for (const p of DEFS[c.type]?.pins ?? []) {
-    const k = pkey(c.id, p.id);
-    const v = read(k);
-    pinVal[k] = v;
-    netRoot[find(k)] = v;
-  }
-  return { pinVal, netRoot };
-}
+const logicSimulationAdapter = createNativeLogicAdapter({ pinsForType: (type) => DEFS[type]?.pins });
 
 /* ============================================================
    GEOMETRY HELPERS
@@ -726,7 +632,7 @@ function useCircuitEditor({
     return () => cancelAnimationFrame(raf);
   }, [running, speed]);
 
-  const sim = useMemo(() => simulate(comps, wires, simTime), [comps, wires, simTime]);
+  const sim = useMemo(() => logicSimulationAdapter.simulate(comps, wires, simTime), [comps, wires, simTime]);
   const simRef = useRef(sim);
   useEffect(() => { simRef.current = sim; }, [sim]);
 
