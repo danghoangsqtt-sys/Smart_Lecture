@@ -201,6 +201,7 @@
 | T-4101 | Tách bộ giải logic thành adapter thay thế được, giữ nguyên Canvas và CircuitData | P41 | done | typecheck + MUX truth table 8/8 + Browser E2E 2/2 + React Doctor 100/100 |
 | T-4201 | Đánh giá độc lập engine WASM/giấy phép và chốt không tích hợp Logigator | P42 | done | npm registry + GitHub source review; native adapter retained |
 | T-4301 | Thêm Half/Full Adder SVG và mô phỏng nhiều đầu ra trong adapter native | P43 | done | typecheck + HA 4/4 + FA 8/8 + Browser E2E 2/2 + React Doctor 100/100 |
+| T-4401 | Thêm D Flip-Flop cạnh lên và trạng thái simulation-tick ngoài React render | P44 | done | typecheck + DFF edge-state test + Browser E2E 2/2 + React Doctor 100/100 |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

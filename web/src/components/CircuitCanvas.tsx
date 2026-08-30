@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import toast from '../stores/toastStore';
-import { createNativeLogicAdapter, type LogicState } from './circuitLogicAdapter';
+import { createNativeLogicAdapter, createSimulationState, type LogicState } from './circuitLogicAdapter';
 
 /* ============================================================
    CONSTANTS & TYPES
@@ -121,6 +121,8 @@ const DEFS: Record<string, CompDef> = {
     pins: [lp('a', -39, -14, 'in', 'A'), lp('b', -39, 14, 'in', 'B'), lp('sum', 39, -14, 'out', 'S'), lp('carry', 39, 14, 'out', 'C')] },
   full_adder: { id: 'full_adder', name: 'Full Adder', cat: 'logic', w: 82, h: 72, evaluable: true,
     pins: [lp('a', -41, -22, 'in', 'A'), lp('b', -41, 0, 'in', 'B'), lp('cin', -41, 22, 'in', 'Cin'), lp('sum', 41, -14, 'out', 'S'), lp('cout', 41, 14, 'out', 'Cout')] },
+  dff: { id: 'dff', name: 'D Flip-Flop', cat: 'logic', w: 82, h: 72, evaluable: true,
+    pins: [lp('d', -41, -18, 'in', 'D'), lp('clk', -41, 18, 'in', 'CLK'), lp('q', 41, -18, 'out', 'Q'), lp('nq', 41, 18, 'out', 'Q̅')] },
 
   /* ---------- TRANSISTOR (visual) ---------- */
   npn: { id: 'npn', name: 'NPN', cat: 'transistor', w: 56, h: 56,
@@ -382,6 +384,8 @@ function SymbolBody({ comp }: { comp: Comp }) {
     case 'half_adder':
     case 'full_adder':
       return <><rect x={-w / 2} y={-h / 2} width={w} height={h} rx={7} fill="#f5f3ff" stroke={S} strokeWidth={SW} /><text textAnchor="middle" y={-2} fontSize={12} fontWeight={800} fill="#6d28d9">{comp.type === 'half_adder' ? 'HA' : 'FA'}</text><text textAnchor="middle" y={14} fontSize={8} fontWeight={700} fill="#7c3aed">ADDER</text></>;
+    case 'dff':
+      return <><rect x={-w / 2} y={-h / 2} width={w} height={h} rx={7} fill="#ecfeff" stroke={S} strokeWidth={SW} /><path d={`M ${-w / 2} 10 L ${-w / 2 + 9} 18 L ${-w / 2} 26`} fill="none" stroke="#0891b2" strokeWidth={1.5} /><text textAnchor="middle" y={-3} fontSize={12} fontWeight={800} fill="#0e7490">D FF</text><text textAnchor="middle" y={14} fontSize={8} fontWeight={700} fill="#0e7490">↑ CLK</text></>;
 
     /* ---- NPN (visual) ---- */
     case 'npn':
@@ -597,6 +601,7 @@ function useCircuitEditor({
   const [running, setRunning] = useState(isSim);
   const [speed, setSpeed] = useState(1);
   const [simTime, setSimTime] = useState(0);
+  const [simulationRevision, setSimulationRevision] = useState(0);
 
   const svgWrap = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
@@ -604,6 +609,7 @@ function useCircuitEditor({
 
   /* -------- event-driven data publication -------- */
   const dataRef = useRef({ comps, wires });
+  const simulationStateRef = useRef<ReturnType<typeof createSimulationState> | null>(null);
 
   const applyData = useCallback((next: { comps: Comp[]; wires: Wire[] }, notify = true) => {
     dataRef.current = next;
@@ -639,7 +645,17 @@ function useCircuitEditor({
     return () => cancelAnimationFrame(raf);
   }, [running, speed]);
 
-  const sim = useMemo(() => logicSimulationAdapter.simulate(comps, wires, simTime), [comps, wires, simTime]);
+  useEffect(() => {
+    if (!isSim) return;
+    const stepped = logicSimulationAdapter.step(comps, wires, simTime, simulationStateRef.current ?? createSimulationState());
+    simulationStateRef.current = stepped.state;
+    if (stepped.stateChanged) setSimulationRevision((revision) => revision + 1);
+  }, [comps, wires, simTime, isSim]);
+
+  const sim = useMemo(
+    () => logicSimulationAdapter.simulate(comps, wires, simTime, simulationStateRef.current ?? createSimulationState()),
+    [comps, wires, simTime, simulationRevision],
+  );
   const simRef = useRef(sim);
   useEffect(() => { simRef.current = sim; }, [sim]);
 

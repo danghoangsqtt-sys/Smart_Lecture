@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-43-completed",
-  "phase_current": "P43-native-adders",
+  "status": "phase-44-completed",
+  "phase_current": "P44-sequential-logic",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P43 completed. Next milestone: add sequential-logic support with an explicit simulation-tick state model before introducing a D flip-flop; do not mutate state during React rendering."
+  "next_action": "P44 completed. Next milestone: add a reusable sequential-logic exercise template using D flip-flops and the existing live probe/oscilloscope; keep the circuit solver native."
 }

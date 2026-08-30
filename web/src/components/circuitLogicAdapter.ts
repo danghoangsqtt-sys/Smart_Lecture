@@ -21,13 +21,28 @@ export interface SimulationResult {
   netRoot: Record<string, LogicState>;
 }
 
+export interface SimulationState {
+  flipFlops: Record<string, { q: LogicState; previousClock: LogicState }>;
+}
+
+export interface SimulationStep {
+  result: SimulationResult;
+  state: SimulationState;
+  stateChanged: boolean;
+}
+
+export function createSimulationState(): SimulationState {
+  return { flipFlops: {} };
+}
+
 /**
  * A swappable boundary for circuit solvers. The canvas owns SVG interaction and
  * serialisation; an adapter only receives the normalized circuit graph.
  */
 export interface LogicSimulationAdapter {
   readonly id: string;
-  simulate(components: SimulationComponent[], wires: SimulationWire[], timeSeconds: number): SimulationResult;
+  simulate(components: SimulationComponent[], wires: SimulationWire[], timeSeconds: number, state?: SimulationState): SimulationResult;
+  step(components: SimulationComponent[], wires: SimulationWire[], timeSeconds: number, state: SimulationState): SimulationStep;
 }
 
 interface NativeLogicAdapterOptions {
@@ -69,7 +84,7 @@ function evaluateOutputs(type: string, inputs: LogicState[]): LogicState[] {
 export function createNativeLogicAdapter({ pinsForType }: NativeLogicAdapterOptions): LogicSimulationAdapter {
   return {
     id: 'native-boolean-v1',
-    simulate(components, wires, timeSeconds) {
+    simulate(components, wires, timeSeconds, state = createSimulationState()) {
       const parent = new Map<string, string>();
       const find = (key: string): string => {
         let root = key;
@@ -110,6 +125,14 @@ export function createNativeLogicAdapter({ pinsForType }: NativeLogicAdapterOpti
         }
       }
 
+      for (const component of components) {
+        if (component.type !== 'dff') continue;
+        const q = state.flipFlops[component.id]?.q ?? false;
+        for (const output of (pinsForType(component.type) ?? []).filter((pin) => pin.dir === 'out')) {
+          drive(pinKey(component.id, output.id), output.id === 'q' ? q : !q);
+        }
+      }
+
       const maxIterations = components.filter((component) => gateTypes.has(component.type)).length + 2;
       for (let iteration = 0; iteration <= maxIterations; iteration++) {
         let changed = false;
@@ -145,6 +168,24 @@ export function createNativeLogicAdapter({ pinsForType }: NativeLogicAdapterOpti
         }
       }
       return { pinVal, netRoot };
+    },
+    step(components, wires, timeSeconds, state) {
+      const before = this.simulate(components, wires, timeSeconds, state);
+      const flipFlops: SimulationState['flipFlops'] = {};
+      let stateChanged = false;
+
+      for (const component of components) {
+        if (component.type !== 'dff') continue;
+        const previous = state.flipFlops[component.id] ?? { q: false, previousClock: false };
+        const d = before.pinVal[pinKey(component.id, 'd')] ?? false;
+        const clock = before.pinVal[pinKey(component.id, 'clk')] ?? false;
+        const q = clock && !previous.previousClock ? d : previous.q;
+        flipFlops[component.id] = { q, previousClock: clock };
+        if (q !== previous.q || clock !== previous.previousClock || !state.flipFlops[component.id]) stateChanged = true;
+      }
+
+      const nextState = { flipFlops };
+      return { result: this.simulate(components, wires, timeSeconds, nextState), state: nextState, stateChanged };
     },
   };
 }
