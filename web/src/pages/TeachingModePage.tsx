@@ -342,6 +342,7 @@ export default function TeachingModePage() {
   const selectedItem = getSelectedItem();
   const linkedLecture = selectedItem ? getLinkedLecture(selectedItem) : null;
   const teachingMaterials = linkedLecture ? getTeachingMaterialsByType(linkedLecture, contentMode) : [];
+  const slideMaterials = linkedLecture ? getTeachingMaterialsByType(linkedLecture, 'slides') : [];
   const videoMaterials = linkedLecture ? getTeachingMaterialsByType(linkedLecture, 'video') : [];
 
   return (
@@ -393,8 +394,7 @@ export default function TeachingModePage() {
                 if (video) { setVideoDockMaterial(video); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); void recordTeachingAction('video', video.id); }
                 return;
               }
-              const actionKind = nextMode === 'slides' ? 'slide' : null;
-              if (actionKind) teachingMaterials.forEach((material) => void recordTeachingAction(actionKind, material.id));
+              if (nextMode === 'slides') slideMaterials.forEach((material) => void recordTeachingAction('slide', material.id));
               setContentMode(nextMode);
             }}
             onOpenVideo={(video) => { setVideoDockMaterial(video); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); void recordTeachingAction('video', video.id); }}

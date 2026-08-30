@@ -195,6 +195,7 @@
 | T-3501 | Giữ thanh công cụ bút/laser trong fullscreen trình chiếu | P35 | done | build + Browser E2E 2/2 + React Doctor 77, 0 errors |
 | T-3601 | Phím tắt khoanh tròn, gạch chân và đường thẳng | P36 | done | build + Browser E2E 2/2 + React Doctor 77, 0 errors |
 | T-3701 | Không mất nét bút khi pointer/touch thao tác nhanh | P37 | done | build + Browser E2E 2/2 + React Doctor 77, 0 errors |
+| T-3801 | Telemetry slide chỉ ghi PDF/PPTX, không ghi nhầm link | P38 | done | build + Browser E2E 2/2 + React Doctor 84, 0 errors |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

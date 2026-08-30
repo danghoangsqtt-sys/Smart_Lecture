@@ -60,11 +60,19 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
     multipart: { file: { name: 'browser-slides.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', buffer: Buffer.from('not a real PowerPoint') } },
   });
   expect(pptx.ok()).toBeTruthy();
+  const pptxMaterialId = (await pptx.json() as { id: string }).id;
   const pdf = await request.post(`/api/lectures/${lectureId}/materials`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
     multipart: { file: { name: 'browser-slides.pdf', mimeType: 'application/pdf', buffer: createPdfFixture() } },
   });
   expect(pdf.ok()).toBeTruthy();
+  const pdfMaterialId = (await pdf.json() as { id: string }).id;
+  const link = await request.post(`/api/lectures/${lectureId}/materials/link`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { title: 'Browser reference', linkUrl: 'https://example.com/browser-reference' },
+  });
+  expect(link.ok()).toBeTruthy();
+  const linkMaterialId = (await link.json() as { id: string }).id;
   const video = await request.post(`/api/lectures/${lectureId}/materials`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
     multipart: { file: { name: 'browser-video-primary.mp4', mimeType: 'video/mp4', buffer: Buffer.from('video-fixture') } },
@@ -92,6 +100,17 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Highlight' })).toBeVisible();
+  await page.getByRole('button', { name: 'Bắt đầu phiên dạy' }).click();
+  await expect(page.getByText(/Đang dạy từ/)).toBeVisible();
+  await page.getByRole('button', { name: /Mở.*Tài liệu/ }).click();
+  await expect(page.getByRole('link', { name: 'Browser reference' })).toBeVisible();
+  await page.getByRole('button', { name: /Mở.*Trang chiếu/ }).click();
+  await expect.poll(async () => {
+    const active = await request.get(`/api/classes/${classId}/teaching-logs/active`, { headers: { Authorization: `Bearer ${teacherToken}` } });
+    return (await active.json() as { log: { slidesShown: string[] } | null }).log?.slidesShown ?? [];
+  }).toEqual([pptxMaterialId, pdfMaterialId]);
+  const loggedSlides = await request.get(`/api/classes/${classId}/teaching-logs/active`, { headers: { Authorization: `Bearer ${teacherToken}` } });
+  expect((await loggedSlides.json() as { log: { slidesShown: string[] } }).log.slidesShown).not.toContain(linkMaterialId);
   await page.getByRole('button', { name: 'Toàn màn hình' }).click();
   await expect.poll(async () => page.evaluate(() => document.fullscreenElement?.getAttribute('aria-label'))).toMatch(/Trình chiếu/);
   await expect(page.getByRole('button', { name: 'Tia laser' })).toBeVisible();
