@@ -271,3 +271,66 @@ test('teacher can review the six default circuit challenges before creating a ga
   await expect(page.getByText(/Thay đổi DATA.*cạnh lên CLK/)).toBeVisible();
   await expect(page.getByText(/Dùng A, B, Cin.*S và Cout/)).toBeVisible();
 });
+
+test('default circuit room sends sequential and adder challenges in order', async ({ page, request }) => {
+  test.setTimeout(75_000);
+  const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
+  const adminToken = (await adminLogin.json() as { token: string }).token;
+  const createdStudent = await request.post('/api/users', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'browser.circuit.student', password: 'Student@123', role: 'student', displayName: 'Circuit Student' },
+  });
+  expect(createdStudent.ok()).toBeTruthy();
+  const studentId = (await createdStudent.json() as { user: { id: string } }).user.id;
+  const studentLogin = await request.post('/api/auth/login', { data: { username: 'browser.circuit.student', password: 'Student@123' } });
+  const studentToken = (await studentLogin.json() as { token: string }).token;
+  const changedStudentPassword = await request.post('/api/auth/change-password', {
+    headers: { Authorization: `Bearer ${studentToken}` },
+    data: { oldPassword: 'Student@123', newPassword: 'Student@1234' },
+  });
+  expect(changedStudentPassword.ok()).toBeTruthy();
+
+  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
+  expect(teacherLogin.ok()).toBeTruthy();
+  const teacherToken = (await teacherLogin.json() as { token: string }).token;
+  const teacherClasses = await request.get('/api/classes/mine', { headers: { Authorization: `Bearer ${teacherToken}` } });
+  expect(teacherClasses.ok()).toBeTruthy();
+  const classId = (await teacherClasses.json() as { classes: { id: string; name: string }[] }).classes.find((item) => item.name === 'Browser Class')?.id;
+  expect(classId).toBeTruthy();
+  const enrolled = await request.post(`/api/classes/${classId}/enroll`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { studentIds: [studentId] },
+  });
+  expect(enrolled.ok()).toBeTruthy();
+
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.teacher');
+  await page.locator('#password').fill('Teacher@1234');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.goto('/games');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: /Mô phỏng mạch/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.locator('input[type=number]').first().fill('5');
+  await page.getByRole('button', { name: 'Tạo phòng game' }).click();
+  const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
+  expect(roomCode).toMatch(/^\d{6}$/);
+
+  const studentPage = await page.context().newPage();
+  await studentPage.goto('/login');
+  await studentPage.locator('#username').fill('browser.circuit.student');
+  await studentPage.locator('#password').fill('Student@1234');
+  await studentPage.getByRole('button', { name: 'Đăng nhập' }).click();
+  await studentPage.goto(`/games/play?room=${roomCode}`);
+  await expect(page.getByText(/1\/60/)).toBeVisible();
+  await page.getByRole('button', { name: 'Bắt đầu' }).click();
+
+  await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 10_000 });
+  await studentPage.close();
+});

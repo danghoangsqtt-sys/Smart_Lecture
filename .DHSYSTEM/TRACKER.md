@@ -206,6 +206,7 @@
 | T-4601 | Thêm bài mẫu Half/Full Adder với LED/Probe vào game mô phỏng mặc định | P46 | done | typecheck + Browser E2E 2/2 + React Doctor 100/100 |
 | T-4701 | Thêm hướng dẫn giảng dạy sáu thử thách mạch mặc định cho giáo viên | P47 | done | typecheck + Browser E2E 2/2 + React Doctor 100/100 |
 | T-4801 | Thêm Browser E2E trực tiếp cho setup/guide sáu bài mạch mặc định | P48 | done | Browser E2E 3/3 |
+| T-4901 | Thêm Browser E2E cho room mạch mặc định và thứ tự DFF/adder thực | P49 | done | Browser E2E 4/4 |
 
 ## Session log
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)

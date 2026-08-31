@@ -1,5 +1,11 @@
 # ROADMAP — Smart_Lecture
 
+## Phase 49 — Default Circuit Room E2E ✅
+
+- [x] Browser E2E creates a default circuit-simulation room through the teacher UI.
+- [x] An enrolled student joins the live room and the host starts it.
+- [x] The live timer reaches D Flip-Flop → Half Adder → Full Adder in order.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold
