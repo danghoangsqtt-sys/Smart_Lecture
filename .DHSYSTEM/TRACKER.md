@@ -208,8 +208,15 @@
 | T-4801 | Thêm Browser E2E trực tiếp cho setup/guide sáu bài mạch mặc định | P48 | done | Browser E2E 3/3 |
 | T-4901 | Thêm Browser E2E cho room mạch mặc định và thứ tự DFF/adder thực | P49 | done | Browser E2E 4/4 |
 | T-5001 | Đồng bộ topology, nộp/chấm mạch mô phỏng và feed hoàn thành realtime | P50 | done | typecheck + Browser E2E 4/4 + backend E2E 86/86 + Socket 10/10 + regression 22/22 |
+| T-5101 | Kiểm chứng hai học viên và chống cộng trùng khi nộp lại mạch đúng | P51 | done | Browser E2E 4/4; feed mỗi học viên 1 lần; KTTX mỗi học viên +0.5 |
 
 ## Session log
+### 2026-08-31 (Phase 51 — T-5101 completed)
+- Mở rộng room mạch trình duyệt thành hai học viên đã xác thực và ghi danh thật.
+- Cả hai dựng topology LED hoàn chỉnh; học viên đầu nộp lặp để kiểm chứng idempotency theo challenge.
+- Feed giáo viên chỉ ghi một dòng mỗi học viên và gradebook chỉ cộng đúng +0.5 KTTX/người.
+- Verify: production Browser E2E 4/4, gồm chuỗi DFF/Half Adder/Full Adder.
+
 ### 2026-08-31 (Phase 50 — T-5001 completed)
 - Đồng bộ thay đổi mạch mô phỏng và tách rõ live edit với thao tác nộp để chỉ chấm/cộng điểm khi học viên chủ động gửi.
 - Chuẩn hoá bộ chấm topology cho cả endpoint `component::port` và payload tách `component`/`port`; giữ feed giáo viên qua các lần chuyển thử thách.

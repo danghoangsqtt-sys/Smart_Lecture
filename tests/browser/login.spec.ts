@@ -272,7 +272,7 @@ test('teacher can review the six default circuit challenges before creating a ga
   await expect(page.getByText(/Dùng A, B, Cin.*S và Cout/)).toBeVisible();
 });
 
-test('default circuit room sends sequential and adder challenges in order', async ({ page, request }) => {
+test('default circuit room grades two learners once and sends later challenges in order', async ({ page, request }) => {
   test.setTimeout(90_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
@@ -289,6 +289,19 @@ test('default circuit room sends sequential and adder challenges in order', asyn
     data: { oldPassword: 'Student@123', newPassword: 'Student@1234' },
   });
   expect(changedStudentPassword.ok()).toBeTruthy();
+  const createdPeer = await request.post('/api/users', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'browser.circuit.peer', password: 'Student@123', role: 'student', displayName: 'Circuit Peer' },
+  });
+  expect(createdPeer.ok()).toBeTruthy();
+  const peerId = (await createdPeer.json() as { user: { id: string } }).user.id;
+  const peerLogin = await request.post('/api/auth/login', { data: { username: 'browser.circuit.peer', password: 'Student@123' } });
+  const peerToken = (await peerLogin.json() as { token: string }).token;
+  const changedPeerPassword = await request.post('/api/auth/change-password', {
+    headers: { Authorization: `Bearer ${peerToken}` },
+    data: { oldPassword: 'Student@123', newPassword: 'Student@1234' },
+  });
+  expect(changedPeerPassword.ok()).toBeTruthy();
 
   const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
   expect(teacherLogin.ok()).toBeTruthy();
@@ -299,7 +312,7 @@ test('default circuit room sends sequential and adder challenges in order', asyn
   expect(classId).toBeTruthy();
   const enrolled = await request.post(`/api/classes/${classId}/enroll`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
-    data: { studentIds: [studentId] },
+    data: { studentIds: [studentId, peerId] },
   });
   expect(enrolled.ok()).toBeTruthy();
 
@@ -331,32 +344,48 @@ test('default circuit room sends sequential and adder challenges in order', asyn
   await expect(studentPage.getByRole('dialog')).toBeVisible();
   await studentPage.keyboard.press('Escape');
   await expect(studentPage.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText(/1\/60/)).toBeVisible();
+
+  const peerPage = await page.context().newPage();
+  await peerPage.goto('/login');
+  await peerPage.locator('#username').fill('browser.circuit.peer');
+  await peerPage.locator('#password').fill('Student@1234');
+  await peerPage.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(peerPage).toHaveURL(/\/$/);
+  await peerPage.goto(`/games/play?room=${roomCode}`);
+  await expect(peerPage.getByRole('dialog')).toBeVisible();
+  await peerPage.keyboard.press('Escape');
+  await expect(peerPage.getByRole('dialog')).toHaveCount(0);
+
+  await expect(page.getByText(/2\/60/)).toBeVisible();
   await page.getByRole('button', { name: 'Bắt đầu' }).click();
   await expect(studentPage.getByText('Đóng mạch đèn LED')).toBeVisible();
-  await studentPage.getByTitle(/VCC/).click();
-  await expect(studentPage.locator('[data-component-type="vcc"]')).toHaveCount(1);
-  await studentPage.getByTitle('Công tắc — nhấn để thêm').click();
-  await expect(studentPage.locator('[data-component-type="switch"]')).toHaveCount(1);
-  await studentPage.getByTitle('LED — nhấn để thêm').click();
-  await expect(studentPage.locator('[data-component-type="led"]')).toHaveCount(1);
-  await studentPage.getByTitle('GND — nhấn để thêm').click();
-  await expect(studentPage.locator('[data-component-type="gnd"]')).toHaveCount(1);
-  await studentPage.getByRole('button', { name: /Nối/ }).click();
-  const pressPin = async (type: string, name: string) => {
-    await studentPage.locator(`[data-component-type="${type}"] [data-pin="${name}"]`).first().dispatchEvent('pointerdown', { button: 0, pointerType: 'mouse' });
+  await expect(peerPage.getByText('Đóng mạch đèn LED')).toBeVisible();
+
+  const assembleCircuit = async (targetPage: typeof studentPage) => {
+    await targetPage.getByTitle(/VCC/).click();
+    await expect(targetPage.locator('[data-component-type="vcc"]')).toHaveCount(1);
+    await targetPage.getByTitle('Công tắc — nhấn để thêm').click();
+    await expect(targetPage.locator('[data-component-type="switch"]')).toHaveCount(1);
+    await targetPage.getByTitle('LED — nhấn để thêm').click();
+    await expect(targetPage.locator('[data-component-type="led"]')).toHaveCount(1);
+    await targetPage.getByTitle('GND — nhấn để thêm').click();
+    await expect(targetPage.locator('[data-component-type="gnd"]')).toHaveCount(1);
+    await targetPage.getByRole('button', { name: /Nối/ }).click();
+    const pressPin = async (type: string, name: string) => {
+      await targetPage.locator(`[data-component-type="${type}"] [data-pin="${name}"]`).first().dispatchEvent('pointerdown', { button: 0, pointerType: 'mouse' });
+    };
+    await pressPin('vcc', 'out');
+    await pressPin('switch', 'in');
+    await expect(targetPage.locator('[data-wire-id]')).toHaveCount(1);
+    await pressPin('switch', 'out');
+    await pressPin('led', 'anode');
+    await expect(targetPage.locator('[data-wire-id]')).toHaveCount(2);
+    await pressPin('led', 'cathode');
+    await pressPin('gnd', 'out');
+    await expect(targetPage.locator('[data-component-type]')).toHaveCount(4);
+    await expect(targetPage.locator('[data-wire-id]')).toHaveCount(3);
   };
-  await pressPin('vcc', 'out');
-  await pressPin('switch', 'in');
-  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(1);
-  await pressPin('switch', 'out');
-  await pressPin('led', 'anode');
-  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(2);
-  await pressPin('led', 'cathode');
-  await pressPin('gnd', 'out');
-  await expect(studentPage.locator('[data-component-type]')).toHaveCount(4);
-  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(3);
-  const topology = await studentPage.locator('svg:has([data-wire-id])').evaluate((svg) => {
+  const readTopology = async (targetPage: typeof studentPage) => targetPage.locator('svg:has([data-wire-id])').evaluate((svg) => {
     const componentTypes = new Map(
       Array.from(svg.querySelectorAll<SVGGElement>('[data-component-id]')).map((node) => [
         node.dataset.componentId ?? '',
@@ -371,17 +400,42 @@ test('default circuit room sends sequential and adder challenges in order', asyn
       return [endpoint(wire.dataset.wireFrom), endpoint(wire.dataset.wireTo)].sort().join('~');
     }).sort();
   });
-  expect(topology).toEqual([
+  const expectedTopology = [
     'gnd:out~led:cathode',
     'led:anode~switch:out',
     'switch:in~vcc:out',
-  ]);
-  await studentPage.getByRole('button', { name: 'Nộp mạch' }).click();
+  ];
+  await assembleCircuit(studentPage);
+  await assembleCircuit(peerPage);
+  expect(await readTopology(studentPage)).toEqual(expectedTopology);
+  expect(await readTopology(peerPage)).toEqual(expectedTopology);
+
+  const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
+  await submitButton.click();
+  await submitButton.click();
+  await peerPage.getByRole('button', { name: 'Nộp mạch' }).click();
   await expect(studentPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
-  await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toBeVisible({ timeout: 10_000 });
+  await expect(peerPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
+  await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
+  await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
+
+  const gradebookResponse = await request.get(`/api/classes/${classId}/gradebook`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+  });
+  expect(gradebookResponse.ok()).toBeTruthy();
+  const gradebookRows = (await gradebookResponse.json() as { rows: { studentId: string; kttx: number | null }[] }).rows;
+  expect(gradebookRows.find((row) => row.studentId === studentId)?.kttx).toBe(0.5);
+  expect(gradebookRows.find((row) => row.studentId === peerId)?.kttx).toBe(0.5);
 
   await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 30_000 });
+  const postTimerGradebook = await request.get(`/api/classes/${classId}/gradebook`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+  });
+  const postTimerRows = (await postTimerGradebook.json() as { rows: { studentId: string; kttx: number | null }[] }).rows;
+  expect(postTimerRows.find((row) => row.studentId === studentId)?.kttx).toBe(0.5);
+  expect(postTimerRows.find((row) => row.studentId === peerId)?.kttx).toBe(0.5);
   await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 12_000 });
   await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 12_000 });
+  await peerPage.close();
   await studentPage.close();
 });

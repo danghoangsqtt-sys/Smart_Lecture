@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-50-completed",
-  "phase_current": "P50-circuit-simulation-submission",
+  "status": "phase-51-completed",
+  "phase_current": "P51-circuit-multi-learner-idempotency",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P50 completed. Next milestone: expand browser coverage to multi-learner circuit completion and duplicate-award protection."
+  "next_action": "P51 completed. Next milestone: restore the current circuit challenge and learner state after reconnect or late join."
 }
