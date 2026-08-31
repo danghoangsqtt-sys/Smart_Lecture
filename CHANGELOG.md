@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Circuit server-restart recovery
+
+- Thêm migration v19 lưu runtime challenge/deadline và state mạch riêng từng học viên.
+- Tự khôi phục phòng mạch, topology, completion feed, bảng xếp hạng và timer khi Node.js khởi động lại.
+- Ghi hoàn thành challenge cùng cộng KTTX trong một transaction và kiểm chứng bằng restart process thật.
+
 ## 2026-08-31 — Circuit host recovery
 
 - Tự mở lại phiên game đang hoạt động khi giáo viên reload trang Trò chơi.

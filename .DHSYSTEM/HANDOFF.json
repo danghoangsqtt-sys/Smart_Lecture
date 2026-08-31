@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-53-completed",
-  "phase_current": "P53-circuit-host-recovery",
+  "status": "phase-54-completed",
+  "phase_current": "P54-circuit-server-restart-recovery",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P53 completed. Next milestone: persist and restore the active circuit challenge, timer deadline, learner topology, completion history, and circuit scores after a Node.js server process restart."
+  "next_action": "P54 completed. Next milestone: add teacher pause, resume, skip, and restart controls for circuit challenges, including durable paused-timer state across reconnect and server restart."
 }

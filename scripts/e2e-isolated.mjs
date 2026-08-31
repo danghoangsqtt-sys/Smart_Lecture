@@ -11,6 +11,7 @@ const env = {
   PORT: '4100',
   DATA_DIR: dataDir,
   DB_PATH: path.join(dataDir, 'e2e.db'),
+  CIRCUIT_RESTART_STATE_PATH: path.join(dataDir, 'circuit-restart-state.json'),
 };
 
 function run(command, args) {
@@ -81,6 +82,11 @@ try {
   });
   if (!loginResponse.ok) throw new Error('Restored database did not accept the admin login');
   console.log('Restore restart check PASS');
+  await run(process.execPath, ['scripts/circuit-restart-test.mjs', 'prepare']);
+  await stopServer(server);
+  server = startServer();
+  await waitForServer();
+  await run(process.execPath, ['scripts/circuit-restart-test.mjs', 'verify']);
   console.log(`E2E isolated PASS (${dataDir})`);
 } finally {
   await stopServer(server);

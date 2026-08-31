@@ -211,8 +211,15 @@
 | T-5101 | Kiểm chứng hai học viên và chống cộng trùng khi nộp lại mạch đúng | P51 | done | Browser E2E 4/4; feed mỗi học viên 1 lần; KTTX mỗi học viên +0.5 |
 | T-5201 | Khôi phục challenge, topology và trạng thái hoàn thành khi học viên vào muộn/kết nối lại | P52 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + backend regression đầy đủ |
 | T-5301 | Khôi phục console giáo viên, feed và bảng điểm mạch khi reload/kết nối lại | P53 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
+| T-5401 | Lưu và khôi phục phòng mạch đang chạy sau khi Node.js server khởi động lại | P54 | done | migration v19 + real restart integration + Browser 4/4 + REST 86/86 + Socket 10/10 + regression 22/22 |
 
 ## Session log
+### 2026-08-31 (Phase 54 — T-5401 completed)
+- Migration v19 thêm runtime theo phiên và state riêng từng học viên, tránh ghi lại JSON toàn lớp khi một người sửa mạch.
+- Server boot tự khôi phục phòng mạch đang chạy và timer theo deadline tuyệt đối; học viên có thể reconnect bằng room code trước host.
+- Hoàn thành challenge và cộng KTTX được ghi cùng transaction; test restart giữ đúng topology 4/3, feed, 100 điểm và KTTX 0,5 rồi chuyển challenge theo deadline cũ.
+- Verify: Browser E2E 4/4, REST 86/86, Socket 10/10, regression 22/22, Excel, staged restore restart và circuit restart đều pass.
+
 ### 2026-08-31 (Phase 53 — T-5301 completed)
 - `/games` tự mở lại phiên đang hoạt động sau reload và chỉ phát `game:host-attach` sau khi đã đăng ký đủ listener.
 - Server trả snapshot công khai của challenge, feed hoàn thành dựng lại và bảng xếp hạng lấy đúng điểm circuit player; không lộ reference circuit.

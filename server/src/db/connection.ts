@@ -447,6 +447,37 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       db.exec('CREATE INDEX IF NOT EXISTS idx_game_class ON game_sessions(class_id, status)');
     },
   },
+  {
+    version: 19,
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS game_circuit_runtime (
+          game_session_id TEXT PRIMARY KEY REFERENCES game_sessions(id) ON DELETE CASCADE,
+          challenge_index INTEGER NOT NULL DEFAULT 0,
+          challenge_ends_at INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_circuit_runtime_updated ON game_circuit_runtime(updated_at);
+
+        CREATE TABLE IF NOT EXISTS game_circuit_player_states (
+          game_session_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+          student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          display_name TEXT NOT NULL,
+          score REAL NOT NULL DEFAULT 0,
+          circuit_json TEXT,
+          circuit_challenge_id TEXT,
+          simulation_state TEXT NOT NULL DEFAULT 'idle'
+            CHECK (simulation_state IN ('idle', 'running', 'paused', 'completed', 'start', 'stop', 'step', 'reset')),
+          measurements_json TEXT NOT NULL DEFAULT '{}',
+          completed_challenges_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (game_session_id, student_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_circuit_players_session
+          ON game_circuit_player_states(game_session_id, updated_at);
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

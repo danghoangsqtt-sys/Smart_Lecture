@@ -27,6 +27,13 @@
 - [x] Restore active challenge, completion feed, connected players, and circuit leaderboard through an authorized host snapshot.
 - [x] Keep three isolated learner sessions uninterrupted and preserve one-time grading through host reload and learner reconnect.
 
+## Phase 54 — Circuit Server-Restart Recovery ✅
+
+- [x] Persist active challenge/deadline and per-learner circuit state in normalized SQLite tables.
+- [x] Restore active circuit rooms and their remaining timers during Node.js startup.
+- [x] Allow learner-first reconnect and recover exact topology, completion feed, leaderboard, and score.
+- [x] Keep challenge completion and KTTX atomic and idempotent across a real process restart.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

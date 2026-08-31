@@ -184,6 +184,7 @@ interface RoomState {
   circuitSimulatePlayers: Map<string, CircuitSimulatePlayer>;
   circuitSimulateChallenges: CircuitChallenge[];
   circuitSimulateCurrentChallenge: number;
+  circuitSimulateChallengeEndsAt: number;
   simulateChallenges: CircuitChallenge[] | null;
 }
 
@@ -513,6 +514,10 @@ function finishGame(room: RoomState): void {
     podium = [...room.quizShowPlayers.values()]
       .sort((a, b) => b.score - a.score)
       .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
+  } else if (room.gameType === 'circuit_simulate') {
+    podium = [...room.circuitSimulatePlayers.values()]
+      .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
+      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
   } else {
     podium = [...room.players.values()]
       .sort((a, b) => b.score - a.score)
@@ -534,6 +539,7 @@ function finishGame(room: RoomState): void {
     for (const m of room.memoryPlayers.values()) nameToPlayer.set(m.displayName, m.userId);
     for (const w of room.wordScramblePlayers.values()) nameToPlayer.set(w.displayName, w.userId);
     for (const q of room.quizShowPlayers.values()) nameToPlayer.set(q.displayName, q.userId);
+    for (const c of room.circuitSimulatePlayers.values()) nameToPlayer.set(c.displayName, c.userId);
 
     tx(() => {
       for (const entry of podium) {
@@ -1006,6 +1012,7 @@ function circuitSimulateHostSnapshot(room: RoomState) {
     challenge: {
       index: room.circuitSimulateCurrentChallenge,
       total: room.circuitSimulateChallenges.length,
+      endsAt: room.circuitSimulateChallengeEndsAt,
       title: activeChallenge.title,
       description: activeChallenge.description,
       targetBehavior: activeChallenge.targetBehavior,
@@ -1023,6 +1030,121 @@ function circuitMismatchFeedback(student: unknown, reference: unknown): string {
     if (s.types.get(type) !== count) return 'Cần kiểm tra lại loại và số lượng linh kiện.';
   }
   return 'Các chân nối chưa đúng. Hãy kiểm tra chiều OUT → IN.';
+}
+
+interface CircuitRuntimeRow {
+  challenge_index: number;
+  challenge_ends_at: number;
+}
+
+interface CircuitPlayerStateRow {
+  student_id: string;
+  display_name: string;
+  score: number;
+  circuit_json: string | null;
+  circuit_challenge_id: string | null;
+  simulation_state: CircuitSimulatePlayer['simulationState'];
+  measurements_json: string;
+  completed_challenges_json: string;
+}
+
+function createCircuitPersistenceStatements() {
+  return {
+    upsertRuntime: db.prepare(`
+      INSERT INTO game_circuit_runtime (game_session_id, challenge_index, challenge_ends_at, updated_at)
+      VALUES (?, ?, ?, datetime('now'))
+      ON CONFLICT(game_session_id) DO UPDATE SET
+        challenge_index = excluded.challenge_index,
+        challenge_ends_at = excluded.challenge_ends_at,
+        updated_at = datetime('now')
+    `),
+    upsertPlayer: db.prepare(`
+      INSERT INTO game_circuit_player_states (
+        game_session_id, student_id, display_name, score, circuit_json, circuit_challenge_id,
+        simulation_state, measurements_json, completed_challenges_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(game_session_id, student_id) DO UPDATE SET
+        display_name = excluded.display_name,
+        score = excluded.score,
+        circuit_json = excluded.circuit_json,
+        circuit_challenge_id = excluded.circuit_challenge_id,
+        simulation_state = excluded.simulation_state,
+        measurements_json = excluded.measurements_json,
+        completed_challenges_json = excluded.completed_challenges_json,
+        updated_at = datetime('now')
+    `),
+  };
+}
+
+let circuitPersistenceStatements: ReturnType<typeof createCircuitPersistenceStatements> | null = null;
+
+function getCircuitPersistenceStatements() {
+  circuitPersistenceStatements ??= createCircuitPersistenceStatements();
+  return circuitPersistenceStatements;
+}
+
+function persistCircuitRuntime(room: RoomState): void {
+  getCircuitPersistenceStatements().upsertRuntime.run(
+    room.sessionId,
+    room.circuitSimulateCurrentChallenge,
+    room.circuitSimulateChallengeEndsAt,
+  );
+}
+
+function persistCircuitPlayer(room: RoomState, player: CircuitSimulatePlayer): void {
+  getCircuitPersistenceStatements().upsertPlayer.run(
+    room.sessionId,
+    player.userId,
+    player.displayName,
+    player.score,
+    player.circuit ? JSON.stringify(player.circuit) : null,
+    player.circuitChallengeId,
+    player.simulationState,
+    JSON.stringify(player.measurements),
+    JSON.stringify(player.completedChallenges),
+  );
+}
+
+function persistCircuitRoom(room: RoomState): void {
+  tx(() => {
+    persistCircuitRuntime(room);
+    for (const player of room.circuitSimulatePlayers.values()) persistCircuitPlayer(room, player);
+  });
+}
+
+function completeCircuitChallenge(
+  room: RoomState,
+  player: CircuitSimulatePlayer,
+  challenge: CircuitChallenge,
+): number | null {
+  if (player.completedChallenges.includes(challenge.id)) return null;
+  const genericPlayer = room.players.get(player.userId);
+  const previousCircuitScore = player.score;
+  const previousGenericScore = genericPlayer?.score ?? 0;
+  player.completedChallenges.push(challenge.id);
+  player.score += challenge.points;
+  try {
+    let newKttx = 0;
+    tx(() => {
+      newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+      persistCircuitPlayer(room, player);
+    });
+    return newKttx;
+  } catch (error) {
+    player.completedChallenges = player.completedChallenges.filter((challengeId) => challengeId !== challenge.id);
+    player.score = previousCircuitScore;
+    if (genericPlayer) genericPlayer.score = previousGenericScore;
+    throw error;
+  }
+}
+
+function parsePersistedJson(raw: string | null, fallback: unknown): unknown {
+  if (raw === null) return fallback;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return fallback;
+  }
 }
 
 // ============ CIRCUIT SIMULATE ============
@@ -1189,19 +1311,22 @@ function buildDigitalDefaults(): CircuitChallenge[] {
   return [ch1, ch2, ch3, ch4, ch5, ch6];
 }
 
-function initCircuitSimulate(room: RoomState): void {
-  room.phase = 'circuit_simulate';
-  room.circuitSimulatePlayers = new Map();
+function configureCircuitSimulateChallenges(room: RoomState): void {
   const starter = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
   const custom = room.simulateChallenges && room.simulateChallenges.length > 0 ? room.simulateChallenges : null;
   room.circuitSimulateChallenges = custom
-    ? custom.map((c) => ({ ...c }))
+    ? custom.map((challenge) => ({ ...challenge }))
     : buildDigitalDefaults();
-  room.circuitSimulateCurrentChallenge = 0;
-  // Mạch mẫu toàn cục chỉ làm điểm khởi đầu khi dùng bộ mặc định
   if (!custom && starter && room.circuitSimulateChallenges[0]) {
-    (room.circuitSimulateChallenges[0] as CircuitChallenge).starterCircuit = starter;
+    room.circuitSimulateChallenges[0].starterCircuit = starter;
   }
+}
+
+function initCircuitSimulate(room: RoomState): void {
+  room.phase = 'circuit_simulate';
+  room.circuitSimulatePlayers = new Map();
+  configureCircuitSimulateChallenges(room);
+  room.circuitSimulateCurrentChallenge = 0;
   for (const player of room.players.values()) {
     room.circuitSimulatePlayers.set(player.userId, {
       userId: player.userId,
@@ -1217,7 +1342,10 @@ function initCircuitSimulate(room: RoomState): void {
   sendCircuitSimulateChallenge(room);
 }
 
-function sendCircuitSimulateChallenge(room: RoomState): void {
+function sendCircuitSimulateChallenge(
+  room: RoomState,
+  challengeEndsAt = Date.now() + room.secondsPerQuestion * 1000,
+): void {
   if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
     finishGame(room);
     return;
@@ -1231,9 +1359,12 @@ function sendCircuitSimulateChallenge(room: RoomState): void {
     player.measurements = {};
     player.simulationState = 'idle';
   }
+  room.circuitSimulateChallengeEndsAt = challengeEndsAt;
+  persistCircuitRoom(room);
   ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', {
     index: room.circuitSimulateCurrentChallenge,
     total: room.circuitSimulateChallenges.length,
+    endsAt: room.circuitSimulateChallengeEndsAt,
     challenge: {
       id: challenge.id,
       title: challenge.title,
@@ -1242,9 +1373,75 @@ function sendCircuitSimulateChallenge(room: RoomState): void {
       targetBehavior: challenge.targetBehavior,
     },
   });
+  if (room.timer) clearTimeout(room.timer);
   room.timer = setTimeout(() => {
     evaluateCircuitSimulateChallenge(room);
-  }, room.secondsPerQuestion * 1000);
+  }, Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()));
+}
+
+function restoreCircuitSimulateRoom(room: RoomState): boolean {
+  const runtime = db.prepare(
+    'SELECT challenge_index, challenge_ends_at FROM game_circuit_runtime WHERE game_session_id = ?',
+  ).get(room.sessionId) as CircuitRuntimeRow | undefined;
+  if (!runtime) return false;
+
+  configureCircuitSimulateChallenges(room);
+  if (room.circuitSimulateChallenges.length === 0) return false;
+  room.phase = 'circuit_simulate';
+  room.circuitSimulateCurrentChallenge = Math.min(
+    Math.max(Math.trunc(runtime.challenge_index), 0),
+    room.circuitSimulateChallenges.length - 1,
+  );
+  room.circuitSimulateChallengeEndsAt = Number.isFinite(runtime.challenge_ends_at) && runtime.challenge_ends_at > 0
+    ? runtime.challenge_ends_at
+    : Date.now() + room.secondsPerQuestion * 1000;
+
+  const validChallengeIds = new Set(room.circuitSimulateChallenges.map((challenge) => challenge.id));
+  const rows = db.prepare(`
+    SELECT student_id, display_name, score, circuit_json, circuit_challenge_id, simulation_state,
+           measurements_json, completed_challenges_json
+    FROM game_circuit_player_states
+    WHERE game_session_id = ?
+    ORDER BY updated_at, student_id
+  `).all(room.sessionId) as unknown as CircuitPlayerStateRow[];
+
+  room.players = new Map();
+  room.circuitSimulatePlayers = new Map();
+  for (const row of rows) {
+    const circuitResult = zCircuitDraw.safeParse(parsePersistedJson(row.circuit_json, null));
+    const measurementsResult = z.record(z.string(), z.number()).safeParse(
+      parsePersistedJson(row.measurements_json, {}),
+    );
+    const completedResult = z.array(z.string().max(120)).max(50).safeParse(
+      parsePersistedJson(row.completed_challenges_json, []),
+    );
+    const completedChallenges = completedResult.success
+      ? completedResult.data.filter((challengeId) => validChallengeIds.has(challengeId))
+      : [];
+    const player: CircuitSimulatePlayer = {
+      userId: row.student_id,
+      displayName: row.display_name,
+      score: Number.isFinite(row.score) ? row.score : 0,
+      circuit: circuitResult.success ? circuitResult.data : null,
+      circuitChallengeId: row.circuit_challenge_id && validChallengeIds.has(row.circuit_challenge_id)
+        ? row.circuit_challenge_id
+        : null,
+      simulationState: row.simulation_state,
+      measurements: measurementsResult.success ? measurementsResult.data : {},
+      completedChallenges,
+    };
+    room.circuitSimulatePlayers.set(player.userId, player);
+    room.players.set(player.userId, {
+      userId: player.userId,
+      displayName: player.displayName,
+      score: completedChallenges.length * room.pointsPerCorrect,
+      answers: new Map(),
+      online: false,
+    });
+  }
+
+  sendCircuitSimulateChallenge(room, room.circuitSimulateChallengeEndsAt);
+  return true;
 }
 
 function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: string, displayName: string): void {
@@ -1264,11 +1461,13 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
       completedChallenges: [],
     };
     room.circuitSimulatePlayers.set(userId, player);
+    persistCircuitPlayer(room, player);
   }
   const circuit = player.circuitChallengeId === challenge.id ? player.circuit : null;
   socket.emit('circuit_simulate:challenge', {
     index: room.circuitSimulateCurrentChallenge,
     total: room.circuitSimulateChallenges.length,
+    endsAt: room.circuitSimulateChallengeEndsAt,
     challenge: {
       id: challenge.id,
       title: challenge.title,
@@ -1312,10 +1511,9 @@ function evaluateCircuitSimulateChallenge(room: RoomState): void {
     }
 
     if (passed) {
-        player.completedChallenges.push(c.id);
-        player.score += c.points;
+        const newKttx = completeCircuitChallenge(room, player, c);
+        if (newKttx === null) continue;
         completed++;
-        const newKttx = applyCorrectPoints(room, userId, player.displayName);
         ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
           userId,
           name: player.displayName,
@@ -1329,6 +1527,7 @@ function evaluateCircuitSimulateChallenge(room: RoomState): void {
   if (completed > 0) {
     ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:results', { completed });
   }
+  persistCircuitRoom(room);
   nextCircuitSimulateChallenge(room);
 }
 
@@ -1549,10 +1748,16 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     solvedRows: new Set<number>(),
     hands: new Map<string, string>(),
     activePick: null,
-    locked: false,
+    locked: row.status === 'running' && cfg.lockOnStart === true,
     lockOnStart: cfg.lockOnStart === true,
     blacklist: new Set<string>(),
-    phase: row.status === 'running' ? (gameType === 'math_race' ? 'race' : 'question') : 'lobby',
+    phase: row.status === 'running'
+      ? gameType === 'math_race'
+        ? 'race'
+        : gameType === 'circuit_simulate'
+          ? 'circuit_simulate'
+          : 'question'
+      : 'lobby',
     currentIndex: row.current_question_index,
     questionEndsAt: 0,
     questionStartAt: 0,
@@ -1584,6 +1789,7 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     circuitSimulatePlayers: new Map(),
     circuitSimulateChallenges: [],
     circuitSimulateCurrentChallenge: 0,
+    circuitSimulateChallengeEndsAt: 0,
     simulateChallenges: cfg.simulateChallenges
       ? cfg.simulateChallenges.map((entry, i) => ({
           id: `cfg_${i}`,
@@ -1598,7 +1804,34 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
       : null,
   };
   rooms.set(row.room_code, room);
+  if (row.status === 'running' && gameType === 'circuit_simulate') {
+    if (!restoreCircuitSimulateRoom(room)) initCircuitSimulate(room);
+  }
   return room;
+}
+
+function loadCircuitRoomByCodeFromDb(roomCode: string): RoomState | null {
+  const row = db.prepare(`
+    SELECT id FROM game_sessions
+    WHERE room_code = ? AND game_type = 'circuit_simulate' AND status IN ('lobby', 'running')
+    LIMIT 1
+  `).get(roomCode) as { id: string } | undefined;
+  return row ? loadRoomFromDb(row.id) : null;
+}
+
+function restoreActiveCircuitRooms(): void {
+  const rows = db.prepare(`
+    SELECT id FROM game_sessions
+    WHERE game_type = 'circuit_simulate' AND status = 'running'
+    ORDER BY created_at
+  `).all() as unknown as { id: string }[];
+  for (const row of rows) {
+    try {
+      loadRoomFromDb(row.id);
+    } catch (error) {
+      console.error(`[game] cannot restore circuit room ${row.id}`, error);
+    }
+  }
 }
 
 export function initGameEngine(httpServer: HttpServer): IOServer {
@@ -1607,6 +1840,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     maxHttpBufferSize: 1e6,
   });
   ioRef = io;
+  restoreActiveCircuitRooms();
 
   io.use((socket, next) => {
     const payload = authenticate(socket);
@@ -1650,7 +1884,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     socket.on('game:join', (raw: unknown) => {
       const parsed = zRoom.safeParse(raw);
       if (!parsed.success || socket.data.role !== 'student' || !socket.data.userId) return;
-      const room = rooms.get(parsed.data.roomCode);
+      const room = rooms.get(parsed.data.roomCode) ?? loadCircuitRoomByCodeFromDb(parsed.data.roomCode);
       if (!room) {
         socket.emit('game:error', { message: 'Không tìm thấy phòng. Kiểm tra lại mã phòng.' });
         return;
@@ -2164,18 +2398,17 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         });
       }
       if (parsed.data.submitted && challenge?.referenceCircuit && !player.completedChallenges.includes(challenge.id) && correct) {
-        player.completedChallenges.push(challenge.id);
-        player.score += challenge.points;
-        const newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+        const newKttx = completeCircuitChallenge(room, player, challenge);
         ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
           userId: player.userId,
           name: player.displayName,
           challengeId: challenge.id,
           points: challenge.points,
-          newKttx,
+          newKttx: newKttx ?? 0,
         });
         broadcastLeaderboard(room);
       }
+      persistCircuitPlayer(room, player);
     });
 
     socket.on('circuit_simulate:measurements', (raw: unknown) => {
@@ -2186,6 +2419,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
       if (!player) return;
       player.measurements = parsed.data.measurements;
+      persistCircuitPlayer(room, player);
     });
 
     socket.on('circuit_simulate:simulate', (raw: unknown) => {
@@ -2196,6 +2430,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
       if (!player) return;
       player.simulationState = parsed.data.action;
+      persistCircuitPlayer(room, player);
       // In a real implementation, this would run a SPICE simulation
       // For now, we just acknowledge the action
       socket.emit('circuit_simulate:simulation_state', {
