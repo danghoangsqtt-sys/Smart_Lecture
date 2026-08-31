@@ -821,7 +821,7 @@ function SimulationChallengesField({
         >+ Thêm</Button>
       </div>
       {challenges.length === 0 ? (
-        <p className="text-[10px] italic leading-relaxed text-slate-400">Bỏ trống để dùng bộ 4 thử thách mẫu <b>Đèn LED · Cổng AND · Mạch NOT · D Flip-Flop</b> — đã có sẵn mạch tham chiếu, chấm tự động.</p>
+        <p className="text-[10px] italic leading-relaxed text-slate-400">Bỏ trống để dùng bộ 6 thử thách mẫu <b>Đèn LED · Cổng AND · Mạch NOT · D Flip-Flop · Half Adder · Full Adder</b> — đã có sẵn mạch tham chiếu, chấm tự động.</p>
       ) : (
         <ul className="space-y-1.5">
           {challenges.map((challenge, index) => (

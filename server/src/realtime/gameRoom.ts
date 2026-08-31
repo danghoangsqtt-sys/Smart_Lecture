@@ -1068,7 +1068,66 @@ function buildDigitalDefaults(): CircuitChallenge[] {
     points: 200,
   };
 
-  return [ch1, ch2, ch3, ch4];
+  /* 5 — Half Adder: sum and carry */
+  const haA = C('switch', 140, 110, { on: false });
+  const haB = C('switch', 140, 230, { on: false });
+  const halfAdder = C('half_adder', 360, 170);
+  const haSumLed = C('led', 570, 110, { color: '#2563eb' });
+  const haCarryLed = C('led', 570, 230, { color: '#f97316' });
+  const haSumProbe = C('probe', 720, 110);
+  const haCarryProbe = C('probe', 720, 230);
+  const haSumGround = C('gnd', 570, 310);
+  const haCarryGround = C('gnd', 650, 350);
+  const ch5: CircuitChallenge = {
+    id: 'digital_5',
+    title: 'Half Adder — tổng S và bit nhớ C',
+    description: 'Nối hai đầu vào A/B vào Half Adder. Quan sát S và C đồng thời bằng LED và Probe/Oscilloscope.',
+    targetBehavior: 'S = A XOR B; C = A AND B',
+    starterCircuit: { components: [haA, haB, halfAdder, haSumLed, haCarryLed, haSumProbe, haCarryProbe, haSumGround, haCarryGround], wires: [] },
+    referenceCircuit: {
+      components: [haA, haB, halfAdder, haSumLed, haCarryLed, haSumProbe, haCarryProbe, haSumGround, haCarryGround],
+      wires: [
+        W(haA, 'out', halfAdder, 'a'), W(haB, 'out', halfAdder, 'b'),
+        W(halfAdder, 'sum', haSumLed, 'anode'), W(halfAdder, 'sum', haSumProbe, 'in'),
+        W(halfAdder, 'carry', haCarryLed, 'anode'), W(halfAdder, 'carry', haCarryProbe, 'in'),
+        W(haSumLed, 'cathode', haSumGround, 'out'), W(haCarryLed, 'cathode', haCarryGround, 'out'),
+      ],
+    },
+    testCases: [],
+    points: 200,
+  };
+
+  /* 6 — Full Adder: A + B + carry in */
+  const faA = C('switch', 120, 90, { on: false });
+  const faB = C('switch', 120, 170, { on: false });
+  const faCin = C('switch', 120, 250, { on: false });
+  const fullAdder = C('full_adder', 360, 170);
+  const faSumLed = C('led', 570, 110, { color: '#16a34a' });
+  const faCarryLed = C('led', 570, 230, { color: '#e11d48' });
+  const faSumProbe = C('probe', 720, 110);
+  const faCarryProbe = C('probe', 720, 230);
+  const faSumGround = C('gnd', 570, 310);
+  const faCarryGround = C('gnd', 650, 350);
+  const ch6: CircuitChallenge = {
+    id: 'digital_6',
+    title: 'Full Adder — cộng A, B và Cin',
+    description: 'Hoàn thiện mạch Full Adder ba đầu vào. Dùng LED và Probe để đối chiếu bit tổng S cùng bit nhớ Cout.',
+    targetBehavior: 'S là parity của A/B/Cin; Cout HIGH khi có ít nhất hai đầu vào HIGH',
+    starterCircuit: { components: [faA, faB, faCin, fullAdder, faSumLed, faCarryLed, faSumProbe, faCarryProbe, faSumGround, faCarryGround], wires: [] },
+    referenceCircuit: {
+      components: [faA, faB, faCin, fullAdder, faSumLed, faCarryLed, faSumProbe, faCarryProbe, faSumGround, faCarryGround],
+      wires: [
+        W(faA, 'out', fullAdder, 'a'), W(faB, 'out', fullAdder, 'b'), W(faCin, 'out', fullAdder, 'cin'),
+        W(fullAdder, 'sum', faSumLed, 'anode'), W(fullAdder, 'sum', faSumProbe, 'in'),
+        W(fullAdder, 'cout', faCarryLed, 'anode'), W(fullAdder, 'cout', faCarryProbe, 'in'),
+        W(faSumLed, 'cathode', faSumGround, 'out'), W(faCarryLed, 'cathode', faCarryGround, 'out'),
+      ],
+    },
+    testCases: [],
+    points: 250,
+  };
+
+  return [ch1, ch2, ch3, ch4, ch5, ch6];
 }
 
 function initCircuitSimulate(room: RoomState): void {
