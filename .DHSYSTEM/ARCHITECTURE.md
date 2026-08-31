@@ -119,18 +119,21 @@ Quy tắc: mọi mutation có zod validate; lỗi chuẩn `{error: {code, messag
 
 ## 5. Realtime events (Socket.IO)
 
-Namespace mặc định, phòng theo `game:{sessionId}` và `proctor:{examId}`:
+Namespace mặc định, phòng theo `game:{roomCode}` và `proctor:{examId}`:
 
 | Event (client→server) | Payload | Mô tả |
 |---|---|---|
+| game:host-attach | {sessionId} | GV tạo phòng gắn/reconnect console; server kiểm tra đúng host trước khi đồng bộ |
 | game:join | {roomCode} | HV vào phòng lobby (yêu cầu JWT) |
 | game:start | {} | GV bấm bắt đầu |
 | game:answer | {questionId, choice, msTaken} | HV trả lời, server tính điểm realtime |
 | game:next | {} | GV chuyển câu tiếp |
 | proctor:watch | {examId} | GV mở màn hình giám thị |
+| circuit_simulate:circuit | {components, wires, submitted} | HV đồng bộ topology; server chỉ chấm/cộng điểm khi `submitted=true` |
 | proctor:flag | {examId, type} | Server phát khi HV tab-switch |
 
-Server→client: `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `proctor:progress`, `proctor:redflag`.
+Server→client: `host:sync`, `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `circuit_simulate:challenge`, `circuit_simulate:restored`, `circuit_simulate:challenge_passed`, `proctor:progress`, `proctor:redflag`.
+`host:sync` trả trạng thái công khai của phòng. Với game mạch đang chạy, payload bổ sung challenge hiện tại (không có reference circuit), tối đa 8 dòng hoàn thành dựng từ state server và bảng xếp hạng lấy từ điểm circuit player.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 ## 6. Luồng RAG pipeline (services/rag.ts)

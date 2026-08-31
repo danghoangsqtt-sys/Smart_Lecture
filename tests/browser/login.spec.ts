@@ -272,8 +272,8 @@ test('teacher can review the six default circuit challenges before creating a ga
   await expect(page.getByText(/Dùng A, B, Cin.*S và Cout/)).toBeVisible();
 });
 
-test('default circuit room restores late and reconnecting learners without duplicate grading', async ({ page, request }) => {
-  test.setTimeout(90_000);
+test('default circuit room restores host and learners without duplicate grading', async ({ page, request, browser }) => {
+  test.setTimeout(105_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
   const createdStudent = await request.post('/api/users', {
@@ -342,12 +342,14 @@ test('default circuit room restores late and reconnecting learners without dupli
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('input[type=number]').first().fill('12');
+  await page.locator('input[type=number]').first().fill('14');
   await page.getByRole('button', { name: 'Tạo phòng game' }).click();
   const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
   expect(roomCode).toMatch(/^\d{6}$/);
+  const baseURL = new URL(page.url()).origin;
 
-  const studentPage = await page.context().newPage();
+  const studentContext = await browser.newContext({ baseURL });
+  const studentPage = await studentContext.newPage();
   await studentPage.goto('/login');
   await studentPage.locator('#username').fill('browser.circuit.student');
   await studentPage.locator('#password').fill('Student@1234');
@@ -358,7 +360,8 @@ test('default circuit room restores late and reconnecting learners without dupli
   await studentPage.keyboard.press('Escape');
   await expect(studentPage.getByRole('dialog')).toHaveCount(0);
 
-  const peerPage = await page.context().newPage();
+  const peerContext = await browser.newContext({ baseURL });
+  const peerPage = await peerContext.newPage();
   await peerPage.goto('/login');
   await peerPage.locator('#username').fill('browser.circuit.peer');
   await peerPage.locator('#password').fill('Student@1234');
@@ -374,7 +377,8 @@ test('default circuit room restores late and reconnecting learners without dupli
   await expect(studentPage.getByText('Đóng mạch đèn LED')).toBeVisible();
   await expect(peerPage.getByText('Đóng mạch đèn LED')).toBeVisible();
 
-  const latePage = await page.context().newPage();
+  const lateContext = await browser.newContext({ baseURL });
+  const latePage = await lateContext.newPage();
   await latePage.goto('/login');
   await latePage.locator('#username').fill('browser.circuit.late');
   await latePage.locator('#password').fill('Student@1234');
@@ -448,6 +452,20 @@ test('default circuit room restores late and reconnecting learners without dupli
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
 
+  await page.reload();
+  await expect(page.getByText('Đóng mạch đèn LED')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/3\/60/)).toBeVisible();
+  await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1);
+  await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1);
+  await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1);
+  const circuitLeaderboard = page.getByRole('heading', { name: 'Bảng xếp hạng mạch' }).locator('..').getByRole('listitem');
+  await expect(circuitLeaderboard).toHaveCount(3);
+  await expect(circuitLeaderboard).toHaveText([
+    /Circuit Late.*100đ/,
+    /Circuit Peer.*100đ/,
+    /Circuit Student.*100đ/,
+  ]);
+
   const gradebookResponse = await request.get(`/api/classes/${classId}/gradebook`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
   });
@@ -458,7 +476,7 @@ test('default circuit room restores late and reconnecting learners without dupli
   expect(gradebookRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
 
   await latePage.close();
-  const rejoinedLatePage = await page.context().newPage();
+  const rejoinedLatePage = await lateContext.newPage();
   await rejoinedLatePage.goto(`/games/play?room=${roomCode}`);
   await expect(rejoinedLatePage.getByRole('dialog')).toBeVisible();
   await rejoinedLatePage.keyboard.press('Escape');
@@ -478,7 +496,7 @@ test('default circuit room restores late and reconnecting learners without dupli
   expect(postTimerRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
   await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 15_000 });
-  await rejoinedLatePage.close();
-  await peerPage.close();
-  await studentPage.close();
+  await lateContext.close();
+  await peerContext.close();
+  await studentContext.close();
 });

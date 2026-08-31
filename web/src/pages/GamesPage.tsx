@@ -148,6 +148,17 @@ interface HostConsoleState {
   csPasses: { name: string; points: number; key: number }[];
 }
 
+interface HostSyncPayload {
+  phase: string;
+  players: { name: string; score?: number; team?: string; userId?: string }[];
+  leaderboard?: { name: string; score: number }[];
+  ropePos: number;
+  circuitSimulate?: {
+    challenge: { title: string; description: string; targetBehavior: string; index: number; total: number };
+    passes: { userId: string; name: string; challengeId: string; points: number }[];
+  } | null;
+}
+
 type HostSetField = <Key extends keyof HostConsoleState>(
   key: Key,
   update: StateUpdate<HostConsoleState[Key]>,
@@ -162,6 +173,12 @@ function createHostConsoleState(): HostConsoleState {
     qsQ: null, qsIdx: 0, qsTot: 0, qsReveal: null, qsScores: [],
     cdPending: [], csChallenge: null, csPasses: [],
   };
+}
+
+function toHostPhase(phase: string): HostPhase {
+  if (phase === 'lobby' || phase === 'question' || phase === 'leaderboard' || phase === 'race'
+    || phase === 'crossword' || phase === 'finished') return phase;
+  return 'sandbox';
 }
 
 type GameGuide = { gif: string; caption: string; rules: string[]; scoring: string };
@@ -229,7 +246,22 @@ export default function GamesPage({
 }) {
   const [tab, setTab] = useState<GameMode | 'picker' | 'saved'>('quick_quiz');
   const [session, setSession] = useState<GameSessionInfo | null>(null);
+  const [recoveringSession, setRecoveringSession] = useState(() => !lockedClassId);
   const [guideMode, setGuideMode] = useState<GameMode | null>(() => autoShowGuides && !shouldHideGameGuides() ? 'quick_quiz' : null);
+
+  useEffect(() => {
+    if (lockedClassId) return;
+    let active = true;
+    void api<{ sessions: GameSessionInfo[] }>('/games/mine/active')
+      .then(({ sessions }) => {
+        if (active && sessions[0]) setSession((current) => current ?? sessions[0] ?? null);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setRecoveringSession(false);
+      });
+    return () => { active = false; };
+  }, [lockedClassId]);
 
   function launchSession(nextSession: GameSessionInfo) {
     setSession(nextSession);
@@ -249,6 +281,7 @@ export default function GamesPage({
     setGuideMode(null);
   }
 
+  if (recoveringSession) return <div className="flex min-h-48 items-center justify-center"><Spinner /></div>;
   if (session) return <HostConsole session={session} />;
 
   return (
@@ -964,12 +997,19 @@ function useHostConsoleEffects(
     const socketEvents = createSocketEventScope(socket);
     const on = socketEvents.on;
 
-    socket.emit('game:host-attach', { sessionId: sessionId });
-
-    on('host:sync', (d: { phase: typeof phase; players: { name: string; score?: number; team?: string; userId?: string }[]; ropePos: number }) => {
-      setField('phase', d.phase);
+    on('host:sync', (d: HostSyncPayload) => {
+      setField('phase', d.circuitSimulate ? 'sandbox' : toHostPhase(d.phase));
       setField('players', d.players);
+      setField('leaderboard', d.leaderboard ?? []);
       setField('ropePos', d.ropePos ?? 0);
+      if (d.circuitSimulate) {
+        setField('csChallenge', d.circuitSimulate.challenge);
+        const restoredPasses = d.circuitSimulate.passes.map((pass) => {
+          feedKey.current += 1;
+          return { name: pass.name, points: pass.points, key: feedKey.current };
+        });
+        setField('csPasses', restoredPasses);
+      }
     });
     on('lobby:update', (d: { players: { name: string; team?: string; userId?: string }[] }) => setField('players', d.players));
     on('question:show', () => { setField('phase', 'question'); setField('reveal', null); setField('hrResult', null); });
@@ -1076,6 +1116,8 @@ function useHostConsoleEffects(
       feedKey.current += 1;
       setField('csPasses', (prev) => [{ name: d.name, points: d.points, key: feedKey.current }, ...prev].slice(0, 8));
     });
+
+    socket.emit('game:host-attach', { sessionId });
 
     return () => {
       for (const timer of pendingTimersRef.current) clearTimeout(timer);
@@ -1350,7 +1392,7 @@ function HostSandboxViews({
 }) {
   const {
     phase, players, bingoLast, bingoCalled, bingoWinner, memBoard, memPairs, memFeed,
-    scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses,
+    scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses, leaderboard,
   } = state;
   const qsNext = onQuizNext;
   const circuitVerify = onCircuitVerify;
@@ -1536,6 +1578,18 @@ function HostSandboxViews({
                 </li>
               ))}
             </ul>
+          )}
+          {leaderboard.length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-3">
+              <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">Bảng xếp hạng mạch</h5>
+              <ol className="mt-2 space-y-1">
+                {leaderboard.slice(0, 10).map((row, index) => (
+                  <li key={row.name} className="flex justify-between rounded-sm bg-slate-50 px-3 py-1 text-sm text-slate-700">
+                    <span>{index + 1}. {row.name}</span><b>{row.score}đ</b>
+                  </li>
+                ))}
+              </ol>
+            </div>
           )}
         </Card>
       )}

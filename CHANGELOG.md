@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-31 — Circuit host recovery
+
+- Tự mở lại phiên game đang hoạt động khi giáo viên reload trang Trò chơi.
+- Khôi phục challenge mạch hiện tại, feed hoàn thành, số học viên và bảng xếp hạng điểm mạch qua `host:sync` có phân quyền.
+- Tách context xác thực giáo viên/ba học viên trong Browser E2E và kiểm chứng reload không gián đoạn, không cộng trùng KTTX.
+
 ## Unreleased — Teaching Continuity Canvas v0.9.0 (planned)
 
 - Lập milestone cho presentation canvas PDF/PPTX, annotation, laser/highlight và video/game dock không gián đoạn phiên dạy.

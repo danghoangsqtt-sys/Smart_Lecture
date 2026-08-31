@@ -236,6 +236,12 @@ function isEnrolled(classId: string | null, userId: string): boolean {
 }
 
 function leaderboard(room: RoomState): { name: string; score: number; team?: string }[] {
+  if (room.gameType === 'circuit_simulate') {
+    return [...room.circuitSimulatePlayers.values()]
+      .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
+      .slice(0, 15)
+      .map((player) => ({ name: player.displayName, score: player.score }));
+  }
   return [...room.players.values()]
     .sort((a, b) => b.score - a.score)
     .slice(0, 15)
@@ -969,6 +975,45 @@ function circuitsMatch(student: unknown, reference: unknown): boolean {
   return true;
 }
 
+function circuitSimulateHostSnapshot(room: RoomState) {
+  if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return null;
+  const activeChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (!activeChallenge) return null;
+  const challengeById = new Map(
+    room.circuitSimulateChallenges.map((challenge, index) => [challenge.id, { challenge, index }] as const),
+  );
+  const passes = [...room.circuitSimulatePlayers.values()]
+    .flatMap((player) => player.completedChallenges.flatMap((challengeId) => {
+      const matched = challengeById.get(challengeId);
+      return matched ? [{
+        userId: player.userId,
+        name: player.displayName,
+        challengeId,
+        points: matched.challenge.points,
+        challengeIndex: matched.index,
+      }] : [];
+    }))
+    .sort((a, b) => b.challengeIndex - a.challengeIndex || a.name.localeCompare(b.name))
+    .slice(0, 8)
+    .map((pass) => ({
+      userId: pass.userId,
+      name: pass.name,
+      challengeId: pass.challengeId,
+      points: pass.points,
+    }));
+
+  return {
+    challenge: {
+      index: room.circuitSimulateCurrentChallenge,
+      total: room.circuitSimulateChallenges.length,
+      title: activeChallenge.title,
+      description: activeChallenge.description,
+      targetBehavior: activeChallenge.targetBehavior,
+    },
+    passes,
+  };
+}
+
 function circuitMismatchFeedback(student: unknown, reference: unknown): string {
   const s = extractNetlist(student);
   const r = extractNetlist(reference);
@@ -1596,7 +1641,9 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         totalQuestions: room.questions.length,
         ropePos: Math.round(room.ropePos),
         players: [...room.players.values()].map((p) => ({ name: p.displayName, score: p.score, userId: p.userId })),
+        leaderboard: leaderboard(room),
         raceRows: [...room.racePlayers.values()].map((r) => ({ name: r.displayName, solved: r.solved })),
+        circuitSimulate: circuitSimulateHostSnapshot(room),
       });
     });
 

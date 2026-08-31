@@ -6,6 +6,27 @@
 - [x] An enrolled student joins the live room and the host starts it.
 - [x] The live timer reaches D Flip-Flop → Half Adder → Full Adder in order.
 
+## Phase 50 — Realtime Circuit Submission ✅
+
+- [x] Synchronize learner topology and separate live edits from explicit submission.
+- [x] Grade matching circuits authoritatively and publish a realtime completion feed.
+
+## Phase 51 — Multi-Learner Idempotency ✅
+
+- [x] Verify two authenticated learners complete the same challenge independently.
+- [x] Prevent repeated correct submissions from duplicating feed rows or KTTX awards.
+
+## Phase 52 — Circuit Learner Recovery ✅
+
+- [x] Synchronize the current challenge for late-joining learners.
+- [x] Restore exact current-challenge topology and completion status after reconnect.
+
+## Phase 53 — Circuit Host Recovery ✅
+
+- [x] Reopen the teacher's newest active standalone game after page reload.
+- [x] Restore active challenge, completion feed, connected players, and circuit leaderboard through an authorized host snapshot.
+- [x] Keep three isolated learner sessions uninterrupted and preserve one-time grading through host reload and learner reconnect.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

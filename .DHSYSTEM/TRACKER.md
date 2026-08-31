@@ -210,8 +210,15 @@
 | T-5001 | Đồng bộ topology, nộp/chấm mạch mô phỏng và feed hoàn thành realtime | P50 | done | typecheck + Browser E2E 4/4 + backend E2E 86/86 + Socket 10/10 + regression 22/22 |
 | T-5101 | Kiểm chứng hai học viên và chống cộng trùng khi nộp lại mạch đúng | P51 | done | Browser E2E 4/4; feed mỗi học viên 1 lần; KTTX mỗi học viên +0.5 |
 | T-5201 | Khôi phục challenge, topology và trạng thái hoàn thành khi học viên vào muộn/kết nối lại | P52 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + backend regression đầy đủ |
+| T-5301 | Khôi phục console giáo viên, feed và bảng điểm mạch khi reload/kết nối lại | P53 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 
 ## Session log
+### 2026-08-31 (Phase 53 — T-5301 completed)
+- `/games` tự mở lại phiên đang hoạt động sau reload và chỉ phát `game:host-attach` sau khi đã đăng ký đủ listener.
+- Server trả snapshot công khai của challenge, feed hoàn thành dựng lại và bảng xếp hạng lấy đúng điểm circuit player; không lộ reference circuit.
+- Browser E2E tách giáo viên/ba học viên thành bốn context xác thực độc lập, reload thật console giáo viên mà không ngắt socket học viên.
+- Verify: Browser E2E 4/4, React Doctor 100/100, REST 86/86, Socket 10/10, regression 22/22, Excel và restore restart đều pass.
+
 ### 2026-08-31 (Phase 52 — T-5201 completed)
 - Học viên vào sau khi bắt đầu được tạo state mô phỏng và nhận ngay challenge hiện tại.
 - Topology được gắn `challengeId`, khôi phục đúng 4 linh kiện/3 dây khi reconnect và không rò mạch sang challenge kế tiếp.
