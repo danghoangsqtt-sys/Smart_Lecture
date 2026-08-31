@@ -126,6 +126,7 @@ interface CircuitSimulatePlayer {
   displayName: string;
   score: number;
   circuit: { components: any[]; wires: any[] } | null;
+  circuitChallengeId: string | null;
   simulationState: 'idle' | 'running' | 'paused' | 'completed' | 'start' | 'stop' | 'step' | 'reset';
   measurements: Record<string, number>;
   completedChallenges: string[];
@@ -1162,6 +1163,7 @@ function initCircuitSimulate(room: RoomState): void {
       displayName: player.displayName,
       score: 0,
       circuit: null,
+      circuitChallengeId: room.circuitSimulateChallenges[0]?.id ?? null,
       simulationState: 'idle',
       measurements: {},
       completedChallenges: [],
@@ -1177,6 +1179,13 @@ function sendCircuitSimulateChallenge(room: RoomState): void {
   }
   const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
   if (!challenge) return;
+  for (const player of room.circuitSimulatePlayers.values()) {
+    if (player.circuitChallengeId === challenge.id) continue;
+    player.circuit = null;
+    player.circuitChallengeId = challenge.id;
+    player.measurements = {};
+    player.simulationState = 'idle';
+  }
   ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', {
     index: room.circuitSimulateCurrentChallenge,
     total: room.circuitSimulateChallenges.length,
@@ -1191,6 +1200,43 @@ function sendCircuitSimulateChallenge(room: RoomState): void {
   room.timer = setTimeout(() => {
     evaluateCircuitSimulateChallenge(room);
   }, room.secondsPerQuestion * 1000);
+}
+
+function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: string, displayName: string): void {
+  if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (!challenge) return;
+  let player = room.circuitSimulatePlayers.get(userId);
+  if (!player) {
+    player = {
+      userId,
+      displayName,
+      score: 0,
+      circuit: null,
+      circuitChallengeId: challenge.id,
+      simulationState: 'idle',
+      measurements: {},
+      completedChallenges: [],
+    };
+    room.circuitSimulatePlayers.set(userId, player);
+  }
+  const circuit = player.circuitChallengeId === challenge.id ? player.circuit : null;
+  socket.emit('circuit_simulate:challenge', {
+    index: room.circuitSimulateCurrentChallenge,
+    total: room.circuitSimulateChallenges.length,
+    challenge: {
+      id: challenge.id,
+      title: challenge.title,
+      description: challenge.description,
+      starterCircuit: challenge.starterCircuit,
+      targetBehavior: challenge.targetBehavior,
+    },
+  });
+  socket.emit('circuit_simulate:restored', {
+    circuit,
+    completed: player.completedChallenges.includes(challenge.id),
+    simulationState: player.simulationState,
+  });
 }
 
 function evaluateCircuitSimulateChallenge(room: RoomState): void {
@@ -1640,6 +1686,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       });
       if (room.gameType === 'tug_of_war') broadcastRope(room);
       if (room.gameType === 'crossword') emitCrosswordState(room, socket);
+      if (room.gameType === 'circuit_simulate') syncCircuitSimulateLearner(room, socket, publicUser.id, publicUser.displayName);
       if (room.phase === 'question') {
         const q = room.questions[room.currentIndex];
         if (q) {
@@ -2052,14 +2099,16 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
       const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
       if (!player) return;
+      const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+      if (!challenge) return;
       player.circuit = parsed.data;
+      player.circuitChallengeId = challenge.id;
       ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:circuit_update', {
         userId: player.userId,
         name: player.displayName,
         circuit: parsed.data,
       });
 
-      const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
       const correct = !!challenge?.referenceCircuit && circuitsMatch(player.circuit, challenge.referenceCircuit);
       if (parsed.data.submitted) {
         socket.emit('circuit_simulate:validation', {

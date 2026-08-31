@@ -209,8 +209,15 @@
 | T-4901 | Thêm Browser E2E cho room mạch mặc định và thứ tự DFF/adder thực | P49 | done | Browser E2E 4/4 |
 | T-5001 | Đồng bộ topology, nộp/chấm mạch mô phỏng và feed hoàn thành realtime | P50 | done | typecheck + Browser E2E 4/4 + backend E2E 86/86 + Socket 10/10 + regression 22/22 |
 | T-5101 | Kiểm chứng hai học viên và chống cộng trùng khi nộp lại mạch đúng | P51 | done | Browser E2E 4/4; feed mỗi học viên 1 lần; KTTX mỗi học viên +0.5 |
+| T-5201 | Khôi phục challenge, topology và trạng thái hoàn thành khi học viên vào muộn/kết nối lại | P52 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + backend regression đầy đủ |
 
 ## Session log
+### 2026-08-31 (Phase 52 — T-5201 completed)
+- Học viên vào sau khi bắt đầu được tạo state mô phỏng và nhận ngay challenge hiện tại.
+- Topology được gắn `challengeId`, khôi phục đúng 4 linh kiện/3 dây khi reconnect và không rò mạch sang challenge kế tiếp.
+- Client phục hồi trạng thái đã hoàn thành bằng banner ổn định, không phát sinh cộng điểm/KTTX lần hai.
+- Browser E2E nâng lên ba học viên, gồm late join và reconnect; React Doctor 100/100; REST 86/86, Socket 10/10, regression 22/22 đều pass.
+
 ### 2026-08-31 (Phase 51 — T-5101 completed)
 - Mở rộng room mạch trình duyệt thành hai học viên đã xác thực và ghi danh thật.
 - Cả hai dựng topology LED hoàn chỉnh; học viên đầu nộp lặp để kiểm chứng idempotency theo challenge.

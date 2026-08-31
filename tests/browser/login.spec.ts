@@ -272,7 +272,7 @@ test('teacher can review the six default circuit challenges before creating a ga
   await expect(page.getByText(/Dùng A, B, Cin.*S và Cout/)).toBeVisible();
 });
 
-test('default circuit room grades two learners once and sends later challenges in order', async ({ page, request }) => {
+test('default circuit room restores late and reconnecting learners without duplicate grading', async ({ page, request }) => {
   test.setTimeout(90_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
@@ -302,6 +302,19 @@ test('default circuit room grades two learners once and sends later challenges i
     data: { oldPassword: 'Student@123', newPassword: 'Student@1234' },
   });
   expect(changedPeerPassword.ok()).toBeTruthy();
+  const createdLateLearner = await request.post('/api/users', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'browser.circuit.late', password: 'Student@123', role: 'student', displayName: 'Circuit Late' },
+  });
+  expect(createdLateLearner.ok()).toBeTruthy();
+  const lateLearnerId = (await createdLateLearner.json() as { user: { id: string } }).user.id;
+  const lateLearnerLogin = await request.post('/api/auth/login', { data: { username: 'browser.circuit.late', password: 'Student@123' } });
+  const lateLearnerToken = (await lateLearnerLogin.json() as { token: string }).token;
+  const changedLateLearnerPassword = await request.post('/api/auth/change-password', {
+    headers: { Authorization: `Bearer ${lateLearnerToken}` },
+    data: { oldPassword: 'Student@123', newPassword: 'Student@1234' },
+  });
+  expect(changedLateLearnerPassword.ok()).toBeTruthy();
 
   const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
   expect(teacherLogin.ok()).toBeTruthy();
@@ -312,7 +325,7 @@ test('default circuit room grades two learners once and sends later challenges i
   expect(classId).toBeTruthy();
   const enrolled = await request.post(`/api/classes/${classId}/enroll`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
-    data: { studentIds: [studentId, peerId] },
+    data: { studentIds: [studentId, peerId, lateLearnerId] },
   });
   expect(enrolled.ok()).toBeTruthy();
 
@@ -329,7 +342,7 @@ test('default circuit room grades two learners once and sends later challenges i
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('input[type=number]').first().fill('8');
+  await page.locator('input[type=number]').first().fill('12');
   await page.getByRole('button', { name: 'Tạo phòng game' }).click();
   const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
   expect(roomCode).toMatch(/^\d{6}$/);
@@ -360,6 +373,17 @@ test('default circuit room grades two learners once and sends later challenges i
   await page.getByRole('button', { name: 'Bắt đầu' }).click();
   await expect(studentPage.getByText('Đóng mạch đèn LED')).toBeVisible();
   await expect(peerPage.getByText('Đóng mạch đèn LED')).toBeVisible();
+
+  const latePage = await page.context().newPage();
+  await latePage.goto('/login');
+  await latePage.locator('#username').fill('browser.circuit.late');
+  await latePage.locator('#password').fill('Student@1234');
+  await latePage.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(latePage).toHaveURL(/\/$/);
+  await latePage.goto(`/games/play?room=${roomCode}`);
+  await expect(latePage.getByRole('dialog')).toBeVisible();
+  await latePage.keyboard.press('Escape');
+  await expect(latePage.getByText('Đóng mạch đèn LED')).toBeVisible();
 
   const assembleCircuit = async (targetPage: typeof studentPage) => {
     await targetPage.getByTitle(/VCC/).click();
@@ -407,17 +431,22 @@ test('default circuit room grades two learners once and sends later challenges i
   ];
   await assembleCircuit(studentPage);
   await assembleCircuit(peerPage);
+  await assembleCircuit(latePage);
   expect(await readTopology(studentPage)).toEqual(expectedTopology);
   expect(await readTopology(peerPage)).toEqual(expectedTopology);
+  expect(await readTopology(latePage)).toEqual(expectedTopology);
 
   const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
   await submitButton.click();
   await submitButton.click();
   await peerPage.getByRole('button', { name: 'Nộp mạch' }).click();
+  await latePage.getByRole('button', { name: 'Nộp mạch' }).click();
   await expect(studentPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
   await expect(peerPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
+  await expect(latePage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
+  await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
 
   const gradebookResponse = await request.get(`/api/classes/${classId}/gradebook`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
@@ -426,16 +455,30 @@ test('default circuit room grades two learners once and sends later challenges i
   const gradebookRows = (await gradebookResponse.json() as { rows: { studentId: string; kttx: number | null }[] }).rows;
   expect(gradebookRows.find((row) => row.studentId === studentId)?.kttx).toBe(0.5);
   expect(gradebookRows.find((row) => row.studentId === peerId)?.kttx).toBe(0.5);
+  expect(gradebookRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
 
-  await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 30_000 });
+  await latePage.close();
+  const rejoinedLatePage = await page.context().newPage();
+  await rejoinedLatePage.goto(`/games/play?room=${roomCode}`);
+  await expect(rejoinedLatePage.getByRole('dialog')).toBeVisible();
+  await rejoinedLatePage.keyboard.press('Escape');
+  await expect(rejoinedLatePage.getByText('Đóng mạch đèn LED')).toBeVisible();
+  await expect(rejoinedLatePage.locator('[data-component-type]')).toHaveCount(4);
+  await expect(rejoinedLatePage.locator('[data-wire-id]')).toHaveCount(3);
+  await expect(rejoinedLatePage.getByText(/Bạn đã hoàn thành thử thách này/)).toBeVisible();
+  expect(await readTopology(rejoinedLatePage)).toEqual(expectedTopology);
+
+  await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 40_000 });
   const postTimerGradebook = await request.get(`/api/classes/${classId}/gradebook`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
   });
   const postTimerRows = (await postTimerGradebook.json() as { rows: { studentId: string; kttx: number | null }[] }).rows;
   expect(postTimerRows.find((row) => row.studentId === studentId)?.kttx).toBe(0.5);
   expect(postTimerRows.find((row) => row.studentId === peerId)?.kttx).toBe(0.5);
-  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 12_000 });
-  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 12_000 });
+  expect(postTimerRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
+  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 15_000 });
+  await rejoinedLatePage.close();
   await peerPage.close();
   await studentPage.close();
 });

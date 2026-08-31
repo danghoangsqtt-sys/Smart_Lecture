@@ -73,6 +73,7 @@ interface PlayerGameState {
   scores: { name: string; score: number; streak: number }[];
   circuitData: CircuitData;
   challenge: { title: string; description: string; targetBehavior: string; index: number; total: number } | null;
+  challengeCompleted: boolean;
   refCircuit: CircuitData | null;
   showRef: boolean;
 }
@@ -94,7 +95,7 @@ function createPlayerGameState(roomInput: string): PlayerGameState {
     scWord: null, scGuess: '', scSolved: 0,
     qsQuestion: null, qsReveal: null, qsPicked: null, qsMasked: new Set(), qsAudience: null, qsHint: null,
     qsLifelines: { fiftyFifty: true, askAudience: true, phoneFriend: true }, scores: [],
-    circuitData: { components: [], wires: [] }, challenge: null, refCircuit: null, showRef: false,
+    circuitData: { components: [], wires: [] }, challenge: null, challengeCompleted: false, refCircuit: null, showRef: false,
   };
 }
 
@@ -129,6 +130,33 @@ function serializeCircuitForRoom(data: CircuitData) {
   };
 }
 
+function deserializeCircuitFromRoom(data: {
+  components: Array<{
+    id: string; type: string; x: number; y: number;
+    rotation?: number; rot?: number;
+    properties?: Record<string, unknown>; props?: Record<string, unknown>;
+  }>;
+  wires: Array<{ id: string; from: string; to: string; fromPort?: string; toPort?: string }>;
+}): CircuitData {
+  const endpoint = (componentId: string, port: string | undefined, fallback: string) =>
+    componentId.includes('::') ? componentId : `${componentId}::${port ?? fallback}`;
+  return {
+    components: data.components.map((component) => ({
+      id: component.id,
+      type: component.type as CircuitData['components'][number]['type'],
+      x: component.x,
+      y: component.y,
+      rot: component.rot ?? component.rotation ?? 0,
+      props: component.props ?? component.properties ?? {},
+    })),
+    wires: data.wires.map((wire) => ({
+      id: wire.id,
+      from: endpoint(wire.from, wire.fromPort, 'pin-0'),
+      to: endpoint(wire.to, wire.toPort, 'pin-1'),
+    })),
+  };
+}
+
 function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
   const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -151,7 +179,7 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
         setField('scWord', null); setField('scGuess', ""); setField('scSolved', 0);
         setField('qsQuestion', null); setField('qsPicked', null); setField('qsMasked', new Set());
         setField('qsAudience', null); setField('qsHint', null); setField('scores', []); setField('qsReveal', null);
-        setField('circuitData', { components: [], wires: [] }); setField('challenge', null);
+        setField('circuitData', { components: [], wires: [] }); setField('challenge', null); setField('challengeCompleted', false);
         setField('refCircuit', null); setField('showRef', false);
       }
     });
@@ -295,9 +323,18 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     on('circuit_simulate:challenge', (d: { index: number; total: number; challenge: { title: string; description: string; targetBehavior: string; starterCircuit?: CircuitData | null } }) => {
       setField('challenge', { ...d.challenge, index: d.index, total: d.total });
       setField('circuitData', d.challenge.starterCircuit ? { components: d.challenge.starterCircuit.components, wires: d.challenge.starterCircuit.wires } : { components: [], wires: [] });
+      setField('challengeCompleted', false);
     });
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {
+      if (d.userId === myId()) setField('challengeCompleted', true);
       toast.success(`🎯 ${d.userId === myId() ? 'Bạn đã' : d.name + ' đã'} vượt qua thử thách (+${d.points}đ)`);
+    });
+    on('circuit_simulate:restored', (d: {
+      circuit: Parameters<typeof deserializeCircuitFromRoom>[0] | null;
+      completed: boolean;
+    }) => {
+      if (d.circuit) setField('circuitData', deserializeCircuitFromRoom(d.circuit));
+      setField('challengeCompleted', d.completed);
     });
     on('circuit_simulate:validation', (d: { correct: boolean; feedback: string }) => {
       if (!d.correct) toast.error(d.feedback);
@@ -842,7 +879,7 @@ function CircuitPlayerView({
   onSubmit: (data: CircuitData) => void;
   onToggleReference: () => void;
 }) {
-  const { gameType, challenge, refCircuit, showRef, circuitData } = state;
+  const { gameType, challenge, challengeCompleted, refCircuit, showRef, circuitData } = state;
   const circuitMode = gameType === 'circuit_draw' ? 'circuit_draw' : 'circuit_simulate';
   return (
     <>
@@ -852,6 +889,11 @@ function CircuitPlayerView({
           <h3 className="mt-0.5 font-bold text-slate-800">{challenge.title}</h3>
           <p className="text-sm text-slate-600">{challenge.description}</p>
           <p className="mt-1 text-xs italic text-emerald-700"><i className="fas fa-bullseye" /> Mục tiêu: {challenge.targetBehavior}</p>
+          {challengeCompleted && (
+            <p className="mt-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+              <i className="fas fa-circle-check" /> Bạn đã hoàn thành thử thách này — trạng thái được giữ khi kết nối lại.
+            </p>
+          )}
         </Card>
       )}
       {gameType === 'circuit_draw' && refCircuit && refCircuit.components.length > 0 && (
