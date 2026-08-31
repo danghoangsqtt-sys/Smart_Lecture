@@ -99,6 +99,14 @@ const NEEDS_QUESTIONS = new Set<GameMode>(['quick_quiz', 'tug_of_war', 'hand_rai
 const KTTX_MODES = new Set<GameMode>(['hand_raise', 'crossword', 'word_scramble', 'quiz_show', 'bingo', 'circuit_draw', 'circuit_simulate']);
 const USES_SECONDS = new Set<GameMode>(['quick_quiz', 'tug_of_war', 'hand_raise', 'quiz_show', 'circuit_draw', 'circuit_simulate']);
 const GAME_GUIDE_PREFERENCE = 'smart-lecture-hide-game-guides';
+const DEFAULT_CIRCUIT_CHALLENGE_GUIDE = [
+  { title: 'Đèn LED', observation: 'Bật công tắc để kiểm tra đường tín hiệu HIGH và LED sáng.' },
+  { title: 'Cổng AND', observation: 'So sánh LED khi lần lượt bật A, B và cả hai đầu vào.' },
+  { title: 'Cổng NOT', observation: 'Quan sát LED đổi trạng thái ngược với công tắc.' },
+  { title: 'D Flip-Flop', observation: 'Thay đổi DATA trước/sau cạnh lên CLK; xem Q trên LED và Probe.' },
+  { title: 'Half Adder', observation: 'Đối chiếu S (tổng) và C (nhớ) với bốn tổ hợp A/B.' },
+  { title: 'Full Adder', observation: 'Dùng A, B, Cin để quan sát S và Cout trên LED/Probe.' },
+] as const;
 
 function shouldHideGameGuides(): boolean {
   try { return window.localStorage.getItem(GAME_GUIDE_PREFERENCE) === '1'; }
@@ -795,6 +803,20 @@ function CircuitDrawTemplateField({ template, onOpen, onClear }: { template: Cir
   );
 }
 
+function DefaultCircuitChallengeGuide() {
+  return (
+    <details className="mt-2 rounded-sm border border-blue-200 bg-blue-50 px-2.5 py-2 text-[10px] text-slate-700">
+      <summary className="cursor-pointer font-bold text-blue-800">Hướng dẫn giảng dạy bộ 6 bài mặc định</summary>
+      <ol className="mt-2 list-decimal space-y-1 pl-4 leading-relaxed">
+        {DEFAULT_CIRCUIT_CHALLENGE_GUIDE.map((item) => (
+          <li key={item.title}><b>{item.title}:</b> {item.observation}</li>
+        ))}
+      </ol>
+      <p className="mt-2 border-t border-blue-200 pt-2 text-blue-900"><i className="fas fa-lightbulb" /> Học viên nối dây OUT (xanh) → IN (đỏ); Probe hiển thị dạng sóng trên Oscilloscope khi mô phỏng chạy.</p>
+    </details>
+  );
+}
+
 function SimulationChallengesField({
   challenges,
   onChange,
@@ -844,6 +866,7 @@ function SimulationChallengesField({
           ))}
         </ul>
       )}
+      {challenges.length === 0 && <DefaultCircuitChallengeGuide />}
     </div>
   );
 }
