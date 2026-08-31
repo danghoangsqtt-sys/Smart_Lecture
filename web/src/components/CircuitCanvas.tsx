@@ -439,7 +439,7 @@ const CompNode = memo(function CompNode({
   const shown = { ...comp, props: { ...comp.props, _lit: lit } };
 
   return (
-    <g transform={`translate(${comp.x},${comp.y}) rotate(${comp.rot})`}
+    <g data-component-id={comp.id} data-component-type={comp.type} transform={`translate(${comp.x},${comp.y}) rotate(${comp.rot})`}
       onPointerDown={(e) => onPointerDownComp(e, comp.id)}
       style={{ cursor: dragging ? 'grabbing' : 'grab' }}
     >
@@ -451,7 +451,7 @@ const CompNode = memo(function CompNode({
           <circle cx={p.x} cy={p.y} r={PIN_R}
             fill={p.dir === 'out' ? '#2563eb' : '#dc2626'}
             stroke="#fff" strokeWidth={1.2} />
-          <circle cx={p.x} cy={p.y} r={PIN_R + 4} fill="transparent"
+          <circle data-pin={p.id} cx={p.x} cy={p.y} r={PIN_R + 4} fill="transparent"
             style={{ cursor: 'crosshair' }}
             onPointerDown={(e) => { e.stopPropagation(); onPointerDownPin(e, comp.id, p.id, p); }} />
           {p.label && (
@@ -475,15 +475,17 @@ const CompNode = memo(function CompNode({
 });
 
 const WireLink = memo(function WireLink({
-  wireId, d, state, running, hitD, onErase,
+  wireId, wireFrom, wireTo, d, state, running, hitD, onErase,
 }: {
   wireId: string;
+  wireFrom: string;
+  wireTo: string;
   d: string; state: 'high' | 'low' | 'float'; running: boolean;
   hitD: string; onErase: (wireId: string) => void;
 }) {
   const color = state === 'high' ? '#16a34a' : state === 'low' ? '#334155' : '#94a3b8';
   return (
-    <g>
+    <g data-wire-id={wireId} data-wire-from={wireFrom} data-wire-to={wireTo}>
       <path d={hitD} stroke="transparent" strokeWidth={12} fill="none"
         style={{ cursor: 'pointer' }} onPointerDown={(e) => { e.stopPropagation(); onErase(wireId); }} />
       <path d={d} stroke={color} strokeWidth={state === 'high' && running ? 3 : 2.4}
@@ -617,6 +619,13 @@ function useCircuitEditor({
     setWires(next.wires);
     if (notify) onChange?.({ components: next.comps, wires: next.wires });
   }, [onChange]);
+
+  useEffect(() => {
+    if (!initialData) return;
+    if (dataRef.current.comps === initialData.components && dataRef.current.wires === initialData.wires) return;
+    applyData({ comps: initialData.components, wires: initialData.wires }, false);
+    setSelId(null);
+  }, [initialData, applyData]);
 
   const updateComps = useCallback((update: Comp[] | ((current: Comp[]) => Comp[]), notify = true) => {
     const current = dataRef.current;
@@ -1140,7 +1149,7 @@ function CircuitWorkspace(props: CircuitWorkspaceProps) {
               const from = pinWorldPos(fromComponent, fromPin);
               const to = pinWorldPos(toComponent, toPin);
               const path = orthPath(from, to);
-              return <WireLink key={wire.id} wireId={wire.id} d={path} hitD={path} state={wireStateOf(wire)} running={running} onErase={eraseWire} />;
+              return <WireLink key={wire.id} wireId={wire.id} wireFrom={wire.from} wireTo={wire.to} d={path} hitD={path} state={wireStateOf(wire)} running={running} onErase={eraseWire} />;
             })}
             {wires.map((wire) => {
               const [componentId, pinId] = wire.from.split('::');

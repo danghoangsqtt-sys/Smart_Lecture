@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-49-completed",
-  "phase_current": "P49-default-circuit-room-e2e",
+  "status": "phase-50-completed",
+  "phase_current": "P50-circuit-simulation-submission",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P49 completed. Next milestone: add browser coverage for a student submitting circuit work and the host receiving a real-time completion update."
+  "next_action": "P50 completed. Next milestone: expand browser coverage to multi-learner circuit completion and duplicate-award protection."
 }

@@ -273,7 +273,7 @@ test('teacher can review the six default circuit challenges before creating a ga
 });
 
 test('default circuit room sends sequential and adder challenges in order', async ({ page, request }) => {
-  test.setTimeout(75_000);
+  test.setTimeout(90_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
   const createdStudent = await request.post('/api/users', {
@@ -307,6 +307,7 @@ test('default circuit room sends sequential and adder challenges in order', asyn
   await page.locator('#username').fill('browser.teacher');
   await page.locator('#password').fill('Teacher@1234');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
   await page.goto('/games');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -315,7 +316,7 @@ test('default circuit room sends sequential and adder challenges in order', asyn
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('input[type=number]').first().fill('5');
+  await page.locator('input[type=number]').first().fill('8');
   await page.getByRole('button', { name: 'Tạo phòng game' }).click();
   const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
   expect(roomCode).toMatch(/^\d{6}$/);
@@ -325,12 +326,62 @@ test('default circuit room sends sequential and adder challenges in order', asyn
   await studentPage.locator('#username').fill('browser.circuit.student');
   await studentPage.locator('#password').fill('Student@1234');
   await studentPage.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(studentPage).toHaveURL(/\/$/);
   await studentPage.goto(`/games/play?room=${roomCode}`);
+  await expect(studentPage.getByRole('dialog')).toBeVisible();
+  await studentPage.keyboard.press('Escape');
+  await expect(studentPage.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByText(/1\/60/)).toBeVisible();
   await page.getByRole('button', { name: 'Bắt đầu' }).click();
+  await expect(studentPage.getByText('Đóng mạch đèn LED')).toBeVisible();
+  await studentPage.getByTitle(/VCC/).click();
+  await expect(studentPage.locator('[data-component-type="vcc"]')).toHaveCount(1);
+  await studentPage.getByTitle('Công tắc — nhấn để thêm').click();
+  await expect(studentPage.locator('[data-component-type="switch"]')).toHaveCount(1);
+  await studentPage.getByTitle('LED — nhấn để thêm').click();
+  await expect(studentPage.locator('[data-component-type="led"]')).toHaveCount(1);
+  await studentPage.getByTitle('GND — nhấn để thêm').click();
+  await expect(studentPage.locator('[data-component-type="gnd"]')).toHaveCount(1);
+  await studentPage.getByRole('button', { name: /Nối/ }).click();
+  const pressPin = async (type: string, name: string) => {
+    await studentPage.locator(`[data-component-type="${type}"] [data-pin="${name}"]`).first().dispatchEvent('pointerdown', { button: 0, pointerType: 'mouse' });
+  };
+  await pressPin('vcc', 'out');
+  await pressPin('switch', 'in');
+  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(1);
+  await pressPin('switch', 'out');
+  await pressPin('led', 'anode');
+  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(2);
+  await pressPin('led', 'cathode');
+  await pressPin('gnd', 'out');
+  await expect(studentPage.locator('[data-component-type]')).toHaveCount(4);
+  await expect(studentPage.locator('[data-wire-id]')).toHaveCount(3);
+  const topology = await studentPage.locator('svg:has([data-wire-id])').evaluate((svg) => {
+    const componentTypes = new Map(
+      Array.from(svg.querySelectorAll<SVGGElement>('[data-component-id]')).map((node) => [
+        node.dataset.componentId ?? '',
+        node.dataset.componentType ?? '',
+      ]),
+    );
+    return Array.from(svg.querySelectorAll<SVGGElement>('[data-wire-id]')).map((wire) => {
+      const endpoint = (raw: string | undefined) => {
+        const [componentId, pinId] = (raw ?? '').split('::');
+        return `${componentTypes.get(componentId)}:${pinId}`;
+      };
+      return [endpoint(wire.dataset.wireFrom), endpoint(wire.dataset.wireTo)].sort().join('~');
+    }).sort();
+  });
+  expect(topology).toEqual([
+    'gnd:out~led:cathode',
+    'led:anode~switch:out',
+    'switch:in~vcc:out',
+  ]);
+  await studentPage.getByRole('button', { name: 'Nộp mạch' }).click();
+  await expect(studentPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
+  await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toBeVisible({ timeout: 10_000 });
 
-  await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 12_000 });
+  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 12_000 });
   await studentPage.close();
 });

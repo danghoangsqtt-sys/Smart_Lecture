@@ -207,8 +207,15 @@
 | T-4701 | Thêm hướng dẫn giảng dạy sáu thử thách mạch mặc định cho giáo viên | P47 | done | typecheck + Browser E2E 2/2 + React Doctor 100/100 |
 | T-4801 | Thêm Browser E2E trực tiếp cho setup/guide sáu bài mạch mặc định | P48 | done | Browser E2E 3/3 |
 | T-4901 | Thêm Browser E2E cho room mạch mặc định và thứ tự DFF/adder thực | P49 | done | Browser E2E 4/4 |
+| T-5001 | Đồng bộ topology, nộp/chấm mạch mô phỏng và feed hoàn thành realtime | P50 | done | typecheck + Browser E2E 4/4 + backend E2E 86/86 + Socket 10/10 + regression 22/22 |
 
 ## Session log
+### 2026-08-31 (Phase 50 — T-5001 completed)
+- Đồng bộ thay đổi mạch mô phỏng và tách rõ live edit với thao tác nộp để chỉ chấm/cộng điểm khi học viên chủ động gửi.
+- Chuẩn hoá bộ chấm topology cho cả endpoint `component::port` và payload tách `component`/`port`; giữ feed giáo viên qua các lần chuyển thử thách.
+- Browser E2E dựng thật mạch VCC → Switch → LED → GND, xác nhận topology, phản hồi học viên/giáo viên và chuỗi DFF/Half Adder/Full Adder.
+- Verify: typecheck, production Browser E2E 4/4, REST 86/86, Socket 10/10, security/data regression 22/22, Excel/restore pass; React Doctor 0 errors (4 advisory đã rà soát).
+
 ### 2026-08-28 (Phase 12 — T-1202 checkpoint)
 - Loại SheetJS `xlsx` có advisory high không có upstream fix; thống nhất ExcelJS cho parse/generate và tải động ở client khi xuất sổ điểm.
 - Bổ sung adapter XLSX/CSV, E2E thực cho nhập học viên/chương trình, template và export lớp; sửa route template bị route động che khuất cùng chuẩn hoá tiêu đề tiếng Việt.

@@ -1070,7 +1070,6 @@ function useHostConsoleEffects(
     });
     on('circuit_simulate:challenge', (d: { index: number; total: number; challenge: { title: string; description: string; targetBehavior: string } }) => {
       setField('csChallenge', { ...d.challenge, index: d.index, total: d.total });
-      setField('csPasses', []);
       setField('phase', 'sandbox');
     });
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {

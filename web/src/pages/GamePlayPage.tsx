@@ -109,6 +109,26 @@ function studentGuideFor(mode: Mode) {
   return { gif: '/game-guides/quiz-guide.gif', title: 'Quiz lớp học', rules: ['Chọn hoặc nhập đáp án trước khi hết giờ.', 'Hệ thống khóa câu trả lời sau khi gửi.', 'Theo dõi kết quả và bảng điểm sau mỗi câu.'] };
 }
 
+function serializeCircuitForRoom(data: CircuitData) {
+  return {
+    components: data.components.map((component) => ({
+      id: component.id,
+      type: component.type,
+      x: component.x,
+      y: component.y,
+      rotation: component.rot,
+      properties: component.props,
+    })),
+    wires: data.wires.map((wire) => ({
+      id: wire.id,
+      from: wire.from.split('::')[0],
+      to: wire.to.split('::')[0],
+      fromPort: wire.from.split('::')[1],
+      toPort: wire.to.split('::')[1],
+    })),
+  };
+}
+
 function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
   const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -279,6 +299,9 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {
       toast.success(`🎯 ${d.userId === myId() ? 'Bạn đã' : d.name + ' đã'} vượt qua thử thách (+${d.points}đ)`);
     });
+    on('circuit_simulate:validation', (d: { correct: boolean; feedback: string }) => {
+      if (!d.correct) toast.error(d.feedback);
+    });
     on('circuit_draw:verified', (d: { userId: string; correct: boolean; feedback?: string; newKttx: number | null }) => {
       if (d.userId !== myId()) return;
       if (d.correct) {
@@ -404,25 +427,19 @@ export default function GamePlayPage() {
     socketRef.current?.emit('quiz_show:answer', { choiceIdx: -1, lifeline: kind });
   }
 
-  function submitCircuit(data: CircuitData) {
+  function syncCircuit(data: CircuitData) {
     setField('circuitData', data);
-    socketRef.current?.emit('circuit_draw:submit', {
-      components: data.components.map((component) => ({
-        id: component.id,
-        type: component.type,
-        x: component.x,
-        y: component.y,
-        rotation: component.rot,
-        properties: component.props,
-      })),
-      wires: data.wires.map((wire) => ({
-        id: wire.id,
-        from: wire.from.split('::')[0],
-        to: wire.to.split('::')[0],
-        fromPort: wire.from.split('::')[1],
-        toPort: wire.to.split('::')[1],
-      })),
-    });
+    if (gameType === 'circuit_simulate') socketRef.current?.emit('circuit_simulate:circuit', serializeCircuitForRoom(data));
+  }
+
+  function submitCircuit(data: CircuitData) {
+    syncCircuit(data);
+    if (gameType === 'circuit_simulate') {
+      socketRef.current?.emit('circuit_simulate:circuit', { ...serializeCircuitForRoom(data), submitted: true });
+      toast.success('Đã gửi mạch để hệ thống chấm thử thách');
+      return;
+    }
+    socketRef.current?.emit('circuit_draw:submit', serializeCircuitForRoom(data));
     toast.success('Đã nộp mạch cho giáo viên');
   }
 
@@ -496,7 +513,7 @@ export default function GamePlayPage() {
       {joined && !finished && (gameType === 'circuit_draw' || gameType === 'circuit_simulate') && (
         <CircuitPlayerView
           state={state}
-          onCircuitChange={(data) => setField('circuitData', data)}
+          onCircuitChange={syncCircuit}
           onSubmit={submitCircuit}
           onToggleReference={() => setField('showRef', (visible) => !visible)}
         />

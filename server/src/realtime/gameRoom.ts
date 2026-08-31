@@ -29,7 +29,8 @@ const zCircuitDraw = z.object({
     to: z.string(),
     fromPort: z.string().optional(),
     toPort: z.string().optional()
-  }))
+  })),
+  submitted: z.boolean().default(false),
 });
 const zCircuitSimulate = z.object({
   action: z.enum(['start', 'stop', 'step', 'reset']),
@@ -926,11 +927,12 @@ function extractNetlist(circuit: unknown): TypeLevelNetlist | null {
 
   const sigs = new Map<string, number>();
   let wireCount = 0;
-  const epOf = (raw: unknown): string | null => {
+  const epOf = (raw: unknown, explicitPort: unknown): string | null => {
     if (typeof raw !== 'string') return null;
     const sep = raw.lastIndexOf('::');
     const cid = sep >= 0 ? raw.slice(0, sep) : raw;
-    const pid = sep >= 0 ? raw.slice(sep + 2) : '';
+    const embeddedPort = sep >= 0 ? raw.slice(sep + 2) : '';
+    const pid = embeddedPort || (typeof explicitPort === 'string' ? explicitPort : '');
     const t = idType.get(cid);
     if (!t) return null;
     return `${t}:${pid || '?'}`;
@@ -938,8 +940,8 @@ function extractNetlist(circuit: unknown): TypeLevelNetlist | null {
 
   for (const w of obj.wires) {
     if (!w || typeof w.from !== 'string' || typeof w.to !== 'string') continue;
-    const a = epOf(w.from);
-    const b = epOf(w.to);
+    const a = epOf(w.from, w.fromPort);
+    const b = epOf(w.to, w.toPort);
     if (!a || !b || a === b) continue;
     wireCount++;
     const [x, y] = a < b ? [a, b] : [b, a];
@@ -964,6 +966,17 @@ function circuitsMatch(student: unknown, reference: unknown): boolean {
     if (s.sigs.get(k) !== n) return false;
   }
   return true;
+}
+
+function circuitMismatchFeedback(student: unknown, reference: unknown): string {
+  const s = extractNetlist(student);
+  const r = extractNetlist(reference);
+  if (!s || !r) return 'Dữ liệu mạch không hợp lệ. Hãy thử nộp lại.';
+  if (s.wireCount !== r.wireCount) return `Cần kiểm tra số dây nối (${s.wireCount}/${r.wireCount}).`;
+  for (const [type, count] of r.types) {
+    if (s.types.get(type) !== count) return 'Cần kiểm tra lại loại và số lượng linh kiện.';
+  }
+  return 'Các chân nối chưa đúng. Hãy kiểm tra chiều OUT → IN.';
 }
 
 // ============ CIRCUIT SIMULATE ============
@@ -2045,6 +2058,28 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         name: player.displayName,
         circuit: parsed.data,
       });
+
+      const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+      const correct = !!challenge?.referenceCircuit && circuitsMatch(player.circuit, challenge.referenceCircuit);
+      if (parsed.data.submitted) {
+        socket.emit('circuit_simulate:validation', {
+          correct,
+          feedback: correct ? 'Mạch đúng — đang ghi nhận kết quả.' : circuitMismatchFeedback(player.circuit, challenge?.referenceCircuit),
+        });
+      }
+      if (parsed.data.submitted && challenge?.referenceCircuit && !player.completedChallenges.includes(challenge.id) && correct) {
+        player.completedChallenges.push(challenge.id);
+        player.score += challenge.points;
+        const newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+        ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
+          userId: player.userId,
+          name: player.displayName,
+          challengeId: challenge.id,
+          points: challenge.points,
+          newKttx,
+        });
+        broadcastLeaderboard(room);
+      }
     });
 
     socket.on('circuit_simulate:measurements', (raw: unknown) => {
