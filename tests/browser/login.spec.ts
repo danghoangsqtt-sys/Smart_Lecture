@@ -247,3 +247,27 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.getByRole('button', { name: 'Làm lại', exact: true }).click();
   await expect(restoredSurface.locator('polyline')).toHaveCount(0);
 });
+
+test('teacher can review the six default circuit challenges before creating a game', async ({ page }) => {
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.teacher');
+  await page.locator('#password').fill('Teacher@1234');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
+
+  await page.goto('/games');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', { name: /Mô phỏng mạch/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await expect(page.getByText(/bộ 6 thử thách mẫu/)).toBeVisible();
+  const circuitGuide = page.locator('summary').filter({ hasText: 'Hướng dẫn giảng dạy bộ 6 bài mặc định' });
+  await expect(circuitGuide).toBeVisible();
+  await circuitGuide.click();
+  await expect(page.getByText(/Thay đổi DATA.*cạnh lên CLK/)).toBeVisible();
+  await expect(page.getByText(/Dùng A, B, Cin.*S và Cout/)).toBeVisible();
+});
