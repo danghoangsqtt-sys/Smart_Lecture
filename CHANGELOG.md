@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Private circuit learner monitoring
+
+- Thêm bảng tiến độ realtime theo từng học viên với trạng thái kết nối, đang làm/hoàn thành, số linh kiện/dây và điểm mạch.
+- Cho giáo viên xem topology hiện tại theo yêu cầu trong preview chỉ đọc, khôi phục được sau reload/server restart.
+- Loại broadcast topology khỏi room chung; học viên không còn nhận mạch của nhau và không có quyền gọi inspection.
+- Kiểm chứng bằng ba browser context độc lập và restart process thật.
+
 ## 2026-09-01 — Circuit teacher controls
 
 - Thêm nút Tạm dừng/Tiếp tục/Bỏ qua/Làm lại challenge mạch cho giáo viên, kèm trạng thái pause hiển thị cho học viên.

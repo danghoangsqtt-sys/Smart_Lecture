@@ -41,6 +41,13 @@
 - [x] Preserve learner topology on pause/resume and preserve completed score/KTTX on restart.
 - [x] Cover the host controls in Browser E2E and the paused timer in the real restart integration.
 
+## Phase 56 — Circuit Learner Monitoring ✅
+
+- [x] Show compact realtime progress for every learner in the active circuit challenge.
+- [x] Move learner topology updates to a host-only channel and block peer inspection.
+- [x] Let the authorized teacher inspect one current topology in a read-only preview.
+- [x] Restore monitoring after host reload/server restart and cover it in Browser E2E.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

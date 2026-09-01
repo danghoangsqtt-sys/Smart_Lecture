@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-55-completed",
-  "phase_current": "P55-circuit-teacher-controls",
+  "status": "phase-56-completed",
+  "phase_current": "P56-circuit-learner-monitoring",
   "workflow_state": "completed",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P55 completed. Next milestone: add a teacher-facing per-learner circuit progress matrix and read-only current-topology inspection without interrupting the active challenge."
+  "next_action": "P56 completed. Next milestone: add last-activity/stuck indicators and private teacher hints or retry requests from the circuit monitoring panel without interrupting the challenge."
 }

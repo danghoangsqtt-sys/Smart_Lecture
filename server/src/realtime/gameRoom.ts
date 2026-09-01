@@ -40,6 +40,9 @@ const zCircuitSimulate = z.object({
 const zCircuitHostControl = z.object({
   action: z.enum(['pause', 'resume', 'skip', 'restart']),
 });
+const zCircuitInspect = z.object({
+  userId: z.string().min(1).max(120),
+});
 
 interface PuzzleDef {
   keyword: string;
@@ -207,6 +210,7 @@ interface CircuitChallenge {
 const MAX_PLAYERS = 60;
 
 const rooms = new Map<string, RoomState>();
+const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userId: string }>();
 let ioRef: IOServer | null = null;
 
 function sleep(ms: number): Promise<void> {
@@ -987,6 +991,77 @@ function circuitsMatch(student: unknown, reference: unknown): boolean {
   return true;
 }
 
+function circuitHostRoom(room: RoomState): string {
+  return `game-host:${room.sessionId}`;
+}
+
+function circuitSimulateProgressRow(room: RoomState, player: CircuitSimulatePlayer) {
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  const currentCircuit = challenge && player.circuitChallengeId === challenge.id ? player.circuit : null;
+  const componentCount = currentCircuit?.components.length ?? 0;
+  const wireCount = currentCircuit?.wires.length ?? 0;
+  const online = room.players.get(player.userId)?.online ?? false;
+  const completedCurrent = !!challenge && player.completedChallenges.includes(challenge.id);
+  const status = !online
+    ? 'disconnected'
+    : completedCurrent
+      ? 'completed'
+      : componentCount > 0 || wireCount > 0 || player.simulationState !== 'idle'
+        ? 'working'
+        : 'not_started';
+  return {
+    userId: player.userId,
+    name: player.displayName,
+    online,
+    status,
+    completedCurrent,
+    completedCount: player.completedChallenges.length,
+    totalChallenges: room.circuitSimulateChallenges.length,
+    score: player.score,
+    simulationState: player.simulationState,
+    componentCount,
+    wireCount,
+  };
+}
+
+function circuitSimulateProgressSnapshot(room: RoomState) {
+  return [...room.circuitSimulatePlayers.values()]
+    .map((player) => circuitSimulateProgressRow(room, player))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function circuitSimulateInspection(room: RoomState, player: CircuitSimulatePlayer) {
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  return {
+    ...circuitSimulateProgressRow(room, player),
+    challengeId: challenge?.id ?? null,
+    circuit: challenge && player.circuitChallengeId === challenge.id ? player.circuit : null,
+  };
+}
+
+function emitCircuitSimulateProgress(room: RoomState, player: CircuitSimulatePlayer): void {
+  ioRef?.to(circuitHostRoom(room)).emit(
+    'circuit_simulate:progress',
+    circuitSimulateProgressRow(room, player),
+  );
+}
+
+function emitCircuitSimulateProgressSnapshot(room: RoomState): void {
+  ioRef?.to(circuitHostRoom(room)).emit(
+    'circuit_simulate:progress_snapshot',
+    { rows: circuitSimulateProgressSnapshot(room) },
+  );
+}
+
+function emitCircuitSimulateInspectionUpdate(room: RoomState, player: CircuitSimulatePlayer): void {
+  if (!ioRef) return;
+  const payload = circuitSimulateInspection(room, player);
+  for (const [socketId, subscription] of circuitInspectionSubscriptions) {
+    if (subscription.roomCode !== room.roomCode || subscription.userId !== player.userId) continue;
+    ioRef.sockets.sockets.get(socketId)?.emit('circuit_simulate:inspection_update', payload);
+  }
+}
+
 function circuitSimulateHostSnapshot(room: RoomState) {
   if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return null;
   const activeChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
@@ -1028,6 +1103,7 @@ function circuitSimulateHostSnapshot(room: RoomState) {
       targetBehavior: activeChallenge.targetBehavior,
     },
     passes,
+    progress: circuitSimulateProgressSnapshot(room),
   };
 }
 
@@ -1432,6 +1508,10 @@ function sendCircuitSimulateChallenge(
   persistCircuitRoom(room);
   const payload = circuitSimulateChallengePayload(room);
   if (payload) ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', payload);
+  emitCircuitSimulateProgressSnapshot(room);
+  for (const player of room.circuitSimulatePlayers.values()) {
+    emitCircuitSimulateInspectionUpdate(room, player);
+  }
   scheduleCircuitSimulateTimer(room);
 }
 
@@ -1968,6 +2048,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         return;
       }
       void socket.join(`game:${room.roomCode}`);
+      if (room.gameType === 'circuit_simulate') void socket.join(circuitHostRoom(room));
       socket.data.roomCode = room.roomCode;
       socket.emit('host:sync', {
         gameType: room.gameType,
@@ -2068,7 +2149,11 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       });
       if (room.gameType === 'tug_of_war') broadcastRope(room);
       if (room.gameType === 'crossword') emitCrosswordState(room, socket);
-      if (room.gameType === 'circuit_simulate') syncCircuitSimulateLearner(room, socket, publicUser.id, publicUser.displayName);
+      if (room.gameType === 'circuit_simulate') {
+        syncCircuitSimulateLearner(room, socket, publicUser.id, publicUser.displayName);
+        const circuitPlayer = room.circuitSimulatePlayers.get(publicUser.id);
+        if (circuitPlayer) emitCircuitSimulateProgress(room, circuitPlayer);
+      }
       if (room.phase === 'question') {
         const q = room.questions[room.currentIndex];
         if (q) {
@@ -2482,6 +2567,20 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       controlCircuitSimulateChallenge(room, parsed.data.action);
     });
 
+    socket.on('circuit_simulate:inspect', (raw: unknown) => {
+      const parsed = zCircuitInspect.safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const player = room.circuitSimulatePlayers.get(parsed.data.userId);
+      if (!player) {
+        socket.emit('game:error', { message: 'Không tìm thấy trạng thái mạch của học viên.' });
+        return;
+      }
+      circuitInspectionSubscriptions.set(socket.id, { roomCode: room.roomCode, userId: player.userId });
+      socket.emit('circuit_simulate:inspection', circuitSimulateInspection(room, player));
+    });
+
     socket.on('circuit_simulate:circuit', (raw: unknown) => {
       const parsed = zCircuitDraw.safeParse(raw); // Reuse same schema for circuit data
       if (!parsed.success || socket.data.role !== 'student') return;
@@ -2493,11 +2592,6 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!challenge) return;
       player.circuit = parsed.data;
       player.circuitChallengeId = challenge.id;
-      ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:circuit_update', {
-        userId: player.userId,
-        name: player.displayName,
-        circuit: parsed.data,
-      });
 
       const correct = !!challenge?.referenceCircuit && circuitsMatch(player.circuit, challenge.referenceCircuit);
       if (parsed.data.submitted) {
@@ -2518,6 +2612,8 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         broadcastLeaderboard(room);
       }
       persistCircuitPlayer(room, player);
+      emitCircuitSimulateProgress(room, player);
+      emitCircuitSimulateInspectionUpdate(room, player);
     });
 
     socket.on('circuit_simulate:measurements', (raw: unknown) => {
@@ -2529,6 +2625,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!player) return;
       player.measurements = parsed.data.measurements;
       persistCircuitPlayer(room, player);
+      emitCircuitSimulateProgress(room, player);
     });
 
     socket.on('circuit_simulate:simulate', (raw: unknown) => {
@@ -2540,6 +2637,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!player) return;
       player.simulationState = parsed.data.action;
       persistCircuitPlayer(room, player);
+      emitCircuitSimulateProgress(room, player);
       // In a real implementation, this would run a SPICE simulation
       // For now, we just acknowledge the action
       socket.emit('circuit_simulate:simulation_state', {
@@ -2549,6 +2647,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     socket.on('disconnecting', () => {
+      circuitInspectionSubscriptions.delete(socket.id);
       const code = socket.data.roomCode as string | undefined;
       if (!code) return;
       untrackSocketRoom(socket.id, code);
@@ -2556,6 +2655,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (room) {
         const player = room.players.get(String(socket.data.userId));
         if (player) player.online = false;
+        if (room.gameType === 'circuit_simulate') {
+          const circuitPlayer = room.circuitSimulatePlayers.get(String(socket.data.userId));
+          if (circuitPlayer) emitCircuitSimulateProgress(room, circuitPlayer);
+        }
         io.to(`game:${room.roomCode}`).emit('lobby:update', {
           count: [...room.players.values()].filter((p) => p.online).length,
           players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team, userId: p.userId })),

@@ -56,6 +56,22 @@ function waitFor(socket, event, predicate = () => true, timeoutMs = 8_000) {
   });
 }
 
+function expectNoEvent(socket, event, action, waitMs = 500) {
+  return new Promise((resolve, reject) => {
+    const handler = () => {
+      clearTimeout(timeout);
+      socket.off(event, handler);
+      reject(new Error(`Unexpected ${event}`));
+    };
+    const timeout = setTimeout(() => {
+      socket.off(event, handler);
+      resolve();
+    }, waitMs);
+    socket.on(event, handler);
+    action();
+  });
+}
+
 function waitForConnect(socket) {
   if (socket.connected) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -230,6 +246,13 @@ async function verify() {
     check('exact topology restored after restart', restored?.circuit?.components?.length === 4 && restored?.circuit?.wires?.length === 3);
     check('completed state restored after restart', restored?.completed === true);
 
+    await expectNoEvent(
+      learner,
+      'circuit_simulate:inspection',
+      () => learner.emit('circuit_simulate:inspect', { userId: state.studentId }),
+    );
+    check('learner cannot inspect circuit topology', true);
+
     await delay(Math.max(0, state.originalEndsAt - Date.now() + 600));
 
     await waitForConnect(host);
@@ -244,6 +267,27 @@ async function verify() {
     );
     check('host completion feed restored', hostSync?.circuitSimulate?.passes?.length === 1 && hostSync.circuitSimulate.passes[0]?.name === 'Restart Student');
     check('host circuit leaderboard restored', hostSync?.leaderboard?.length === 1 && hostSync.leaderboard[0]?.score === 100);
+    const progress = hostSync?.circuitSimulate?.progress?.[0];
+    check(
+      'host learner progress restored after restart',
+      hostSync?.circuitSimulate?.progress?.length === 1
+        && progress?.userId === state.studentId
+        && progress?.status === 'completed'
+        && progress?.componentCount === 4
+        && progress?.wireCount === 3
+        && progress?.score === 100,
+    );
+    const inspectionPromise = waitFor(
+      host,
+      'circuit_simulate:inspection',
+      (payload) => payload?.userId === state.studentId,
+    );
+    host.emit('circuit_simulate:inspect', { userId: state.studentId });
+    const inspection = await inspectionPromise;
+    check(
+      'authorized host inspects exact restored topology on demand',
+      inspection?.circuit?.components?.length === 4 && inspection?.circuit?.wires?.length === 3,
+    );
     check('KTTX unchanged immediately after restart', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
 
     const resumedPromise = waitFor(

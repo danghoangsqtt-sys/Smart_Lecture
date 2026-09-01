@@ -136,11 +136,13 @@ Namespace mặc định, phòng theo `game:{roomCode}` và `proctor:{examId}`:
 | proctor:watch | {examId} | GV mở màn hình giám thị |
 | circuit_simulate:circuit | {components, wires, submitted} | HV đồng bộ topology; server chỉ chấm/cộng điểm khi `submitted=true` |
 | circuit_simulate:host-control | {action: pause\|resume\|skip\|restart} | Chỉ host điều khiển challenge; pause/resume giữ topology, skip không chấm, restart không thu hồi điểm đã ghi |
+| circuit_simulate:inspect | {userId} | Chỉ host đã attach yêu cầu topology hiện tại của một học viên; server không trả reference circuit |
 | proctor:flag | {examId, type} | Server phát khi HV tab-switch |
 
-Server→client: `host:sync`, `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `circuit_simulate:challenge`, `circuit_simulate:control_state`, `circuit_simulate:restored`, `circuit_simulate:challenge_passed`, `proctor:progress`, `proctor:redflag`.
+Server→client: `host:sync`, `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `circuit_simulate:challenge`, `circuit_simulate:control_state`, `circuit_simulate:progress`, `circuit_simulate:progress_snapshot`, `circuit_simulate:inspection`, `circuit_simulate:inspection_update`, `circuit_simulate:restored`, `circuit_simulate:challenge_passed`, `proctor:progress`, `proctor:redflag`.
 `host:sync` trả trạng thái công khai của phòng. Với game mạch đang chạy, payload bổ sung challenge hiện tại (không có reference circuit), tối đa 8 dòng hoàn thành dựng từ state server và bảng xếp hạng lấy từ điểm circuit player.
 Khi khởi động, server nạp các `circuit_simulate` đang `running`, dựng lại state từng học viên và đặt timer theo phần thời gian còn lại của `challenge_ends_at`; phòng đang pause không đặt timer và giữ nguyên `remaining_ms` kể cả khi deadline cũ đã trôi qua. Học viên reconnect trước giáo viên vẫn có thể lazy-load phòng bằng `roomCode`; completed challenge và cộng KTTX được ghi trong cùng transaction để chống cộng trùng khi process dừng đột ngột.
+Topology học viên không được phát vào room chung `game:{roomCode}`. Host hợp lệ được join room riêng `game-host:{sessionId}` để nhận metadata tiến độ; topology đầy đủ chỉ trả trực tiếp cho socket đã gọi inspect và tiếp tục cập nhật theo subscription của socket đó.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 ## 6. Luồng RAG pipeline (services/rag.ts)

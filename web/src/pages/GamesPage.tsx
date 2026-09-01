@@ -115,6 +115,52 @@ function shouldHideGameGuides(): boolean {
 
 type HostPhase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'sandbox' | 'finished';
 
+interface CircuitRoomData {
+  components: Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    rotation?: number;
+    rot?: number;
+    properties?: Record<string, unknown>;
+    props?: Record<string, unknown>;
+  }>;
+  wires: Array<{
+    id: string;
+    from: string;
+    to: string;
+    fromPort?: string;
+    toPort?: string;
+  }>;
+}
+
+interface CircuitProgressRow {
+  userId: string;
+  name: string;
+  online: boolean;
+  status: 'disconnected' | 'completed' | 'working' | 'not_started';
+  completedCurrent: boolean;
+  completedCount: number;
+  totalChallenges: number;
+  score: number;
+  simulationState: string;
+  componentCount: number;
+  wireCount: number;
+}
+
+interface CircuitInspection extends CircuitProgressRow {
+  challengeId: string | null;
+  circuit: CircuitRoomData | null;
+}
+
+const CIRCUIT_PROGRESS_STATUS: Record<CircuitProgressRow['status'], { label: string; className: string }> = {
+  disconnected: { label: 'Mất kết nối', className: 'bg-slate-100 text-slate-500' },
+  completed: { label: 'Đã hoàn thành', className: 'bg-emerald-100 text-emerald-700' },
+  working: { label: 'Đang thực hiện', className: 'bg-blue-100 text-blue-800' },
+  not_started: { label: 'Chưa bắt đầu', className: 'bg-amber-100 text-amber-800' },
+};
+
 interface HostConsoleState {
   phase: HostPhase;
   players: { name: string; score?: number; team?: string; userId?: string }[];
@@ -143,7 +189,7 @@ interface HostConsoleState {
   qsTot: number;
   qsReveal: { correctIdx: number; correctText?: string } | null;
   qsScores: { name: string; score: number; streak: number }[];
-  cdPending: { userId: string; name: string; circuit: any }[];
+  cdPending: { userId: string; name: string; circuit: CircuitRoomData }[];
   csChallenge: {
     title: string;
     description: string;
@@ -155,6 +201,8 @@ interface HostConsoleState {
     remainingMs: number;
   } | null;
   csPasses: { name: string; points: number; key: number }[];
+  csProgress: CircuitProgressRow[];
+  csInspection: CircuitInspection | null;
 }
 
 interface HostSyncPayload {
@@ -174,6 +222,7 @@ interface HostSyncPayload {
       remainingMs: number;
     };
     passes: { userId: string; name: string; challengeId: string; points: number }[];
+    progress: CircuitProgressRow[];
   } | null;
 }
 
@@ -189,7 +238,7 @@ function createHostConsoleState(): HostConsoleState {
     bingoLast: null, bingoCalled: [], bingoWinner: null,
     memBoard: [], memPairs: 0, memFeed: [], scProgress: [],
     qsQ: null, qsIdx: 0, qsTot: 0, qsReveal: null, qsScores: [],
-    cdPending: [], csChallenge: null, csPasses: [],
+    cdPending: [], csChallenge: null, csPasses: [], csProgress: [], csInspection: null,
   };
 }
 
@@ -1022,6 +1071,7 @@ function useHostConsoleEffects(
       setField('ropePos', d.ropePos ?? 0);
       if (d.circuitSimulate) {
         setField('csChallenge', d.circuitSimulate.challenge);
+        setField('csProgress', d.circuitSimulate.progress);
         const restoredPasses = d.circuitSimulate.passes.map((pass) => {
           feedKey.current += 1;
           return { name: pass.name, points: pass.points, key: feedKey.current };
@@ -1117,7 +1167,7 @@ function useHostConsoleEffects(
 
     // --- Circuit ---
     on('circuit_draw:init', () => { setField('cdPending', []); setField('phase', 'sandbox'); });
-    on('circuit_draw:submitted', (d: { userId: string; name: string; circuit: any }) => {
+    on('circuit_draw:submitted', (d: { userId: string; name: string; circuit: CircuitRoomData }) => {
       setField('cdPending', (prev) => (prev.some((p) => p.userId === d.userId) ? prev : [...prev, { userId: d.userId, name: d.name, circuit: d.circuit }]));
       toast.info(`📥 ${d.name} đã nộp mạch`);
     });
@@ -1157,6 +1207,19 @@ function useHostConsoleEffects(
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {
       feedKey.current += 1;
       setField('csPasses', (prev) => [{ name: d.name, points: d.points, key: feedKey.current }, ...prev].slice(0, 8));
+    });
+    on('circuit_simulate:progress_snapshot', (d: { rows: CircuitProgressRow[] }) => {
+      setField('csProgress', d.rows);
+    });
+    on('circuit_simulate:progress', (d: CircuitProgressRow) => {
+      setField('csProgress', (current) => {
+        const withoutCurrent = current.filter((row) => row.userId !== d.userId);
+        return [...withoutCurrent, d].toSorted((left, right) => left.name.localeCompare(right.name));
+      });
+    });
+    on('circuit_simulate:inspection', (d: CircuitInspection) => setField('csInspection', d));
+    on('circuit_simulate:inspection_update', (d: CircuitInspection) => {
+      setField('csInspection', (current) => current?.userId === d.userId ? d : current);
     });
 
     socket.emit('game:host-attach', { sessionId });
@@ -1198,6 +1261,9 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
   }
   function circuitControl(action: 'pause' | 'resume' | 'skip' | 'restart') {
     socketRef.current?.emit('circuit_simulate:host-control', { action });
+  }
+  function inspectCircuit(userId: string) {
+    socketRef.current?.emit('circuit_simulate:inspect', { userId });
   }
 
   async function cancel() {
@@ -1328,6 +1394,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
         onQuizNext={qsNext}
         onCircuitVerify={circuitVerify}
         onCircuitControl={circuitControl}
+        onCircuitInspect={inspectCircuit}
       />
 
       {session.gameType === 'tug_of_war' && phase !== 'lobby' && teams && (
@@ -1431,16 +1498,19 @@ function HostSandboxViews({
   onQuizNext,
   onCircuitVerify,
   onCircuitControl,
+  onCircuitInspect,
 }: {
   session: GameSessionInfo;
   state: HostConsoleState;
   onQuizNext: () => void;
   onCircuitVerify: (userId: string, correct: boolean) => void;
   onCircuitControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
+  onCircuitInspect: (userId: string) => void;
 }) {
   const {
     phase, players, bingoLast, bingoCalled, bingoWinner, memBoard, memPairs, memFeed,
-    scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses, leaderboard,
+    scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses,
+    csProgress, csInspection, leaderboard,
   } = state;
   const qsNext = onQuizNext;
   const circuitVerify = onCircuitVerify;
@@ -1613,79 +1683,130 @@ function HostSandboxViews({
 
       {/* ===== HOST: MÔ PHỎNG MẠCH ===== */}
       {session.gameType === 'circuit_simulate' && phase === 'sandbox' && csChallenge && (
-        <Card className="mb-4 border-l-4 border-l-blue-600 p-5 text-left">
-          <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Thử thách {csChallenge.index + 1}/{csChallenge.total}</p>
-          <h4 className="mt-0.5 font-bold text-slate-800">{csChallenge.title}</h4>
-          <p className="text-sm text-slate-600">{csChallenge.description}</p>
-          <p className="mt-1 text-xs italic text-emerald-700"><i className="fas fa-bullseye" /> Mục tiêu: {csChallenge.targetBehavior}</p>
-          <div
-            className={`mt-4 rounded-sm border px-3 py-2 ${csChallenge.paused ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-900'}`}
-            role="status"
-            aria-live="polite"
-          >
-            <p className="text-xs font-semibold">
-              <i className={`fas ${csChallenge.paused ? 'fa-circle-pause' : 'fa-clock'}`} />{' '}
-              {csChallenge.paused
-                ? `Đang tạm dừng · còn ${Math.ceil(csChallenge.remainingMs / 1000)} giây`
-                : 'Đồng hồ thử thách đang chạy'}
-            </p>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2" aria-label="Điều khiển thử thách mạch">
-            <Button
-              variant={csChallenge.paused ? 'primary' : 'secondary'}
-              onClick={() => onCircuitControl(csChallenge.paused ? 'resume' : 'pause')}
-              aria-label={csChallenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
-            >
-              <i className={`fas ${csChallenge.paused ? 'fa-play' : 'fa-pause'}`} />
-              {csChallenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
-            </Button>
-            <Button variant="secondary" onClick={() => onCircuitControl('restart')} aria-label="Làm lại thử thách">
-              <i className="fas fa-rotate-right" /> Làm lại thử thách
-            </Button>
-            <Button variant="ghost" onClick={() => onCircuitControl('skip')} aria-label="Bỏ qua thử thách">
-              <i className="fas fa-forward-step" /> Bỏ qua thử thách
-            </Button>
-          </div>
-          {csPasses.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {csPasses.map((f) => (
-                <li key={f.key} className="rounded-sm bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
-                  🎯 {f.name} vượt qua thử thách (+{f.points}đ → KTTX)
-                </li>
-              ))}
-            </ul>
-          )}
-          {leaderboard.length > 0 && (
-            <div className="mt-4 border-t border-slate-200 pt-3">
-              <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">Bảng xếp hạng mạch</h5>
-              <ol className="mt-2 space-y-1">
-                {leaderboard.slice(0, 10).map((row, index) => (
-                  <li key={row.name} className="flex justify-between rounded-sm bg-slate-50 px-3 py-1 text-sm text-slate-700">
-                    <span>{index + 1}. {row.name}</span><b>{row.score}đ</b>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </Card>
+        <CircuitSimulateHostView
+          challenge={csChallenge}
+          passes={csPasses}
+          progress={csProgress}
+          inspection={csInspection}
+          leaderboard={leaderboard}
+          onControl={onCircuitControl}
+          onInspect={onCircuitInspect}
+        />
       )}
 
     </>
   );
 }
 
+function CircuitSimulateHostView({
+  challenge,
+  passes,
+  progress,
+  inspection,
+  leaderboard,
+  onControl,
+  onInspect,
+}: {
+  challenge: NonNullable<HostConsoleState['csChallenge']>;
+  passes: HostConsoleState['csPasses'];
+  progress: CircuitProgressRow[];
+  inspection: CircuitInspection | null;
+  leaderboard: HostConsoleState['leaderboard'];
+  onControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
+  onInspect: (userId: string) => void;
+}) {
+  return (
+    <Card className="mb-4 border-l-4 border-l-blue-600 p-5 text-left">
+      <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Thử thách {challenge.index + 1}/{challenge.total}</p>
+      <h4 className="mt-0.5 font-bold text-slate-800">{challenge.title}</h4>
+      <p className="text-sm text-slate-600">{challenge.description}</p>
+      <p className="mt-1 text-xs italic text-emerald-700"><i className="fas fa-bullseye" /> Mục tiêu: {challenge.targetBehavior}</p>
+      <div className={`mt-4 rounded-sm border px-3 py-2 ${challenge.paused ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-900'}`} role="status" aria-live="polite">
+        <p className="text-xs font-semibold">
+          <i className={`fas ${challenge.paused ? 'fa-circle-pause' : 'fa-clock'}`} />{' '}
+          {challenge.paused ? `Đang tạm dừng · còn ${Math.ceil(challenge.remainingMs / 1000)} giây` : 'Đồng hồ thử thách đang chạy'}
+        </p>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2" aria-label="Điều khiển thử thách mạch">
+        <Button variant={challenge.paused ? 'primary' : 'secondary'} onClick={() => onControl(challenge.paused ? 'resume' : 'pause')} aria-label={challenge.paused ? 'Tiếp tục' : 'Tạm dừng'}>
+          <i className={`fas ${challenge.paused ? 'fa-play' : 'fa-pause'}`} />
+          {challenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
+        </Button>
+        <Button variant="secondary" onClick={() => onControl('restart')} aria-label="Làm lại thử thách"><i className="fas fa-rotate-right" /> Làm lại thử thách</Button>
+        <Button variant="ghost" onClick={() => onControl('skip')} aria-label="Bỏ qua thử thách"><i className="fas fa-forward-step" /> Bỏ qua thử thách</Button>
+      </div>
+      <CircuitProgressMonitor progress={progress} inspection={inspection} onInspect={onInspect} />
+      {passes.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {passes.map((entry) => <li key={entry.key} className="rounded-sm bg-emerald-50 px-3 py-1 text-sm text-emerald-700">🎯 {entry.name} vượt qua thử thách (+{entry.points}đ → KTTX)</li>)}
+        </ul>
+      )}
+      {leaderboard.length > 0 && (
+        <div className="mt-4 border-t border-slate-200 pt-3">
+          <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">Bảng xếp hạng mạch</h5>
+          <ol className="mt-2 space-y-1">
+            {leaderboard.slice(0, 10).map((row, index) => <li key={row.name} className="flex justify-between rounded-sm bg-slate-50 px-3 py-1 text-sm text-slate-700"><span>{index + 1}. {row.name}</span><b>{row.score}đ</b></li>)}
+          </ol>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CircuitProgressMonitor({ progress, inspection, onInspect }: {
+  progress: CircuitProgressRow[];
+  inspection: CircuitInspection | null;
+  onInspect: (userId: string) => void;
+}) {
+  return (
+    <section className="mt-4 border-t border-slate-200 pt-4" aria-label="Tiến độ học viên mạch">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">Tiến độ học viên ({progress.length})</h5>
+        <span className="text-[11px] text-slate-400">Bấm một học viên để xem mạch hiện tại</span>
+      </div>
+      {progress.length === 0 ? <p className="mt-2 rounded-sm bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">Chưa có học viên tham gia thử thách.</p> : (
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+          {progress.map((row) => {
+            const status = CIRCUIT_PROGRESS_STATUS[row.status];
+            const selected = inspection?.userId === row.userId;
+            return (
+              <li key={row.userId}>
+                <button type="button" onClick={() => onInspect(row.userId)} aria-label={`Xem mạch ${row.name}`} className={`w-full rounded-sm border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}>
+                  <span className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-sm font-semibold text-slate-800">{row.name}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span></span>
+                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span></span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {inspection && (
+        <div className="mt-3 rounded-sm border border-blue-200 bg-blue-50 p-3" aria-label={`Mạch hiện tại của ${inspection.name}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2"><h6 className="text-sm font-bold text-blue-900">Mạch hiện tại · {inspection.name}</h6><span className="text-[11px] text-blue-700">{inspection.componentCount} linh kiện · {inspection.wireCount} dây · mô phỏng {inspection.simulationState}</span></div>
+          {inspection.circuit && inspection.circuit.components.length > 0 ? (
+            <div className="relative mt-2 h-64 overflow-hidden rounded-sm border border-blue-200 bg-white">
+              <CircuitCanvas gameType="circuit_simulate" initialData={toCanvasData(inspection.circuit)} onChange={() => undefined} />
+              <div className="absolute inset-0" aria-hidden="true" />
+            </div>
+          ) : <p className="mt-2 rounded-sm bg-white px-3 py-6 text-center text-xs text-slate-500">Học viên chưa đặt linh kiện cho thử thách này.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* Chuyển payload mạch (định dạng backend) → dữ liệu cho CircuitCanvas preview */
-function toCanvasData(c: any): CircuitData {
+function toCanvasData(c: CircuitRoomData): CircuitData {
   return {
-    components: (c?.components ?? []).map((x: any) => ({
+    components: c.components.map((x) => ({
       id: String(x.id),
       type: String(x.type),
       x: Number(x.x) || 0,
       y: Number(x.y) || 0,
       rot: Number(x.rot ?? x.rotation ?? 0),
-      props: (x.props ?? x.properties ?? {}) as Record<string, any>,
+      props: x.props ?? x.properties ?? {},
     })),
-    wires: (c?.wires ?? []).map((w: any, i: number) => ({
+    wires: c.wires.map((w, i) => ({
       id: String(w.id ?? `w${i}`),
       from: `${w.from}::${w.fromPort ?? 'pin-0'}`,
       to: `${w.to}::${w.toPort ?? 'pin-1'}`,

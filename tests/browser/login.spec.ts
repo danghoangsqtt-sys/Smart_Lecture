@@ -389,6 +389,10 @@ test('default circuit room restores host and learners without duplicate grading'
   await latePage.keyboard.press('Escape');
   await expect(latePage.getByText('Đóng mạch đèn LED')).toBeVisible();
 
+  const circuitProgress = page.getByLabel('Tiến độ học viên mạch');
+  await expect(circuitProgress.getByRole('button')).toHaveCount(3);
+  await expect(circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' })).toContainText('Chưa bắt đầu');
+
   await page.getByRole('button', { name: 'Tạm dừng', exact: true }).click();
   await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
   await expect(studentPage.getByText(/Giáo viên đang tạm dừng · còn \d+ giây/)).toBeVisible();
@@ -444,6 +448,13 @@ test('default circuit room restores host and learners without duplicate grading'
   expect(await readTopology(peerPage)).toEqual(expectedTopology);
   expect(await readTopology(latePage)).toEqual(expectedTopology);
 
+  const studentProgress = circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
+  await expect(studentProgress).toContainText('4 linh kiện · 3 dây');
+  await studentProgress.click();
+  const studentInspection = page.getByLabel('Mạch hiện tại của Circuit Student');
+  await expect(studentInspection.locator('[data-component-type]')).toHaveCount(4);
+  await expect(studentInspection.locator('[data-wire-id]')).toHaveCount(3);
+
   const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
   await submitButton.click();
   await submitButton.click();
@@ -455,6 +466,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
+  await expect(studentProgress).toContainText('Đã hoàn thành');
 
   expect(await readTopology(studentPage)).toEqual(expectedTopology);
 
@@ -465,6 +477,13 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1);
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1);
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1);
+  const restoredProgress = page.getByLabel('Tiến độ học viên mạch');
+  await expect(restoredProgress.getByRole('button')).toHaveCount(3);
+  const restoredStudentProgress = restoredProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
+  await expect(restoredStudentProgress).toContainText('Đã hoàn thành');
+  await expect(restoredStudentProgress).toContainText('4 linh kiện · 3 dây');
+  await restoredStudentProgress.click();
+  await expect(page.getByLabel('Mạch hiện tại của Circuit Student').locator('[data-wire-id]')).toHaveCount(3);
   const circuitLeaderboard = page.getByRole('heading', { name: 'Bảng xếp hạng mạch' }).locator('..').getByRole('listitem');
   await expect(circuitLeaderboard).toHaveCount(3);
   await expect(circuitLeaderboard).toHaveText([
@@ -483,6 +502,8 @@ test('default circuit room restores host and learners without duplicate grading'
   expect(gradebookRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
 
   await latePage.close();
+  const lateProgress = restoredProgress.getByRole('button', { name: 'Xem mạch Circuit Late' });
+  await expect(lateProgress).toContainText('Mất kết nối');
   const rejoinedLatePage = await lateContext.newPage();
   await rejoinedLatePage.goto(`/games/play?room=${roomCode}`);
   await expect(rejoinedLatePage.getByRole('dialog')).toBeVisible();
@@ -491,6 +512,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(rejoinedLatePage.locator('[data-component-type]')).toHaveCount(4);
   await expect(rejoinedLatePage.locator('[data-wire-id]')).toHaveCount(3);
   await expect(rejoinedLatePage.getByText(/Bạn đã hoàn thành thử thách này/)).toBeVisible();
+  await expect(lateProgress).toContainText('Đã hoàn thành');
   expect(await readTopology(rejoinedLatePage)).toEqual(expectedTopology);
 
   await page.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
