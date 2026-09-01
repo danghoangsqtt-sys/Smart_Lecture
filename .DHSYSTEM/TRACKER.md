@@ -216,8 +216,19 @@
 | T-5601 | Giám sát tiến độ và xem topology hiện tại từng học viên qua kênh riêng của host | P56 | done | private Socket + restart inspection/privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5701 | Theo dõi hoạt động cuối và gửi gợi ý/yêu cầu kiểm tra lại riêng tư cho học viên mạch | P57 | done | migration v21 + selected-only hint/retry + restart privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5801 | Lưu, giao lại và xác nhận hỗ trợ riêng mới nhất cho học viên mạch | P58 | done | migration v22 + offline queue/reconnect ACK + restart learner-first recovery + Browser 4/4 + React Doctor 100 + full regression |
+| T-5901 | Hàng đợi ưu tiên và bộ lọc hỗ trợ học viên mạch cho lớp đông | P59 | done | derived triage + counts/filters/next learner + Browser 4/4 + React Doctor 100 + full regression |
 
 ## Session log
+### 2026-09-01 (Phase 59 — T-5901 completed)
+- Console giáo viên tự sắp học viên theo stuck online → queued offline → delivered chờ xác nhận → disconnected → trạng thái còn lại; trong cùng mức ưu tiên, học viên chờ lâu nhất đứng trước rồi tie-break theo tên.
+- Bổ sung số lượng, bộ lọc Tất cả/Cần xử lý/Chờ xác nhận/Ngoại tuyến, trạng thái hỗ trợ trên từng hàng và nút chuyển nhanh đến học viên cần hỗ trợ tiếp theo.
+- Không thêm schema hay Socket event; Browser E2E đạt 4/4, React Doctor 100/100, REST 86/86, Socket 10/10, security/data 22/22 và restart PASS.
+
+### 2026-09-01 (Phase 59 — T-5901 started)
+- Chốt thứ tự ưu tiên: stuck online → queued offline → delivered chờ xác nhận → disconnected → trạng thái còn lại; ưu tiên hoạt động cũ nhất rồi tie-break theo tên.
+- Triage chỉ derive từ progress/P58 checkpoint, không thêm schema/event và không tải topology hàng loạt.
+- Doc-first gate hoàn tất; chuẩn bị counts, filters, next-attention và Browser E2E.
+
 ### 2026-09-01 (Phase 58 — T-5801 completed)
 - Migration v22 lưu checkpoint hỗ trợ mới nhất theo session/học viên; persist trước phát và thay thế có kiểm soát khi giáo viên gửi tin mới.
 - Học viên offline nhận trạng thái queued, reconnect tự nhận đúng tin một lần trên connection, bấm “Đã hiểu” để ghi acknowledged; host reload phục hồi trạng thái này.

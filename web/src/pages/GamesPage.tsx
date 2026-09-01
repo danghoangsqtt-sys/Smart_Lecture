@@ -174,6 +174,17 @@ const CIRCUIT_PROGRESS_STATUS: Record<CircuitProgressRow['status'], { label: str
   not_started: { label: 'Chưa bắt đầu', className: 'bg-amber-100 text-amber-800' },
 };
 const CIRCUIT_STUCK_AFTER_MS = 10_000;
+type CircuitSupportFilter = 'all' | 'attention' | 'pending' | 'offline';
+
+function circuitSupportMeta(row: CircuitProgressRow, assistance: CircuitAssistanceStatus | undefined, now: number) {
+  const stuck = row.online && row.status === 'working' && now - row.lastActivityAt >= CIRCUIT_STUCK_AFTER_MS;
+  const queued = assistance?.status === 'queued';
+  const pending = assistance?.status === 'delivered';
+  const attention = stuck || queued || pending;
+  const priority = stuck ? 0 : queued ? 1 : pending ? 2 : row.status === 'disconnected' ? 3
+    : row.status === 'working' ? 4 : row.status === 'not_started' ? 5 : 6;
+  return { stuck, queued, pending, attention, priority };
+}
 
 interface HostConsoleState {
   phase: HostPhase;
@@ -1812,18 +1823,67 @@ function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, o
   now: number;
 }) {
   const [hint, setHint] = useState('');
+  const [filter, setFilter] = useState<CircuitSupportFilter>('all');
   const selectedAssistance = inspection ? assistance.find((row) => row.userId === inspection.userId) : undefined;
+  const assistanceByUser = new Map(assistance.map((row) => [row.userId, row]));
+  const prioritized = progress
+    .map((row) => ({ row, meta: circuitSupportMeta(row, assistanceByUser.get(row.userId), now) }))
+    .toSorted((left, right) => left.meta.priority - right.meta.priority
+      || left.row.lastActivityAt - right.row.lastActivityAt
+      || left.row.name.localeCompare(right.row.name));
+  const attentionCount = prioritized.filter((entry) => entry.meta.attention).length;
+  const pendingCount = prioritized.filter((entry) => entry.meta.pending).length;
+  const offlineCount = prioritized.filter((entry) => entry.row.status === 'disconnected').length;
+  const visible = prioritized.filter((entry) => filter === 'all'
+    || (filter === 'attention' && entry.meta.attention)
+    || (filter === 'pending' && entry.meta.pending)
+    || (filter === 'offline' && entry.row.status === 'disconnected'));
+  const filterOptions: Array<{ id: CircuitSupportFilter; label: string; count: number }> = [
+    { id: 'all', label: 'Tất cả', count: progress.length },
+    { id: 'attention', label: 'Cần xử lý', count: attentionCount },
+    { id: 'pending', label: 'Chờ xác nhận', count: pendingCount },
+    { id: 'offline', label: 'Ngoại tuyến', count: offlineCount },
+  ];
   return (
     <section className="mt-4 border-t border-slate-200 pt-4" aria-label="Tiến độ học viên mạch">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h5 className="text-xs font-bold uppercase tracking-wide text-slate-500">Tiến độ học viên ({progress.length})</h5>
         <span className="text-[11px] text-slate-400">Bấm một học viên để xem mạch hiện tại</span>
       </div>
-      {progress.length === 0 ? <p className="mt-2 rounded-sm bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">Chưa có học viên tham gia thử thách.</p> : (
+      {progress.length > 0 && (
+        <div className="mt-3 rounded-sm border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-700" aria-live="polite"><i className="fas fa-list-check text-blue-700" /> Cần xử lý ngay: <b className="text-rose-700">{attentionCount}</b></p>
+            <Button
+              variant="secondary"
+              disabled={attentionCount === 0}
+              onClick={() => {
+                const next = prioritized.find((entry) => entry.meta.attention && entry.row.userId !== inspection?.userId)
+                  ?? prioritized.find((entry) => entry.meta.attention);
+                if (next) { setHint(''); onInspect(next.row.userId); }
+              }}
+            >Học viên cần hỗ trợ tiếp theo</Button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Lọc hàng đợi hỗ trợ">
+            {filterOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={filter === option.id}
+                onClick={() => setFilter(option.id)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${filter === option.id ? 'border-blue-700 bg-blue-700 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-blue-400'}`}
+              >{option.label} ({option.count})</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {progress.length === 0 ? <p className="mt-2 rounded-sm bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">Chưa có học viên tham gia thử thách.</p> : visible.length === 0 ? (
+        <p className="mt-2 rounded-sm bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">Không có học viên phù hợp bộ lọc này.</p>
+      ) : (
         <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-          {progress.map((row) => {
-            const stuck = row.online && row.status === 'working' && now - row.lastActivityAt >= CIRCUIT_STUCK_AFTER_MS;
-            const status = stuck
+          {visible.map(({ row, meta }) => {
+            const rowAssistance = assistanceByUser.get(row.userId);
+            const status = meta.stuck
               ? { label: 'Cần hỗ trợ', className: 'bg-rose-100 text-rose-700' }
               : CIRCUIT_PROGRESS_STATUS[row.status];
             const selected = inspection?.userId === row.userId;
@@ -1831,7 +1891,8 @@ function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, o
               <li key={row.userId}>
                 <button type="button" onClick={() => { setHint(''); onInspect(row.userId); }} aria-label={`Xem mạch ${row.name}`} className={`w-full rounded-sm border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}>
                   <span className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-sm font-semibold text-slate-800">{row.name}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span></span>
-                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span><span className={stuck ? 'font-semibold text-rose-700' : ''}>{circuitActivityLabel(row, now)}</span></span>
+                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span><span className={meta.stuck ? 'font-semibold text-rose-700' : ''}>{circuitActivityLabel(row, now)}</span></span>
+                  {rowAssistance && <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${rowAssistance.status === 'acknowledged' ? 'bg-emerald-100 text-emerald-700' : rowAssistance.status === 'delivered' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-800'}`}>{rowAssistance.status === 'acknowledged' ? 'Đã xác nhận hỗ trợ' : rowAssistance.status === 'delivered' ? 'Chờ xác nhận hỗ trợ' : 'Hỗ trợ đang xếp hàng'}</span>}
                 </button>
               </li>
             );

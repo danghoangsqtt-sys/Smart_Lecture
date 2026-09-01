@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Circuit support triage
+
+- Sắp xếp bảng tiến độ theo mức cần can thiệp và thời gian hoạt động cũ nhất để giáo viên xử lý học viên đang kẹt trước.
+- Bổ sung tổng số cùng bộ lọc Tất cả/Cần xử lý/Chờ xác nhận/Ngoại tuyến và nút chuyển nhanh đến học viên cần hỗ trợ tiếp theo.
+- Hiển thị rõ hỗ trợ đang xếp hàng, đang chờ xác nhận hoặc đã được học viên xác nhận ngay trên từng hàng.
+- Giữ queue hoàn toàn suy diễn từ trạng thái P57–P58, không thêm schema/event và không tải topology nếu giáo viên chưa yêu cầu xem.
+
 ## 2026-09-01 — Durable circuit assistance recovery
 
 - Thêm migration v22 lưu checkpoint hỗ trợ riêng mới nhất theo phiên và học viên trước khi phát realtime.

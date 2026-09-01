@@ -390,7 +390,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(latePage.getByText('Đóng mạch đèn LED')).toBeVisible();
 
   const circuitProgress = page.getByLabel('Tiến độ học viên mạch');
-  await expect(circuitProgress.getByRole('button')).toHaveCount(3);
+  await expect(circuitProgress.getByRole('button', { name: /^Xem mạch / })).toHaveCount(3);
   await expect(circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' })).toContainText('Chưa bắt đầu');
 
   await page.getByRole('button', { name: 'Tạm dừng', exact: true }).click();
@@ -455,6 +455,14 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(studentInspection.locator('[data-component-type]')).toHaveCount(4);
   await expect(studentInspection.locator('[data-wire-id]')).toHaveCount(3);
   await expect(studentProgress).toContainText('Cần hỗ trợ', { timeout: 15_000 });
+  const peerProgress = circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Peer' });
+  await peerProgress.click();
+  await page.getByRole('button', { name: 'Học viên cần hỗ trợ tiếp theo' }).click();
+  await expect(page.getByLabel('Mạch hiện tại của Circuit Student')).toBeVisible();
+  const attentionFilter = page.getByRole('button', { name: /Cần xử lý \([1-9]\d*\)/ });
+  await attentionFilter.click();
+  await expect(studentProgress).toBeVisible();
+  await page.getByRole('button', { name: 'Tất cả (3)' }).click();
 
   const privateHint = 'Kiểm tra lại dây nối từ OUT sang IN.';
   await page.getByLabel('Gợi ý riêng cho Circuit Student').fill(privateHint);
@@ -494,7 +502,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1);
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1);
   const restoredProgress = page.getByLabel('Tiến độ học viên mạch');
-  await expect(restoredProgress.getByRole('button')).toHaveCount(3);
+  await expect(restoredProgress.getByRole('button', { name: /^Xem mạch / })).toHaveCount(3);
   const restoredStudentProgress = restoredProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
   await expect(restoredStudentProgress).toContainText('Đã hoàn thành');
   await expect(restoredStudentProgress).toContainText('4 linh kiện · 3 dây');
@@ -525,6 +533,8 @@ test('default circuit room restores host and learners without duplicate grading'
   await page.getByLabel('Gợi ý riêng cho Circuit Late').fill(queuedHint);
   await page.getByRole('button', { name: 'Gửi gợi ý' }).click();
   await expect(page.getByText('Đã xếp hàng — sẽ tự giao khi học viên kết nối lại.')).toBeVisible();
+  await page.getByRole('button', { name: /Cần xử lý \([1-9]\d*\)/ }).click();
+  await expect(lateProgress).toContainText('Hỗ trợ đang xếp hàng');
   await expect(studentPage.getByText(queuedHint, { exact: true })).toHaveCount(0);
   await expect(peerPage.getByText(queuedHint, { exact: true })).toHaveCount(0);
 
@@ -538,6 +548,9 @@ test('default circuit room restores host and learners without duplicate grading'
   await rejoinedLatePage.getByRole('button', { name: 'Đã hiểu' }).click();
   await expect(rejoinedLatePage.getByRole('button', { name: 'Đã xác nhận' })).toBeDisabled();
   await expect(page.getByText('Học viên đã xác nhận “Đã hiểu”.')).toBeVisible();
+  await expect(lateProgress).toHaveCount(0);
+  await page.getByRole('button', { name: 'Tất cả (3)' }).click();
+  await expect(lateProgress).toContainText('Đã xác nhận hỗ trợ');
   await expect(rejoinedLatePage.locator('[data-component-type]')).toHaveCount(4);
   await expect(rejoinedLatePage.locator('[data-wire-id]')).toHaveCount(3);
   await expect(rejoinedLatePage.getByText(/Bạn đã hoàn thành thử thách này/)).toBeVisible();
