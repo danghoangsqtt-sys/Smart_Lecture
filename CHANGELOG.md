@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Private circuit teacher assistance
+
+- Thêm migration v21 lưu thời điểm thao tác mạch cuối theo từng học viên và cảnh báo “Cần hỗ trợ” sau 10 giây không hoạt động khi đang làm.
+- Bổ sung gợi ý riêng tối đa 300 ký tự và yêu cầu kiểm tra lại trong panel mạch đang xem; host nhận trạng thái giao tin rõ ràng.
+- Tin nhắn chỉ đến đúng học viên được chọn, không broadcast cho peer và không làm đổi topology, timer, completion, điểm mạch hoặc KTTX.
+- Kiểm chứng quyền riêng tư bằng ba browser context và process restart thực; React Doctor đạt 100/100.
+
 ## 2026-09-01 — Private circuit learner monitoring
 
 - Thêm bảng tiến độ realtime theo từng học viên với trạng thái kết nối, đang làm/hoàn thành, số linh kiện/dây và điểm mạch.

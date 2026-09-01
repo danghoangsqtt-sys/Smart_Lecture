@@ -273,7 +273,7 @@ test('teacher can review the six default circuit challenges before creating a ga
 });
 
 test('default circuit room restores host and learners without duplicate grading', async ({ page, request, browser }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(135_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
   const createdStudent = await request.post('/api/users', {
@@ -454,6 +454,22 @@ test('default circuit room restores host and learners without duplicate grading'
   const studentInspection = page.getByLabel('Mạch hiện tại của Circuit Student');
   await expect(studentInspection.locator('[data-component-type]')).toHaveCount(4);
   await expect(studentInspection.locator('[data-wire-id]')).toHaveCount(3);
+  await expect(studentProgress).toContainText('Cần hỗ trợ', { timeout: 15_000 });
+
+  const privateHint = 'Kiểm tra lại dây nối từ OUT sang IN.';
+  await page.getByLabel('Gợi ý riêng cho Circuit Student').fill(privateHint);
+  await page.getByRole('button', { name: 'Gửi gợi ý' }).click();
+  await expect(studentPage.getByText(privateHint, { exact: true })).toBeVisible();
+  await expect(peerPage.getByText(privateHint, { exact: true })).toHaveCount(0);
+  await expect(latePage.getByText(privateHint, { exact: true })).toHaveCount(0);
+  expect(await readTopology(studentPage)).toEqual(expectedTopology);
+
+  await page.getByRole('button', { name: 'Yêu cầu kiểm tra lại' }).click();
+  const retryMessage = 'Giáo viên đề nghị bạn kiểm tra lại mạch và nộp lại khi sẵn sàng.';
+  await expect(studentPage.getByText(retryMessage, { exact: true })).toBeVisible();
+  await expect(peerPage.getByText(retryMessage, { exact: true })).toHaveCount(0);
+  await expect(latePage.getByText(retryMessage, { exact: true })).toHaveCount(0);
+  expect(await readTopology(studentPage)).toEqual(expectedTopology);
 
   const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
   await submitButton.click();

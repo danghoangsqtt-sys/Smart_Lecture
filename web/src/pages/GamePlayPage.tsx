@@ -82,6 +82,7 @@ interface PlayerGameState {
     remainingMs: number;
   } | null;
   challengeCompleted: boolean;
+  teacherMessage: { kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number } | null;
   refCircuit: CircuitData | null;
   showRef: boolean;
 }
@@ -103,7 +104,7 @@ function createPlayerGameState(roomInput: string): PlayerGameState {
     scWord: null, scGuess: '', scSolved: 0,
     qsQuestion: null, qsReveal: null, qsPicked: null, qsMasked: new Set(), qsAudience: null, qsHint: null,
     qsLifelines: { fiftyFifty: true, askAudience: true, phoneFriend: true }, scores: [],
-    circuitData: { components: [], wires: [] }, challenge: null, challengeCompleted: false, refCircuit: null, showRef: false,
+    circuitData: { components: [], wires: [] }, challenge: null, challengeCompleted: false, teacherMessage: null, refCircuit: null, showRef: false,
   };
 }
 
@@ -188,7 +189,7 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
         setField('qsQuestion', null); setField('qsPicked', null); setField('qsMasked', new Set());
         setField('qsAudience', null); setField('qsHint', null); setField('scores', []); setField('qsReveal', null);
         setField('circuitData', { components: [], wires: [] }); setField('challenge', null); setField('challengeCompleted', false);
-        setField('refCircuit', null); setField('showRef', false);
+        setField('teacherMessage', null); setField('refCircuit', null); setField('showRef', false);
       }
     });
     on('question:show', (d: QuestionShow) => {
@@ -363,6 +364,10 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     });
     on('circuit_simulate:validation', (d: { correct: boolean; feedback: string }) => {
       if (!d.correct) toast.error(d.feedback);
+    });
+    on('circuit_simulate:teacher-message', (d: { kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number }) => {
+      setField('teacherMessage', d);
+      toast.info(d.kind === 'hint' ? 'Giáo viên vừa gửi gợi ý riêng.' : 'Giáo viên đề nghị bạn kiểm tra lại mạch.');
     });
     on('circuit_draw:verified', (d: { userId: string; correct: boolean; feedback?: string; newKttx: number | null }) => {
       if (d.userId !== myId()) return;
@@ -904,7 +909,7 @@ function CircuitPlayerView({
   onSubmit: (data: CircuitData) => void;
   onToggleReference: () => void;
 }) {
-  const { gameType, challenge, challengeCompleted, refCircuit, showRef, circuitData } = state;
+  const { gameType, challenge, challengeCompleted, teacherMessage, refCircuit, showRef, circuitData } = state;
   const circuitMode = gameType === 'circuit_draw' ? 'circuit_draw' : 'circuit_simulate';
   return (
     <>
@@ -923,6 +928,12 @@ function CircuitPlayerView({
             <p className="mt-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               <i className="fas fa-circle-check" /> Bạn đã hoàn thành thử thách này — trạng thái được giữ khi kết nối lại.
             </p>
+          )}
+          {teacherMessage && (
+            <div className={`mt-2 rounded-sm border px-3 py-2 text-sm ${teacherMessage.kind === 'hint' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-violet-300 bg-violet-50 text-violet-900'}`} role="status" aria-live="polite">
+              <p className="text-[10px] font-bold uppercase tracking-wide">{teacherMessage.teacherName} · {teacherMessage.kind === 'hint' ? 'Gợi ý riêng' : 'Yêu cầu kiểm tra lại'}</p>
+              <p className="mt-0.5 font-medium">{teacherMessage.message}</p>
+            </div>
           )}
         </Card>
       )}

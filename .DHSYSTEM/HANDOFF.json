@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-56-completed",
-  "phase_current": "P56-circuit-learner-monitoring",
-  "workflow_state": "completed",
+  "status": "phase-57-completed",
+  "phase_current": "P57-circuit-private-assistance",
+  "workflow_state": "verified",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P56 completed. Next milestone: add last-activity/stuck indicators and private teacher hints or retry requests from the circuit monitoring panel without interrupting the challenge."
+  "next_action": "Plan the next circuit classroom milestone; persisted assistance history/read receipts, AI-generated hints, and support for non-circuit games remain explicitly outside P57."
 }

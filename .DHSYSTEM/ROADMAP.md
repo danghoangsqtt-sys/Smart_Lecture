@@ -48,6 +48,13 @@
 - [x] Let the authorized teacher inspect one current topology in a read-only preview.
 - [x] Restore monitoring after host reload/server restart and cover it in Browser E2E.
 
+## Phase 57 — Circuit Private Assistance ✅
+
+- [x] Persist authoritative last circuit activity independently from general state writes.
+- [x] Highlight inactive in-progress learners without flagging offline/completed/not-started learners.
+- [x] Send a private teacher hint or retry request only to the selected learner.
+- [x] Preserve topology/timer/grading and cover delivery privacy in restart and Browser E2E.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

@@ -214,8 +214,20 @@
 | T-5401 | Lưu và khôi phục phòng mạch đang chạy sau khi Node.js server khởi động lại | P54 | done | migration v19 + real restart integration + Browser 4/4 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5501 | Điều khiển tạm dừng, tiếp tục, bỏ qua và làm lại challenge mạch có lưu trạng thái | P55 | done | migration v20 + paused restart + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5601 | Giám sát tiến độ và xem topology hiện tại từng học viên qua kênh riêng của host | P56 | done | private Socket + restart inspection/privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
+| T-5701 | Theo dõi hoạt động cuối và gửi gợi ý/yêu cầu kiểm tra lại riêng tư cho học viên mạch | P57 | done | migration v21 + selected-only hint/retry + restart privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 
 ## Session log
+### 2026-09-01 (Phase 57 — T-5701 completed)
+- Migration v21 lưu epoch thao tác cuối độc lập với `updated_at`; progress host hiển thị tuổi hoạt động và chỉ đánh dấu “Cần hỗ trợ” cho học viên online đang làm sau 10 giây.
+- Giáo viên gửi hint tối đa 300 ký tự hoặc yêu cầu kiểm tra lại trực tiếp tới đúng socket học viên được chọn; host nhận ACK giao/không giao và peer không nhận payload.
+- Tin hỗ trợ không đổi topology, timer, completion, circuit score hay KTTX; learner không thể giả mạo event giáo viên và state phục hồi đúng sau restart.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, regression 22/22, Excel, staged restore và circuit restart assistance đều pass.
+
+### 2026-09-01 (Phase 57 — T-5701 started)
+- Chốt mốc “Cần hỗ trợ” sau 10 giây không thao tác đối với học viên đang làm; loại trừ chưa bắt đầu, hoàn thành và mất kết nối.
+- Gợi ý/yêu cầu kiểm tra lại chỉ gửi trực tiếp tới socket học viên được chọn và không reset topology/điểm.
+- Doc-first gate hoàn tất; chuẩn bị migration v21, UI hỗ trợ riêng và E2E privacy/restart.
+
 ### 2026-09-01 (Phase 56 — T-5601 completed)
 - Host nhận progress gọn theo từng học viên và chỉ tải topology đầy đủ khi bấm xem; preview cập nhật live nhưng không tác động timer/challenge.
 - Loại event topology khỏi room chung; subscription inspection gắn theo từng host socket và học viên không thể tự gọi xem mạch.

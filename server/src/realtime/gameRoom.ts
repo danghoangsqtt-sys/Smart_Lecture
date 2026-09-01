@@ -43,6 +43,11 @@ const zCircuitHostControl = z.object({
 const zCircuitInspect = z.object({
   userId: z.string().min(1).max(120),
 });
+const zCircuitTeacherMessage = z.object({
+  userId: z.string().min(1).max(120),
+  kind: z.enum(['hint', 'retry']),
+  message: z.string().max(300).optional(),
+});
 
 interface PuzzleDef {
   keyword: string;
@@ -136,6 +141,7 @@ interface CircuitSimulatePlayer {
   simulationState: 'idle' | 'running' | 'paused' | 'completed' | 'start' | 'stop' | 'step' | 'reset';
   measurements: Record<string, number>;
   completedChallenges: string[];
+  lastActivityAt: number;
 }
 
 type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate' | 'finished';
@@ -1021,6 +1027,7 @@ function circuitSimulateProgressRow(room: RoomState, player: CircuitSimulatePlay
     simulationState: player.simulationState,
     componentCount,
     wireCount,
+    lastActivityAt: player.lastActivityAt,
   };
 }
 
@@ -1134,6 +1141,7 @@ interface CircuitPlayerStateRow {
   simulation_state: CircuitSimulatePlayer['simulationState'];
   measurements_json: string;
   completed_challenges_json: string;
+  last_activity_at: number;
 }
 
 function createCircuitPersistenceStatements() {
@@ -1152,8 +1160,8 @@ function createCircuitPersistenceStatements() {
     upsertPlayer: db.prepare(`
       INSERT INTO game_circuit_player_states (
         game_session_id, student_id, display_name, score, circuit_json, circuit_challenge_id,
-        simulation_state, measurements_json, completed_challenges_json, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        simulation_state, measurements_json, completed_challenges_json, last_activity_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(game_session_id, student_id) DO UPDATE SET
         display_name = excluded.display_name,
         score = excluded.score,
@@ -1162,6 +1170,7 @@ function createCircuitPersistenceStatements() {
         simulation_state = excluded.simulation_state,
         measurements_json = excluded.measurements_json,
         completed_challenges_json = excluded.completed_challenges_json,
+        last_activity_at = excluded.last_activity_at,
         updated_at = datetime('now')
     `),
   };
@@ -1195,6 +1204,7 @@ function persistCircuitPlayer(room: RoomState, player: CircuitSimulatePlayer): v
     player.simulationState,
     JSON.stringify(player.measurements),
     JSON.stringify(player.completedChallenges),
+    Math.max(0, Math.trunc(player.lastActivityAt)),
   );
 }
 
@@ -1432,6 +1442,7 @@ function initCircuitSimulate(room: RoomState): void {
       simulationState: 'idle',
       measurements: {},
       completedChallenges: [],
+      lastActivityAt: Date.now(),
     });
   }
   sendCircuitSimulateChallenge(room);
@@ -1495,12 +1506,14 @@ function sendCircuitSimulateChallenge(
   }
   const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
   if (!challenge) return;
+  const resetAt = Date.now();
   for (const player of room.circuitSimulatePlayers.values()) {
     if (!resetCurrentChallenge && player.circuitChallengeId === challenge.id) continue;
     player.circuit = null;
     player.circuitChallengeId = challenge.id;
     player.measurements = {};
     player.simulationState = 'idle';
+    player.lastActivityAt = resetAt;
   }
   room.circuitSimulatePaused = false;
   room.circuitSimulateRemainingMs = 0;
@@ -1540,7 +1553,7 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
   const validChallengeIds = new Set(room.circuitSimulateChallenges.map((challenge) => challenge.id));
   const rows = db.prepare(`
     SELECT student_id, display_name, score, circuit_json, circuit_challenge_id, simulation_state,
-           measurements_json, completed_challenges_json
+           measurements_json, completed_challenges_json, last_activity_at
     FROM game_circuit_player_states
     WHERE game_session_id = ?
     ORDER BY updated_at, student_id
@@ -1570,6 +1583,9 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
       simulationState: row.simulation_state,
       measurements: measurementsResult.success ? measurementsResult.data : {},
       completedChallenges,
+      lastActivityAt: Number.isFinite(row.last_activity_at) && row.last_activity_at > 0
+        ? row.last_activity_at
+        : Date.now(),
     };
     room.circuitSimulatePlayers.set(player.userId, player);
     room.players.set(player.userId, {
@@ -1583,12 +1599,14 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
 
   const currentChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
   if (currentChallenge) {
+    const resetAt = Date.now();
     for (const player of room.circuitSimulatePlayers.values()) {
       if (player.circuitChallengeId === currentChallenge.id) continue;
       player.circuit = null;
       player.circuitChallengeId = currentChallenge.id;
       player.measurements = {};
       player.simulationState = 'idle';
+      player.lastActivityAt = resetAt;
     }
   }
   if (room.circuitSimulatePaused) clearCircuitSimulateTimer(room);
@@ -1611,6 +1629,7 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
       simulationState: 'idle',
       measurements: {},
       completedChallenges: [],
+      lastActivityAt: Date.now(),
     };
     room.circuitSimulatePlayers.set(userId, player);
     persistCircuitPlayer(room, player);
@@ -2581,6 +2600,43 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       socket.emit('circuit_simulate:inspection', circuitSimulateInspection(room, player));
     });
 
+    socket.on('circuit_simulate:teacher-message', (raw: unknown) => {
+      const parsed = zCircuitTeacherMessage.safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const player = room.circuitSimulatePlayers.get(parsed.data.userId);
+      if (!player) {
+        socket.emit('game:error', { message: 'Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ecdc vi\u00ean \u0111\u1ec3 h\u1ed7 tr\u1ee3.' });
+        return;
+      }
+      const message = parsed.data.kind === 'hint'
+        ? (parsed.data.message ?? '').trim()
+        : (parsed.data.message ?? '').trim() || 'Gi\u00e1o vi\u00ean \u0111\u1ec1 ngh\u1ecb b\u1ea1n ki\u1ec3m tra l\u1ea1i m\u1ea1ch v\u00e0 n\u1ed9p l\u1ea1i khi s\u1eb5n s\u00e0ng.';
+      if (!message) {
+        socket.emit('game:error', { message: 'Vui l\u00f2ng nh\u1eadp n\u1ed9i dung g\u1ee3i \u00fd.' });
+        return;
+      }
+      const teacher = getUserById(String(socket.data.userId));
+      const teacherName = teacher ? toPublicUser(teacher).displayName : 'Gi\u00e1o vi\u00ean';
+      const sentAt = Date.now();
+      const payload = { kind: parsed.data.kind, message, teacherName, sentAt };
+      const learnerSockets = connectedSocketsIn(room.roomCode)
+        .map((socketId) => ioRef?.sockets.sockets.get(socketId))
+        .filter((candidate): candidate is Socket => (
+          candidate?.data.role === 'student' && String(candidate.data.userId) === player.userId
+        ));
+      for (const learnerSocket of learnerSockets) {
+        learnerSocket.emit('circuit_simulate:teacher-message', payload);
+      }
+      socket.emit('circuit_simulate:teacher-message-sent', {
+        userId: player.userId,
+        name: player.displayName,
+        kind: parsed.data.kind,
+        delivered: learnerSockets.length > 0,
+      });
+    });
+
     socket.on('circuit_simulate:circuit', (raw: unknown) => {
       const parsed = zCircuitDraw.safeParse(raw); // Reuse same schema for circuit data
       if (!parsed.success || socket.data.role !== 'student') return;
@@ -2592,6 +2648,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!challenge) return;
       player.circuit = parsed.data;
       player.circuitChallengeId = challenge.id;
+      player.lastActivityAt = Date.now();
 
       const correct = !!challenge?.referenceCircuit && circuitsMatch(player.circuit, challenge.referenceCircuit);
       if (parsed.data.submitted) {
@@ -2624,8 +2681,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
       if (!player) return;
       player.measurements = parsed.data.measurements;
+      player.lastActivityAt = Date.now();
       persistCircuitPlayer(room, player);
       emitCircuitSimulateProgress(room, player);
+      emitCircuitSimulateInspectionUpdate(room, player);
     });
 
     socket.on('circuit_simulate:simulate', (raw: unknown) => {
@@ -2636,8 +2695,10 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
       if (!player) return;
       player.simulationState = parsed.data.action;
+      player.lastActivityAt = Date.now();
       persistCircuitPlayer(room, player);
       emitCircuitSimulateProgress(room, player);
+      emitCircuitSimulateInspectionUpdate(room, player);
       // In a real implementation, this would run a SPICE simulation
       // For now, we just acknowledge the action
       socket.emit('circuit_simulate:simulation_state', {

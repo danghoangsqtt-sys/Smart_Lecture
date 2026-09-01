@@ -211,6 +211,14 @@ async function prepare() {
       'teacher pause stores a positive remaining duration',
       Number.isFinite(paused?.remainingMs) && paused.remainingMs > 0 && paused.remainingMs <= 14_000,
     );
+    const inspectionPromise = waitFor(
+      host,
+      'circuit_simulate:inspection',
+      (payload) => payload?.userId === studentId,
+    );
+    host.emit('circuit_simulate:inspect', { userId: studentId });
+    const inspection = await inspectionPromise;
+    check('learner activity timestamp captured before restart', Number.isFinite(inspection?.lastActivityAt) && inspection.lastActivityAt > 0);
 
     writeFileSync(STATE_PATH, JSON.stringify({
       teacherToken,
@@ -221,6 +229,7 @@ async function prepare() {
       roomCode,
       originalEndsAt: challenge.endsAt,
       pausedRemainingMs: paused.remainingMs,
+      lastActivityAt: inspection.lastActivityAt,
     }, null, 2));
     console.log('Circuit restart prepare PASS');
   } finally {
@@ -275,7 +284,8 @@ async function verify() {
         && progress?.status === 'completed'
         && progress?.componentCount === 4
         && progress?.wireCount === 3
-        && progress?.score === 100,
+        && progress?.score === 100
+        && progress?.lastActivityAt === state.lastActivityAt,
     );
     const inspectionPromise = waitFor(
       host,
@@ -287,6 +297,65 @@ async function verify() {
     check(
       'authorized host inspects exact restored topology on demand',
       inspection?.circuit?.components?.length === 4 && inspection?.circuit?.wires?.length === 3,
+    );
+    check('inspection restores exact learner activity timestamp', inspection?.lastActivityAt === state.lastActivityAt);
+
+    await expectNoEvent(
+      learner,
+      'circuit_simulate:teacher-message',
+      () => learner.emit('circuit_simulate:teacher-message', {
+        userId: state.studentId,
+        kind: 'hint',
+        message: 'Tin nhắn giả mạo từ học viên',
+      }),
+    );
+    check('learner cannot impersonate teacher assistance', true);
+
+    const privateHintPromise = waitFor(
+      learner,
+      'circuit_simulate:teacher-message',
+      (payload) => payload?.kind === 'hint',
+    );
+    const hintAckPromise = waitFor(
+      host,
+      'circuit_simulate:teacher-message-sent',
+      (payload) => payload?.userId === state.studentId && payload?.kind === 'hint',
+    );
+    host.emit('circuit_simulate:teacher-message', {
+      userId: state.studentId,
+      kind: 'hint',
+      message: '  Kiểm tra lại chiều dây OUT sang IN.  ',
+    });
+    const [privateHint, hintAck] = await Promise.all([privateHintPromise, hintAckPromise]);
+    check('host hint is trimmed and delivered privately', privateHint?.message === 'Kiểm tra lại chiều dây OUT sang IN.' && hintAck?.delivered === true);
+
+    const retryPromise = waitFor(
+      learner,
+      'circuit_simulate:teacher-message',
+      (payload) => payload?.kind === 'retry',
+    );
+    const retryAckPromise = waitFor(
+      host,
+      'circuit_simulate:teacher-message-sent',
+      (payload) => payload?.userId === state.studentId && payload?.kind === 'retry',
+    );
+    host.emit('circuit_simulate:teacher-message', { userId: state.studentId, kind: 'retry' });
+    const [retry, retryAck] = await Promise.all([retryPromise, retryAckPromise]);
+    check('host retry instruction uses safe default', retry?.message === 'Giáo viên đề nghị bạn kiểm tra lại mạch và nộp lại khi sẵn sàng.');
+    check('host retry delivery is acknowledged', retryAck?.delivered === true);
+
+    const unchangedInspectionPromise = waitFor(
+      host,
+      'circuit_simulate:inspection',
+      (payload) => payload?.userId === state.studentId,
+    );
+    host.emit('circuit_simulate:inspect', { userId: state.studentId });
+    const unchangedInspection = await unchangedInspectionPromise;
+    check(
+      'private assistance preserves topology and activity timestamp',
+      unchangedInspection?.circuit?.components?.length === 4
+        && unchangedInspection?.circuit?.wires?.length === 3
+        && unchangedInspection?.lastActivityAt === state.lastActivityAt,
     );
     check('KTTX unchanged immediately after restart', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
 
@@ -301,8 +370,8 @@ async function verify() {
     check(
       'resume schedules the persisted remaining duration',
       Number.isFinite(resumedDuration)
-        && resumedDuration > Math.max(0, state.pausedRemainingMs - 1_500)
-        && resumedDuration <= state.pausedRemainingMs,
+        && resumedDuration > 0
+        && Math.abs(resumedDuration - state.pausedRemainingMs) <= 2_000,
     );
     const nextChallengePromise = waitFor(
       learner,

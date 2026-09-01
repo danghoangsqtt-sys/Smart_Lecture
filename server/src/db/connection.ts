@@ -492,6 +492,21 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       }
     },
   },
+  {
+    version: 21,
+    up: () => {
+      const columns = db.prepare('PRAGMA table_info(game_circuit_player_states)').all() as { name: string }[];
+      if (!columns.some((column) => column.name === 'last_activity_at')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN last_activity_at INTEGER NOT NULL DEFAULT 0 CHECK (last_activity_at >= 0)`);
+      }
+      db.exec(`
+        UPDATE game_circuit_player_states
+        SET last_activity_at = COALESCE(CAST(strftime('%s', updated_at) AS INTEGER) * 1000, 0)
+        WHERE last_activity_at = 0
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

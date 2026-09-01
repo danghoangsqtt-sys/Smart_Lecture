@@ -216,6 +216,7 @@ CREATE TABLE IF NOT EXISTS game_circuit_player_states (
     CHECK (simulation_state IN ('idle', 'running', 'paused', 'completed', 'start', 'stop', 'step', 'reset')),
   measurements_json TEXT NOT NULL DEFAULT '{}',
   completed_challenges_json TEXT NOT NULL DEFAULT '[]',
+  last_activity_at INTEGER NOT NULL DEFAULT 0 CHECK (last_activity_at >= 0),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (game_session_id, student_id)
 );

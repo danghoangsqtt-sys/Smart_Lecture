@@ -147,6 +147,7 @@ interface CircuitProgressRow {
   simulationState: string;
   componentCount: number;
   wireCount: number;
+  lastActivityAt: number;
 }
 
 interface CircuitInspection extends CircuitProgressRow {
@@ -160,6 +161,7 @@ const CIRCUIT_PROGRESS_STATUS: Record<CircuitProgressRow['status'], { label: str
   working: { label: 'Đang thực hiện', className: 'bg-blue-100 text-blue-800' },
   not_started: { label: 'Chưa bắt đầu', className: 'bg-amber-100 text-amber-800' },
 };
+const CIRCUIT_STUCK_AFTER_MS = 10_000;
 
 interface HostConsoleState {
   phase: HostPhase;
@@ -1051,8 +1053,8 @@ function useHostConsoleEffects(
   }, [roomCode, setField]);
 
   useEffect(() => {
-    if (phase !== 'race') return;
-    const t = setInterval(() => setField('tick', (x) => x + 1), 500);
+    if (phase !== 'race' && phase !== 'sandbox') return;
+    const t = setInterval(() => setField('tick', Date.now()), phase === 'race' ? 500 : 1_000);
     return () => clearInterval(t);
   }, [phase, setField]);
 
@@ -1221,6 +1223,13 @@ function useHostConsoleEffects(
     on('circuit_simulate:inspection_update', (d: CircuitInspection) => {
       setField('csInspection', (current) => current?.userId === d.userId ? d : current);
     });
+    on('circuit_simulate:teacher-message-sent', (d: { name: string; kind: 'hint' | 'retry'; delivered: boolean }) => {
+      if (!d.delivered) {
+        toast.error(`${d.name} đang ngoại tuyến — chưa gửi được hỗ trợ riêng.`);
+        return;
+      }
+      toast.success(d.kind === 'hint' ? `Đã gửi gợi ý riêng cho ${d.name}.` : `Đã yêu cầu ${d.name} kiểm tra lại mạch.`);
+    });
 
     socket.emit('game:host-attach', { sessionId });
 
@@ -1265,6 +1274,9 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
   function inspectCircuit(userId: string) {
     socketRef.current?.emit('circuit_simulate:inspect', { userId });
   }
+  function sendCircuitTeacherMessage(userId: string, kind: 'hint' | 'retry', message?: string) {
+    socketRef.current?.emit('circuit_simulate:teacher-message', { userId, kind, message });
+  }
 
   async function cancel() {
     if (!window.confirm('Kết thúc và đóng phòng game?')) return;
@@ -1277,8 +1289,8 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
     }
   }
 
-  const raceLeft = Math.max(0, Math.ceil((raceEndsAt - Date.now()) / 1000));
-  void tick;
+  const now = tick || Date.now();
+  const raceLeft = Math.max(0, Math.ceil((raceEndsAt - now) / 1000));
 
   return (
     <div className="mx-auto max-w-2xl text-center">
@@ -1395,6 +1407,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
         onCircuitVerify={circuitVerify}
         onCircuitControl={circuitControl}
         onCircuitInspect={inspectCircuit}
+        onCircuitTeacherMessage={sendCircuitTeacherMessage}
       />
 
       {session.gameType === 'tug_of_war' && phase !== 'lobby' && teams && (
@@ -1499,6 +1512,7 @@ function HostSandboxViews({
   onCircuitVerify,
   onCircuitControl,
   onCircuitInspect,
+  onCircuitTeacherMessage,
 }: {
   session: GameSessionInfo;
   state: HostConsoleState;
@@ -1506,11 +1520,12 @@ function HostSandboxViews({
   onCircuitVerify: (userId: string, correct: boolean) => void;
   onCircuitControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
   onCircuitInspect: (userId: string) => void;
+  onCircuitTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
 }) {
   const {
     phase, players, bingoLast, bingoCalled, bingoWinner, memBoard, memPairs, memFeed,
     scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses,
-    csProgress, csInspection, leaderboard,
+    csProgress, csInspection, leaderboard, tick,
   } = state;
   const qsNext = onQuizNext;
   const circuitVerify = onCircuitVerify;
@@ -1691,6 +1706,8 @@ function HostSandboxViews({
           leaderboard={leaderboard}
           onControl={onCircuitControl}
           onInspect={onCircuitInspect}
+          onTeacherMessage={onCircuitTeacherMessage}
+          now={tick || Date.now()}
         />
       )}
 
@@ -1706,6 +1723,8 @@ function CircuitSimulateHostView({
   leaderboard,
   onControl,
   onInspect,
+  onTeacherMessage,
+  now,
 }: {
   challenge: NonNullable<HostConsoleState['csChallenge']>;
   passes: HostConsoleState['csPasses'];
@@ -1714,6 +1733,8 @@ function CircuitSimulateHostView({
   leaderboard: HostConsoleState['leaderboard'];
   onControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
   onInspect: (userId: string) => void;
+  onTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
+  now: number;
 }) {
   return (
     <Card className="mb-4 border-l-4 border-l-blue-600 p-5 text-left">
@@ -1735,7 +1756,7 @@ function CircuitSimulateHostView({
         <Button variant="secondary" onClick={() => onControl('restart')} aria-label="Làm lại thử thách"><i className="fas fa-rotate-right" /> Làm lại thử thách</Button>
         <Button variant="ghost" onClick={() => onControl('skip')} aria-label="Bỏ qua thử thách"><i className="fas fa-forward-step" /> Bỏ qua thử thách</Button>
       </div>
-      <CircuitProgressMonitor progress={progress} inspection={inspection} onInspect={onInspect} />
+      <CircuitProgressMonitor progress={progress} inspection={inspection} onInspect={onInspect} onTeacherMessage={onTeacherMessage} now={now} />
       {passes.length > 0 && (
         <ul className="mt-3 space-y-1">
           {passes.map((entry) => <li key={entry.key} className="rounded-sm bg-emerald-50 px-3 py-1 text-sm text-emerald-700">🎯 {entry.name} vượt qua thử thách (+{entry.points}đ → KTTX)</li>)}
@@ -1753,11 +1774,23 @@ function CircuitSimulateHostView({
   );
 }
 
-function CircuitProgressMonitor({ progress, inspection, onInspect }: {
+function circuitActivityLabel(row: CircuitProgressRow, now: number): string {
+  if (row.status === 'disconnected') return 'Ngoại tuyến';
+  if (row.status === 'completed') return 'Đã hoàn thành';
+  if (row.status === 'not_started') return 'Chưa thao tác';
+  const ageSeconds = Math.max(0, Math.floor((now - row.lastActivityAt) / 1_000));
+  return ageSeconds < 2 ? 'Vừa thao tác' : `Hoạt động ${ageSeconds} giây trước`;
+}
+
+function CircuitProgressMonitor({ progress, inspection, onInspect, onTeacherMessage, now }: {
   progress: CircuitProgressRow[];
   inspection: CircuitInspection | null;
   onInspect: (userId: string) => void;
+  onTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
+  now: number;
 }) {
+  const [hint, setHint] = useState('');
+  const selectedProgress = inspection ? progress.find((row) => row.userId === inspection.userId) : undefined;
   return (
     <section className="mt-4 border-t border-slate-200 pt-4" aria-label="Tiến độ học viên mạch">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1767,13 +1800,16 @@ function CircuitProgressMonitor({ progress, inspection, onInspect }: {
       {progress.length === 0 ? <p className="mt-2 rounded-sm bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">Chưa có học viên tham gia thử thách.</p> : (
         <ul className="mt-2 grid gap-2 sm:grid-cols-2">
           {progress.map((row) => {
-            const status = CIRCUIT_PROGRESS_STATUS[row.status];
+            const stuck = row.online && row.status === 'working' && now - row.lastActivityAt >= CIRCUIT_STUCK_AFTER_MS;
+            const status = stuck
+              ? { label: 'Cần hỗ trợ', className: 'bg-rose-100 text-rose-700' }
+              : CIRCUIT_PROGRESS_STATUS[row.status];
             const selected = inspection?.userId === row.userId;
             return (
               <li key={row.userId}>
-                <button type="button" onClick={() => onInspect(row.userId)} aria-label={`Xem mạch ${row.name}`} className={`w-full rounded-sm border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}>
+                <button type="button" onClick={() => { setHint(''); onInspect(row.userId); }} aria-label={`Xem mạch ${row.name}`} className={`w-full rounded-sm border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}>
                   <span className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-sm font-semibold text-slate-800">{row.name}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span></span>
-                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span></span>
+                  <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span><span className={stuck ? 'font-semibold text-rose-700' : ''}>{circuitActivityLabel(row, now)}</span></span>
                 </button>
               </li>
             );
@@ -1789,6 +1825,32 @@ function CircuitProgressMonitor({ progress, inspection, onInspect }: {
               <div className="absolute inset-0" aria-hidden="true" />
             </div>
           ) : <p className="mt-2 rounded-sm bg-white px-3 py-6 text-center text-xs text-slate-500">Học viên chưa đặt linh kiện cho thử thách này.</p>}
+          <div className="mt-3 rounded-sm border border-blue-200 bg-white p-3">
+            <label htmlFor={`circuit-hint-${inspection.userId}`} className="block text-sm font-medium text-slate-700">Gợi ý riêng cho {inspection.name}</label>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+              <Input
+                id={`circuit-hint-${inspection.userId}`}
+                value={hint}
+                maxLength={300}
+                onChange={(event) => setHint(event.target.value)}
+                placeholder="Ví dụ: Kiểm tra lại dây nối từ OUT sang IN…"
+                disabled={!selectedProgress?.online}
+              />
+              <Button
+                onClick={() => {
+                  onTeacherMessage(inspection.userId, 'hint', hint.trim());
+                  setHint('');
+                }}
+                disabled={!selectedProgress?.online || !hint.trim()}
+              >Gửi gợi ý</Button>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-500">Tin nhắn chỉ hiển thị trên thiết bị của học viên đang chọn; không thay đổi mạch hoặc điểm.</span>
+              <Button variant="secondary" onClick={() => onTeacherMessage(inspection.userId, 'retry')} disabled={!selectedProgress?.online}>
+                <i className="fas fa-rotate-right" /> Yêu cầu kiểm tra lại
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </section>
