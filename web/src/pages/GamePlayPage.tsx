@@ -82,7 +82,7 @@ interface PlayerGameState {
     remainingMs: number;
   } | null;
   challengeCompleted: boolean;
-  teacherMessage: { kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number } | null;
+  teacherMessage: { messageId: string; kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number; acknowledged: boolean } | null;
   refCircuit: CircuitData | null;
   showRef: boolean;
 }
@@ -365,9 +365,12 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     on('circuit_simulate:validation', (d: { correct: boolean; feedback: string }) => {
       if (!d.correct) toast.error(d.feedback);
     });
-    on('circuit_simulate:teacher-message', (d: { kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number }) => {
-      setField('teacherMessage', d);
+    on('circuit_simulate:teacher-message', (d: { messageId: string; kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number }) => {
+      setField('teacherMessage', { ...d, acknowledged: false });
       toast.info(d.kind === 'hint' ? 'Giáo viên vừa gửi gợi ý riêng.' : 'Giáo viên đề nghị bạn kiểm tra lại mạch.');
+    });
+    on('circuit_simulate:teacher-message-acknowledged', (d: { messageId: string }) => {
+      setField('teacherMessage', (current) => current?.messageId === d.messageId ? { ...current, acknowledged: true } : current);
     });
     on('circuit_draw:verified', (d: { userId: string; correct: boolean; feedback?: string; newKttx: number | null }) => {
       if (d.userId !== myId()) return;
@@ -510,6 +513,10 @@ export default function GamePlayPage() {
     toast.success('Đã nộp mạch cho giáo viên');
   }
 
+  function acknowledgeTeacherMessage(messageId: string) {
+    socketRef.current?.emit('circuit_simulate:teacher-message-ack', { messageId });
+  }
+
   if (!token) {
     return <Navigate to="/login" replace />;
   }
@@ -582,6 +589,7 @@ export default function GamePlayPage() {
           state={state}
           onCircuitChange={syncCircuit}
           onSubmit={submitCircuit}
+          onAcknowledge={acknowledgeTeacherMessage}
           onToggleReference={() => setField('showRef', (visible) => !visible)}
         />
       )}
@@ -902,11 +910,13 @@ function CircuitPlayerView({
   state,
   onCircuitChange,
   onSubmit,
+  onAcknowledge,
   onToggleReference,
 }: {
   state: PlayerGameState;
   onCircuitChange: (data: CircuitData) => void;
   onSubmit: (data: CircuitData) => void;
+  onAcknowledge: (messageId: string) => void;
   onToggleReference: () => void;
 }) {
   const { gameType, challenge, challengeCompleted, teacherMessage, refCircuit, showRef, circuitData } = state;
@@ -933,6 +943,11 @@ function CircuitPlayerView({
             <div className={`mt-2 rounded-sm border px-3 py-2 text-sm ${teacherMessage.kind === 'hint' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-violet-300 bg-violet-50 text-violet-900'}`} role="status" aria-live="polite">
               <p className="text-[10px] font-bold uppercase tracking-wide">{teacherMessage.teacherName} · {teacherMessage.kind === 'hint' ? 'Gợi ý riêng' : 'Yêu cầu kiểm tra lại'}</p>
               <p className="mt-0.5 font-medium">{teacherMessage.message}</p>
+              <div className="mt-2 flex justify-end">
+                <Button variant="secondary" onClick={() => onAcknowledge(teacherMessage.messageId)} disabled={teacherMessage.acknowledged}>
+                  <i className={`fas ${teacherMessage.acknowledged ? 'fa-circle-check' : 'fa-check'}`} /> {teacherMessage.acknowledged ? 'Đã xác nhận' : 'Đã hiểu'}
+                </Button>
+              </div>
             </div>
           )}
         </Card>

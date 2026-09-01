@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-57-completed",
-  "phase_current": "P57-circuit-private-assistance",
+  "status": "phase-58-completed",
+  "phase_current": "P58-circuit-assistance-recovery",
   "workflow_state": "verified",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Plan the next circuit classroom milestone; persisted assistance history/read receipts, AI-generated hints, and support for non-circuit games remain explicitly outside P57."
+  "next_action": "Plan the next classroom milestone. P58 deliberately retains only the latest assistance checkpoint; full message history, AI hints, and non-circuit assistance remain future scope."
 }

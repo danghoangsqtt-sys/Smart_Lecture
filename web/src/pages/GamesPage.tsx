@@ -155,6 +155,18 @@ interface CircuitInspection extends CircuitProgressRow {
   circuit: CircuitRoomData | null;
 }
 
+interface CircuitAssistanceStatus {
+  userId: string;
+  name: string;
+  messageId: string;
+  kind: 'hint' | 'retry';
+  message: string;
+  sentAt: number;
+  deliveredAt: number | null;
+  acknowledgedAt: number | null;
+  status: 'queued' | 'delivered' | 'acknowledged';
+}
+
 const CIRCUIT_PROGRESS_STATUS: Record<CircuitProgressRow['status'], { label: string; className: string }> = {
   disconnected: { label: 'Mất kết nối', className: 'bg-slate-100 text-slate-500' },
   completed: { label: 'Đã hoàn thành', className: 'bg-emerald-100 text-emerald-700' },
@@ -205,6 +217,7 @@ interface HostConsoleState {
   csPasses: { name: string; points: number; key: number }[];
   csProgress: CircuitProgressRow[];
   csInspection: CircuitInspection | null;
+  csAssistance: CircuitAssistanceStatus[];
 }
 
 interface HostSyncPayload {
@@ -225,6 +238,7 @@ interface HostSyncPayload {
     };
     passes: { userId: string; name: string; challengeId: string; points: number }[];
     progress: CircuitProgressRow[];
+    assistance: CircuitAssistanceStatus[];
   } | null;
 }
 
@@ -240,7 +254,7 @@ function createHostConsoleState(): HostConsoleState {
     bingoLast: null, bingoCalled: [], bingoWinner: null,
     memBoard: [], memPairs: 0, memFeed: [], scProgress: [],
     qsQ: null, qsIdx: 0, qsTot: 0, qsReveal: null, qsScores: [],
-    cdPending: [], csChallenge: null, csPasses: [], csProgress: [], csInspection: null,
+    cdPending: [], csChallenge: null, csPasses: [], csProgress: [], csInspection: null, csAssistance: [],
   };
 }
 
@@ -1074,6 +1088,7 @@ function useHostConsoleEffects(
       if (d.circuitSimulate) {
         setField('csChallenge', d.circuitSimulate.challenge);
         setField('csProgress', d.circuitSimulate.progress);
+        setField('csAssistance', d.circuitSimulate.assistance ?? []);
         const restoredPasses = d.circuitSimulate.passes.map((pass) => {
           feedKey.current += 1;
           return { name: pass.name, points: pass.points, key: feedKey.current };
@@ -1223,9 +1238,12 @@ function useHostConsoleEffects(
     on('circuit_simulate:inspection_update', (d: CircuitInspection) => {
       setField('csInspection', (current) => current?.userId === d.userId ? d : current);
     });
-    on('circuit_simulate:teacher-message-sent', (d: { name: string; kind: 'hint' | 'retry'; delivered: boolean }) => {
+    on('circuit_simulate:teacher-message-status', (d: CircuitAssistanceStatus) => {
+      setField('csAssistance', (current) => [d, ...current.filter((row) => row.userId !== d.userId)]);
+    });
+    on('circuit_simulate:teacher-message-sent', (d: { name: string; kind: 'hint' | 'retry'; delivered: boolean; status: CircuitAssistanceStatus['status'] }) => {
       if (!d.delivered) {
-        toast.error(`${d.name} đang ngoại tuyến — chưa gửi được hỗ trợ riêng.`);
+        toast.info(`${d.name} đang ngoại tuyến — hỗ trợ đã được xếp hàng để giao khi kết nối lại.`);
         return;
       }
       toast.success(d.kind === 'hint' ? `Đã gửi gợi ý riêng cho ${d.name}.` : `Đã yêu cầu ${d.name} kiểm tra lại mạch.`);
@@ -1525,7 +1543,7 @@ function HostSandboxViews({
   const {
     phase, players, bingoLast, bingoCalled, bingoWinner, memBoard, memPairs, memFeed,
     scProgress, qsQ, qsIdx, qsTot, qsReveal, qsScores, cdPending, csChallenge, csPasses,
-    csProgress, csInspection, leaderboard, tick,
+    csProgress, csInspection, csAssistance, leaderboard, tick,
   } = state;
   const qsNext = onQuizNext;
   const circuitVerify = onCircuitVerify;
@@ -1703,6 +1721,7 @@ function HostSandboxViews({
           passes={csPasses}
           progress={csProgress}
           inspection={csInspection}
+          assistance={csAssistance}
           leaderboard={leaderboard}
           onControl={onCircuitControl}
           onInspect={onCircuitInspect}
@@ -1720,6 +1739,7 @@ function CircuitSimulateHostView({
   passes,
   progress,
   inspection,
+  assistance,
   leaderboard,
   onControl,
   onInspect,
@@ -1730,6 +1750,7 @@ function CircuitSimulateHostView({
   passes: HostConsoleState['csPasses'];
   progress: CircuitProgressRow[];
   inspection: CircuitInspection | null;
+  assistance: CircuitAssistanceStatus[];
   leaderboard: HostConsoleState['leaderboard'];
   onControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
   onInspect: (userId: string) => void;
@@ -1756,7 +1777,7 @@ function CircuitSimulateHostView({
         <Button variant="secondary" onClick={() => onControl('restart')} aria-label="Làm lại thử thách"><i className="fas fa-rotate-right" /> Làm lại thử thách</Button>
         <Button variant="ghost" onClick={() => onControl('skip')} aria-label="Bỏ qua thử thách"><i className="fas fa-forward-step" /> Bỏ qua thử thách</Button>
       </div>
-      <CircuitProgressMonitor progress={progress} inspection={inspection} onInspect={onInspect} onTeacherMessage={onTeacherMessage} now={now} />
+      <CircuitProgressMonitor progress={progress} inspection={inspection} assistance={assistance} onInspect={onInspect} onTeacherMessage={onTeacherMessage} now={now} />
       {passes.length > 0 && (
         <ul className="mt-3 space-y-1">
           {passes.map((entry) => <li key={entry.key} className="rounded-sm bg-emerald-50 px-3 py-1 text-sm text-emerald-700">🎯 {entry.name} vượt qua thử thách (+{entry.points}đ → KTTX)</li>)}
@@ -1782,15 +1803,16 @@ function circuitActivityLabel(row: CircuitProgressRow, now: number): string {
   return ageSeconds < 2 ? 'Vừa thao tác' : `Hoạt động ${ageSeconds} giây trước`;
 }
 
-function CircuitProgressMonitor({ progress, inspection, onInspect, onTeacherMessage, now }: {
+function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, onTeacherMessage, now }: {
   progress: CircuitProgressRow[];
   inspection: CircuitInspection | null;
+  assistance: CircuitAssistanceStatus[];
   onInspect: (userId: string) => void;
   onTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
   now: number;
 }) {
   const [hint, setHint] = useState('');
-  const selectedProgress = inspection ? progress.find((row) => row.userId === inspection.userId) : undefined;
+  const selectedAssistance = inspection ? assistance.find((row) => row.userId === inspection.userId) : undefined;
   return (
     <section className="mt-4 border-t border-slate-200 pt-4" aria-label="Tiến độ học viên mạch">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1834,22 +1856,27 @@ function CircuitProgressMonitor({ progress, inspection, onInspect, onTeacherMess
                 maxLength={300}
                 onChange={(event) => setHint(event.target.value)}
                 placeholder="Ví dụ: Kiểm tra lại dây nối từ OUT sang IN…"
-                disabled={!selectedProgress?.online}
               />
               <Button
                 onClick={() => {
                   onTeacherMessage(inspection.userId, 'hint', hint.trim());
                   setHint('');
                 }}
-                disabled={!selectedProgress?.online || !hint.trim()}
+                disabled={!hint.trim()}
               >Gửi gợi ý</Button>
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[11px] text-slate-500">Tin nhắn chỉ hiển thị trên thiết bị của học viên đang chọn; không thay đổi mạch hoặc điểm.</span>
-              <Button variant="secondary" onClick={() => onTeacherMessage(inspection.userId, 'retry')} disabled={!selectedProgress?.online}>
+              <Button variant="secondary" onClick={() => onTeacherMessage(inspection.userId, 'retry')}>
                 <i className="fas fa-rotate-right" /> Yêu cầu kiểm tra lại
               </Button>
             </div>
+            {selectedAssistance && (
+              <p className={`mt-2 rounded-sm px-2 py-1.5 text-xs font-semibold ${selectedAssistance.status === 'acknowledged' ? 'bg-emerald-50 text-emerald-700' : selectedAssistance.status === 'delivered' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-800'}`} role="status">
+                <i className={`fas ${selectedAssistance.status === 'acknowledged' ? 'fa-circle-check' : selectedAssistance.status === 'delivered' ? 'fa-paper-plane' : 'fa-clock'}`} />{' '}
+                {selectedAssistance.status === 'acknowledged' ? 'Học viên đã xác nhận “Đã hiểu”.' : selectedAssistance.status === 'delivered' ? 'Đã giao tới thiết bị — chờ học viên xác nhận.' : 'Đã xếp hàng — sẽ tự giao khi học viên kết nối lại.'}
+              </p>
+            )}
           </div>
         </div>
       )}

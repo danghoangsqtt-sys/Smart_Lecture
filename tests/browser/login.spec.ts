@@ -520,11 +520,24 @@ test('default circuit room restores host and learners without duplicate grading'
   await latePage.close();
   const lateProgress = restoredProgress.getByRole('button', { name: 'Xem mạch Circuit Late' });
   await expect(lateProgress).toContainText('Mất kết nối');
+  await lateProgress.click();
+  const queuedHint = 'Tin hỗ trợ được giao lại sau khi kết nối.';
+  await page.getByLabel('Gợi ý riêng cho Circuit Late').fill(queuedHint);
+  await page.getByRole('button', { name: 'Gửi gợi ý' }).click();
+  await expect(page.getByText('Đã xếp hàng — sẽ tự giao khi học viên kết nối lại.')).toBeVisible();
+  await expect(studentPage.getByText(queuedHint, { exact: true })).toHaveCount(0);
+  await expect(peerPage.getByText(queuedHint, { exact: true })).toHaveCount(0);
+
   const rejoinedLatePage = await lateContext.newPage();
   await rejoinedLatePage.goto(`/games/play?room=${roomCode}`);
   await expect(rejoinedLatePage.getByRole('dialog')).toBeVisible();
   await rejoinedLatePage.keyboard.press('Escape');
   await expect(rejoinedLatePage.getByText('Đóng mạch đèn LED')).toBeVisible();
+  await expect(rejoinedLatePage.getByText(queuedHint, { exact: true })).toBeVisible();
+  await expect(page.getByText('Đã giao tới thiết bị — chờ học viên xác nhận.')).toBeVisible();
+  await rejoinedLatePage.getByRole('button', { name: 'Đã hiểu' }).click();
+  await expect(rejoinedLatePage.getByRole('button', { name: 'Đã xác nhận' })).toBeDisabled();
+  await expect(page.getByText('Học viên đã xác nhận “Đã hiểu”.')).toBeVisible();
   await expect(rejoinedLatePage.locator('[data-component-type]')).toHaveCount(4);
   await expect(rejoinedLatePage.locator('[data-wire-id]')).toHaveCount(3);
   await expect(rejoinedLatePage.getByText(/Bạn đã hoàn thành thử thách này/)).toBeVisible();

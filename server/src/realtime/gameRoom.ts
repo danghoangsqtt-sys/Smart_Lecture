@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -47,6 +48,9 @@ const zCircuitTeacherMessage = z.object({
   userId: z.string().min(1).max(120),
   kind: z.enum(['hint', 'retry']),
   message: z.string().max(300).optional(),
+});
+const zCircuitTeacherMessageAck = z.object({
+  messageId: z.string().uuid(),
 });
 
 interface PuzzleDef {
@@ -1069,6 +1073,97 @@ function emitCircuitSimulateInspectionUpdate(room: RoomState, player: CircuitSim
   }
 }
 
+interface CircuitAssistanceRow {
+  game_session_id: string;
+  student_id: string;
+  message_id: string;
+  kind: 'hint' | 'retry';
+  message: string;
+  teacher_name: string;
+  sent_at: number;
+  delivered_at: number | null;
+  acknowledged_at: number | null;
+}
+
+type CircuitAssistanceStatus = 'queued' | 'delivered' | 'acknowledged';
+
+function circuitAssistanceStatus(row: CircuitAssistanceRow): CircuitAssistanceStatus {
+  if (row.acknowledged_at !== null) return 'acknowledged';
+  if (row.delivered_at !== null) return 'delivered';
+  return 'queued';
+}
+
+function circuitAssistancePayload(row: CircuitAssistanceRow) {
+  return {
+    messageId: row.message_id,
+    kind: row.kind,
+    message: row.message,
+    teacherName: row.teacher_name,
+    sentAt: row.sent_at,
+  };
+}
+
+function circuitAssistanceStatusPayload(room: RoomState, row: CircuitAssistanceRow) {
+  const player = room.circuitSimulatePlayers.get(row.student_id);
+  return {
+    userId: row.student_id,
+    name: player?.displayName ?? 'Học viên',
+    messageId: row.message_id,
+    kind: row.kind,
+    message: row.message,
+    sentAt: row.sent_at,
+    deliveredAt: row.delivered_at,
+    acknowledgedAt: row.acknowledged_at,
+    status: circuitAssistanceStatus(row),
+  };
+}
+
+function getCircuitAssistance(sessionId: string, userId: string): CircuitAssistanceRow | undefined {
+  return db.prepare(`
+    SELECT game_session_id, student_id, message_id, kind, message, teacher_name,
+           sent_at, delivered_at, acknowledged_at
+    FROM game_circuit_assistance
+    WHERE game_session_id = ? AND student_id = ?
+  `).get(sessionId, userId) as CircuitAssistanceRow | undefined;
+}
+
+function circuitAssistanceSnapshot(room: RoomState) {
+  const rows = db.prepare(`
+    SELECT game_session_id, student_id, message_id, kind, message, teacher_name,
+           sent_at, delivered_at, acknowledged_at
+    FROM game_circuit_assistance
+    WHERE game_session_id = ?
+    ORDER BY sent_at DESC, student_id
+  `).all(room.sessionId) as unknown as CircuitAssistanceRow[];
+  return rows.map((row) => circuitAssistanceStatusPayload(room, row));
+}
+
+function markCircuitAssistanceDelivered(room: RoomState, row: CircuitAssistanceRow, deliveredAt: number): CircuitAssistanceRow {
+  db.prepare(`
+    UPDATE game_circuit_assistance
+    SET delivered_at = COALESCE(delivered_at, ?), updated_at = datetime('now')
+    WHERE game_session_id = ? AND student_id = ? AND message_id = ? AND acknowledged_at IS NULL
+  `).run(deliveredAt, room.sessionId, row.student_id, row.message_id);
+  return getCircuitAssistance(room.sessionId, row.student_id) ?? row;
+}
+
+function emitCircuitAssistanceStatus(room: RoomState, row: CircuitAssistanceRow): void {
+  ioRef?.to(circuitHostRoom(room)).emit(
+    'circuit_simulate:teacher-message-status',
+    circuitAssistanceStatusPayload(room, row),
+  );
+}
+
+function deliverPendingCircuitAssistance(room: RoomState, socket: Socket, userId: string): void {
+  const row = getCircuitAssistance(room.sessionId, userId);
+  if (!row || row.acknowledged_at !== null) return;
+  if (socket.data.circuitAssistanceMessageId === row.message_id) return;
+  socket.data.circuitAssistanceMessageId = row.message_id;
+  socket.emit('circuit_simulate:teacher-message', circuitAssistancePayload(row));
+  const delivered = markCircuitAssistanceDelivered(room, row, Date.now());
+  emitCircuitAssistanceStatus(room, delivered);
+}
+
 function circuitSimulateHostSnapshot(room: RoomState) {
   if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return null;
   const activeChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
@@ -1111,6 +1206,7 @@ function circuitSimulateHostSnapshot(room: RoomState) {
     },
     passes,
     progress: circuitSimulateProgressSnapshot(room),
+    assistance: circuitAssistanceSnapshot(room),
   };
 }
 
@@ -1642,6 +1738,7 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
     completed: player.completedChallenges.includes(challenge.id),
     simulationState: player.simulationState,
   });
+  deliverPendingCircuitAssistance(room, socket, userId);
 }
 
 function evaluateCircuitSimulateChallenge(room: RoomState): void {
@@ -2620,21 +2717,68 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const teacher = getUserById(String(socket.data.userId));
       const teacherName = teacher ? toPublicUser(teacher).displayName : 'Gi\u00e1o vi\u00ean';
       const sentAt = Date.now();
-      const payload = { kind: parsed.data.kind, message, teacherName, sentAt };
+      const messageId = randomUUID();
+      db.prepare(`
+        INSERT INTO game_circuit_assistance (
+          game_session_id, student_id, message_id, kind, message, teacher_name,
+          sent_at, delivered_at, acknowledged_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, datetime('now'))
+        ON CONFLICT(game_session_id, student_id) DO UPDATE SET
+          message_id = excluded.message_id,
+          kind = excluded.kind,
+          message = excluded.message,
+          teacher_name = excluded.teacher_name,
+          sent_at = excluded.sent_at,
+          delivered_at = NULL,
+          acknowledged_at = NULL,
+          updated_at = datetime('now')
+      `).run(room.sessionId, player.userId, messageId, parsed.data.kind, message, teacherName, sentAt);
+      const payload = { messageId, kind: parsed.data.kind, message, teacherName, sentAt };
       const learnerSockets = connectedSocketsIn(room.roomCode)
         .map((socketId) => ioRef?.sockets.sockets.get(socketId))
         .filter((candidate): candidate is Socket => (
           candidate?.data.role === 'student' && String(candidate.data.userId) === player.userId
         ));
       for (const learnerSocket of learnerSockets) {
+        learnerSocket.data.circuitAssistanceMessageId = messageId;
         learnerSocket.emit('circuit_simulate:teacher-message', payload);
       }
+      let assistance = getCircuitAssistance(room.sessionId, player.userId);
+      if (!assistance) return;
+      if (learnerSockets.length > 0) {
+        assistance = markCircuitAssistanceDelivered(room, assistance, Date.now());
+      }
+      emitCircuitAssistanceStatus(room, assistance);
       socket.emit('circuit_simulate:teacher-message-sent', {
         userId: player.userId,
         name: player.displayName,
+        messageId,
         kind: parsed.data.kind,
         delivered: learnerSockets.length > 0,
+        status: circuitAssistanceStatus(assistance),
       });
+    });
+
+    socket.on('circuit_simulate:teacher-message-ack', (raw: unknown) => {
+      const parsed = zCircuitTeacherMessageAck.safeParse(raw);
+      if (!parsed.success || socket.data.role !== 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      const userId = String(socket.data.userId);
+      const row = getCircuitAssistance(room.sessionId, userId);
+      if (!row || row.message_id !== parsed.data.messageId) return;
+      const acknowledgedAt = Date.now();
+      db.prepare(`
+        UPDATE game_circuit_assistance
+        SET delivered_at = COALESCE(delivered_at, ?),
+            acknowledged_at = COALESCE(acknowledged_at, ?),
+            updated_at = datetime('now')
+        WHERE game_session_id = ? AND student_id = ? AND message_id = ?
+      `).run(acknowledgedAt, acknowledgedAt, room.sessionId, userId, row.message_id);
+      const acknowledged = getCircuitAssistance(room.sessionId, userId);
+      if (!acknowledged) return;
+      socket.emit('circuit_simulate:teacher-message-acknowledged', { messageId: acknowledged.message_id });
+      emitCircuitAssistanceStatus(room, acknowledged);
     });
 
     socket.on('circuit_simulate:circuit', (raw: unknown) => {

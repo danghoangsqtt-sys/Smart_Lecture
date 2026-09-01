@@ -507,6 +507,29 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 22,
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS game_circuit_assistance (
+          game_session_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+          student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          message_id TEXT NOT NULL,
+          kind TEXT NOT NULL CHECK (kind IN ('hint', 'retry')),
+          message TEXT NOT NULL CHECK (length(message) BETWEEN 1 AND 300),
+          teacher_name TEXT NOT NULL,
+          sent_at INTEGER NOT NULL CHECK (sent_at >= 0),
+          delivered_at INTEGER CHECK (delivered_at IS NULL OR delivered_at >= sent_at),
+          acknowledged_at INTEGER CHECK (acknowledged_at IS NULL OR acknowledged_at >= sent_at),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (game_session_id, student_id),
+          UNIQUE (message_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_game_circuit_assistance_session
+          ON game_circuit_assistance(game_session_id, student_id);
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

@@ -55,6 +55,13 @@
 - [x] Send a private teacher hint or retry request only to the selected learner.
 - [x] Preserve topology/timer/grading and cover delivery privacy in restart and Browser E2E.
 
+## Phase 58 — Circuit Assistance Recovery ✅
+
+- [x] Persist the latest assistance checkpoint per learner before delivery.
+- [x] Queue assistance for offline learners and redeliver it after reconnect/restart.
+- [x] Record explicit learner acknowledgement and restore its status for the host.
+- [x] Preserve privacy/topology/grading and cover the lifecycle in restart and Browser E2E.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

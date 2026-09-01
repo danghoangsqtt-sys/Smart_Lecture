@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Durable circuit assistance recovery
+
+- Thêm migration v22 lưu checkpoint hỗ trợ riêng mới nhất theo phiên và học viên trước khi phát realtime.
+- Tin gửi lúc học viên offline được xếp hàng, tự giao lại sau reconnect/server restart và chỉ giao một lần trên mỗi connection.
+- Bổ sung nút “Đã hiểu” cho học viên cùng trạng thái queued/delivered/acknowledged phục hồi được trên console giáo viên.
+- Giữ nguyên privacy, topology, timer và KTTX; kiểm chứng bằng restart learner-first và Browser E2E ba học viên.
+
 ## 2026-09-01 — Private circuit teacher assistance
 
 - Thêm migration v21 lưu thời điểm thao tác mạch cuối theo từng học viên và cảnh báo “Cần hỗ trợ” sau 10 giây không hoạt động khi đang làm.

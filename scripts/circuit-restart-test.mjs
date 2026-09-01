@@ -220,6 +220,27 @@ async function prepare() {
     const inspection = await inspectionPromise;
     check('learner activity timestamp captured before restart', Number.isFinite(inspection?.lastActivityAt) && inspection.lastActivityAt > 0);
 
+    learner.disconnect();
+    await delay(150);
+    const queuedMessage = 'Hỗ trợ đang chờ qua lần khởi động lại.';
+    const queuedAckPromise = waitFor(
+      host,
+      'circuit_simulate:teacher-message-sent',
+      (payload) => payload?.userId === studentId && payload?.kind === 'hint',
+    );
+    host.emit('circuit_simulate:teacher-message', {
+      userId: studentId,
+      kind: 'hint',
+      message: queuedMessage,
+    });
+    const queuedAck = await queuedAckPromise;
+    check(
+      'offline assistance is durably queued before restart',
+      queuedAck?.delivered === false
+        && queuedAck?.status === 'queued'
+        && typeof queuedAck?.messageId === 'string',
+    );
+
     writeFileSync(STATE_PATH, JSON.stringify({
       teacherToken,
       studentToken,
@@ -230,6 +251,8 @@ async function prepare() {
       originalEndsAt: challenge.endsAt,
       pausedRemainingMs: paused.remainingMs,
       lastActivityAt: inspection.lastActivityAt,
+      queuedMessage,
+      queuedMessageId: queuedAck.messageId,
     }, null, 2));
     console.log('Circuit restart prepare PASS');
   } finally {
@@ -247,13 +270,48 @@ async function verify() {
     await waitForConnect(learner);
     const restoredChallengePromise = waitFor(learner, 'circuit_simulate:challenge', (payload) => payload?.index === 0);
     const restoredStatePromise = waitFor(learner, 'circuit_simulate:restored');
+    const queuedMessagePromise = waitFor(
+      learner,
+      'circuit_simulate:teacher-message',
+      (payload) => payload?.messageId === state.queuedMessageId,
+    );
     learner.emit('game:join', { roomCode: state.roomCode });
-    const [challenge, restored] = await Promise.all([restoredChallengePromise, restoredStatePromise]);
+    const [challenge, restored, queuedMessage] = await Promise.all([
+      restoredChallengePromise,
+      restoredStatePromise,
+      queuedMessagePromise,
+    ]);
     check('learner reconnects before host after restart', challenge?.index === 0);
     check('absolute challenge deadline preserved', challenge?.endsAt === state.originalEndsAt);
     check('paused challenge restored for learner', challenge?.paused === true && challenge?.remainingMs === state.pausedRemainingMs);
     check('exact topology restored after restart', restored?.circuit?.components?.length === 4 && restored?.circuit?.wires?.length === 3);
     check('completed state restored after restart', restored?.completed === true);
+    check(
+      'learner-first reconnect receives exact queued assistance after restart',
+      queuedMessage?.message === state.queuedMessage && queuedMessage?.messageId === state.queuedMessageId,
+    );
+    await expectNoEvent(
+      learner,
+      'circuit_simulate:teacher-message',
+      () => learner.emit('game:join', { roomCode: state.roomCode }),
+    );
+    check('pending assistance is emitted once on the same socket connection', true);
+
+    await expectNoEvent(
+      learner,
+      'circuit_simulate:teacher-message-acknowledged',
+      () => learner.emit('circuit_simulate:teacher-message-ack', {
+        messageId: '00000000-0000-4000-8000-000000000000',
+      }),
+    );
+    const acknowledgedPromise = waitFor(
+      learner,
+      'circuit_simulate:teacher-message-acknowledged',
+      (payload) => payload?.messageId === state.queuedMessageId,
+    );
+    learner.emit('circuit_simulate:teacher-message-ack', { messageId: state.queuedMessageId });
+    await acknowledgedPromise;
+    check('learner explicitly acknowledges only the current durable message', true);
 
     await expectNoEvent(
       learner,
@@ -276,6 +334,12 @@ async function verify() {
     );
     check('host completion feed restored', hostSync?.circuitSimulate?.passes?.length === 1 && hostSync.circuitSimulate.passes[0]?.name === 'Restart Student');
     check('host circuit leaderboard restored', hostSync?.leaderboard?.length === 1 && hostSync.leaderboard[0]?.score === 100);
+    check(
+      'host snapshot restores learner-first acknowledgement',
+      hostSync?.circuitSimulate?.assistance?.length === 1
+        && hostSync.circuitSimulate.assistance[0]?.messageId === state.queuedMessageId
+        && hostSync.circuitSimulate.assistance[0]?.status === 'acknowledged',
+    );
     const progress = hostSync?.circuitSimulate?.progress?.[0];
     check(
       'host learner progress restored after restart',

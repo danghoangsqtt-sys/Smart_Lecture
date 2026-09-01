@@ -215,8 +215,20 @@
 | T-5501 | Điều khiển tạm dừng, tiếp tục, bỏ qua và làm lại challenge mạch có lưu trạng thái | P55 | done | migration v20 + paused restart + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5601 | Giám sát tiến độ và xem topology hiện tại từng học viên qua kênh riêng của host | P56 | done | private Socket + restart inspection/privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5701 | Theo dõi hoạt động cuối và gửi gợi ý/yêu cầu kiểm tra lại riêng tư cho học viên mạch | P57 | done | migration v21 + selected-only hint/retry + restart privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
+| T-5801 | Lưu, giao lại và xác nhận hỗ trợ riêng mới nhất cho học viên mạch | P58 | done | migration v22 + offline queue/reconnect ACK + restart learner-first recovery + Browser 4/4 + React Doctor 100 + full regression |
 
 ## Session log
+### 2026-09-01 (Phase 58 — T-5801 completed)
+- Migration v22 lưu checkpoint hỗ trợ mới nhất theo session/học viên; persist trước phát và thay thế có kiểm soát khi giáo viên gửi tin mới.
+- Học viên offline nhận trạng thái queued, reconnect tự nhận đúng tin một lần trên connection, bấm “Đã hiểu” để ghi acknowledged; host reload phục hồi trạng thái này.
+- Restart integration xác nhận learner-first reconnect/ACK trước host attach; Browser ba học viên xác nhận queue → delivery → ACK không rò peer và không đổi topology/KTTX.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, regression 22/22, Excel, staged restore và circuit assistance restart đều pass.
+
+### 2026-09-01 (Phase 58 — T-5801 started)
+- Chốt mô hình checkpoint mới nhất theo session/học viên, không mở rộng thành lịch sử hội thoại đầy đủ.
+- Tin được persist trước khi gửi; offline chuyển sang queued, reconnect chuyển delivered, học viên bấm “Đã hiểu” để acknowledged.
+- Doc-first gate hoàn tất; chuẩn bị migration v22, host recovery snapshot và E2E offline/restart.
+
 ### 2026-09-01 (Phase 57 — T-5701 completed)
 - Migration v21 lưu epoch thao tác cuối độc lập với `updated_at`; progress host hiển thị tuổi hoạt động và chỉ đánh dấu “Cần hỗ trợ” cho học viên online đang làm sau 10 giây.
 - Giáo viên gửi hint tối đa 300 ký tự hoặc yêu cầu kiểm tra lại trực tiếp tới đúng socket học viên được chọn; host nhận ACK giao/không giao và peer không nhận payload.
