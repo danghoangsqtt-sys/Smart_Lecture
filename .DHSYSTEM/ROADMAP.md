@@ -76,6 +76,13 @@
 - [x] Add incorrect-submission priority, count, filter, row badge, and inspection reason for the host.
 - [x] Restore diagnostics through reload/process restart and preserve idempotent grading.
 
+## Phase 61 — Circuit Adaptive Pacing ✅
+
+- [x] Show classroom readiness from private progress metadata.
+- [x] Add a durable capped 30-second extension for running and paused challenges.
+- [x] Let the host evaluate current circuits and advance immediately through the existing grader.
+- [x] Cover authorization, restart persistence, and no-duplicate grading in integration tests.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

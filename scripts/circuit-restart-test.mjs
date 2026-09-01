@@ -222,6 +222,20 @@ async function prepare() {
       'teacher pause stores a positive remaining duration',
       Number.isFinite(paused?.remainingMs) && paused.remainingMs > 0 && paused.remainingMs <= 14_000,
     );
+    await expectNoEvent(
+      host,
+      'circuit_simulate:control_state',
+      () => learner.emit('circuit_simulate:host-control', { action: 'extend' }),
+    );
+    check('learner cannot extend circuit challenge time', true);
+    const extendedPromise = waitFor(
+      host,
+      'circuit_simulate:control_state',
+      (payload) => payload?.paused === true && payload?.remainingMs === paused.remainingMs + 30_000,
+    );
+    host.emit('circuit_simulate:host-control', { action: 'extend' });
+    const extended = await extendedPromise;
+    check('host paused extension adds exactly 30 seconds', extended?.remainingMs === paused.remainingMs + 30_000);
     const inspectionPromise = waitFor(
       host,
       'circuit_simulate:inspection',
@@ -267,7 +281,7 @@ async function prepare() {
       sessionId,
       roomCode,
       originalEndsAt: challenge.endsAt,
-      pausedRemainingMs: paused.remainingMs,
+      pausedRemainingMs: extended.remainingMs,
       lastActivityAt: inspection.lastActivityAt,
       submissionAttempts: inspection.submissionAttempts,
       lastSubmissionAt: inspection.lastSubmissionAt,
@@ -477,15 +491,21 @@ async function verify() {
         && resumedDuration > 0
         && Math.abs(resumedDuration - state.pausedRemainingMs) <= 2_000,
     );
+    await expectNoEvent(
+      host,
+      'circuit_simulate:challenge',
+      () => learner.emit('circuit_simulate:host-control', { action: 'evaluate' }),
+    );
+    check('learner cannot evaluate and advance circuit challenge', true);
     const nextChallengePromise = waitFor(
       learner,
       'circuit_simulate:challenge',
       (payload) => payload?.index === 1,
-      Math.max(5_000, resumed.endsAt - Date.now() + 5_000),
     );
+    host.emit('circuit_simulate:host-control', { action: 'evaluate' });
     const nextChallenge = await nextChallengePromise;
-    check('resumed timer advances to the next challenge', nextChallenge?.index === 1 && nextChallenge?.endsAt > resumed.endsAt);
-    check('timer evaluation does not duplicate KTTX', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
+    check('host immediate evaluation advances to the next challenge', nextChallenge?.index === 1 && nextChallenge?.endsAt > Date.now());
+    check('immediate evaluation does not duplicate KTTX', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
     console.log('Circuit restart verify PASS');
   } finally {
     learner.disconnect();

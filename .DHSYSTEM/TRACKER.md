@@ -218,8 +218,20 @@
 | T-5801 | Lưu, giao lại và xác nhận hỗ trợ riêng mới nhất cho học viên mạch | P58 | done | migration v22 + offline queue/reconnect ACK + restart learner-first recovery + Browser 4/4 + React Doctor 100 + full regression |
 | T-5901 | Hàng đợi ưu tiên và bộ lọc hỗ trợ học viên mạch cho lớp đông | P59 | done | derived triage + counts/filters/next learner + Browser 4/4 + React Doctor 100 + full regression |
 | T-6001 | Lưu và hiển thị chẩn đoán lần nộp mạch hiện tại cho học viên/giáo viên | P60 | done | migration v23 + learner persistent feedback + host incorrect triage + Browser 4/4 + React Doctor 100 + full regression |
+| T-6101 | Điều chỉnh nhịp độ challenge mạch theo mức sẵn sàng của lớp | P61 | done | readiness + durable capped +30s + evaluate-now + Browser 4/4 + React Doctor 100 + full regression |
 
 ## Session log
+### 2026-09-01 (Phase 61 — T-6101 completed)
+- Host thấy tỷ lệ hoàn thành online, số đã nộp/chưa đạt và thanh readiness mà không tải topology.
+- `extend` cộng đúng 30 giây khi chạy hoặc pause, cap 10 phút, persist/reschedule/broadcast từ server; `evaluate` dùng evaluator hiện hữu rồi chuyển bài.
+- Browser xác nhận host/learner đồng bộ thời gian và chấm–chuyển nhanh; restart xác nhận learner không thể giả mạo action, thời lượng mở rộng được phục hồi và KTTX không trùng.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart pacing đều pass.
+
+### 2026-09-01 (Phase 61 — T-6101 started)
+- Chốt hai action host-only: gia hạn đúng 30 giây có cap 10 phút và chấm/chuyển ngay qua evaluator hiện hữu.
+- Readiness chỉ derive từ progress metadata; không bulk-load topology và không thêm migration.
+- Doc-first gate hoàn tất; chuẩn bị realtime/UI cùng Browser/process-restart coverage.
+
 ### 2026-09-01 (Phase 60 — T-6001 completed)
 - Migration v23 lưu số lần nộp, thời điểm, mã và phản hồi validation gần nhất theo challenge; chỉ `submitted=true` tạo attempt và checkpoint reset khi chuyển/làm lại challenge.
 - Học viên có panel kết quả bền; host ưu tiên/lọc “Nộp chưa đạt”, thấy số lần và lý do an toàn trên row/inspection mà không nhận reference topology.

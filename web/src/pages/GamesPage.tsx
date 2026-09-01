@@ -1303,7 +1303,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
     socketRef.current?.emit('circuit_draw:verify', { userId, correct, feedback: '' });
     toast.success(correct ? 'Đã chấm ĐÚNG — cộng KTTX' : 'Đã chấm SAI');
   }
-  function circuitControl(action: 'pause' | 'resume' | 'skip' | 'restart') {
+  function circuitControl(action: 'pause' | 'resume' | 'extend' | 'evaluate' | 'skip' | 'restart') {
     socketRef.current?.emit('circuit_simulate:host-control', { action });
   }
   function inspectCircuit(userId: string) {
@@ -1553,7 +1553,7 @@ function HostSandboxViews({
   state: HostConsoleState;
   onQuizNext: () => void;
   onCircuitVerify: (userId: string, correct: boolean) => void;
-  onCircuitControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
+  onCircuitControl: (action: 'pause' | 'resume' | 'extend' | 'evaluate' | 'skip' | 'restart') => void;
   onCircuitInspect: (userId: string) => void;
   onCircuitTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
 }) {
@@ -1769,11 +1769,16 @@ function CircuitSimulateHostView({
   inspection: CircuitInspection | null;
   assistance: CircuitAssistanceStatus[];
   leaderboard: HostConsoleState['leaderboard'];
-  onControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
+  onControl: (action: 'pause' | 'resume' | 'extend' | 'evaluate' | 'skip' | 'restart') => void;
   onInspect: (userId: string) => void;
   onTeacherMessage: (userId: string, kind: 'hint' | 'retry', message?: string) => void;
   now: number;
 }) {
+  const onlineProgress = progress.filter((row) => row.online);
+  const completedOnline = onlineProgress.filter((row) => row.completedCurrent).length;
+  const attemptedCount = onlineProgress.filter((row) => row.submissionAttempts > 0).length;
+  const incorrectCount = onlineProgress.filter((row) => !row.completedCurrent && row.submissionAttempts > 0 && row.lastValidationCode !== 'correct').length;
+  const readinessPercent = onlineProgress.length > 0 ? Math.round((completedOnline / onlineProgress.length) * 100) : 0;
   return (
     <Card className="mb-4 border-l-4 border-l-blue-600 p-5 text-left">
       <p className="text-[10px] font-black uppercase tracking-widest text-blue-700">Thử thách {challenge.index + 1}/{challenge.total}</p>
@@ -1786,11 +1791,22 @@ function CircuitSimulateHostView({
           {challenge.paused ? `Đang tạm dừng · còn ${Math.ceil(challenge.remainingMs / 1000)} giây` : 'Đồng hồ thử thách đang chạy'}
         </p>
       </div>
+      <div className="mt-3 rounded-sm border border-slate-200 bg-slate-50 p-3" aria-label="Mức sẵn sàng của lớp">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+          <p className="font-bold"><i className="fas fa-gauge-high text-blue-700" /> Sẵn sàng chuyển bài: {completedOnline}/{onlineProgress.length} học viên online</p>
+          <p>{attemptedCount} đã nộp · <span className={incorrectCount > 0 ? 'font-semibold text-rose-700' : 'text-emerald-700'}>{incorrectCount} chưa đạt</span></p>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="Tỷ lệ hoàn thành challenge" aria-valuemin={0} aria-valuemax={100} aria-valuenow={readinessPercent}>
+          <div className="h-full rounded-full bg-emerald-500 transition-[width]" style={{ width: `${readinessPercent}%` }} />
+        </div>
+      </div>
       <div className="mt-3 flex flex-wrap gap-2" aria-label="Điều khiển thử thách mạch">
         <Button variant={challenge.paused ? 'primary' : 'secondary'} onClick={() => onControl(challenge.paused ? 'resume' : 'pause')} aria-label={challenge.paused ? 'Tiếp tục' : 'Tạm dừng'}>
           <i className={`fas ${challenge.paused ? 'fa-play' : 'fa-pause'}`} />
           {challenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
         </Button>
+        <Button variant="secondary" onClick={() => onControl('extend')} aria-label="Gia hạn thêm 30 giây"><i className="fas fa-clock-rotate-left" /> +30 giây</Button>
+        <Button onClick={() => onControl('evaluate')} aria-label="Chấm ngay và chuyển bài"><i className="fas fa-check-double" /> Chấm ngay &amp; chuyển bài</Button>
         <Button variant="secondary" onClick={() => onControl('restart')} aria-label="Làm lại thử thách"><i className="fas fa-rotate-right" /> Làm lại thử thách</Button>
         <Button variant="ghost" onClick={() => onControl('skip')} aria-label="Bỏ qua thử thách"><i className="fas fa-forward-step" /> Bỏ qua thử thách</Button>
       </div>

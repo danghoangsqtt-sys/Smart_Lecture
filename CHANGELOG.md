@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Circuit adaptive pacing
+
+- Hiển thị mức sẵn sàng chuyển bài theo số học viên online đã hoàn thành, đã nộp và chưa đạt.
+- Thêm gia hạn 30 giây có giới hạn 10 phút, hoạt động khi đang chạy hoặc tạm dừng và phục hồi qua restart.
+- Thêm “Chấm ngay & chuyển bài” dùng đúng evaluator server hiện hữu, không tạo đường chấm điểm thứ hai.
+- Chặn learner giả mạo action pacing và giữ nguyên chống cộng điểm/KTTX trùng.
+
 ## 2026-09-01 — Circuit submission diagnostics
 
 - Thêm migration v23 lưu số lần nộp và checkpoint validation gần nhất của challenge mạch hiện tại.

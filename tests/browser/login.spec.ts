@@ -392,10 +392,17 @@ test('default circuit room restores host and learners without duplicate grading'
   const circuitProgress = page.getByLabel('Tiến độ học viên mạch');
   await expect(circuitProgress.getByRole('button', { name: /^Xem mạch / })).toHaveCount(3);
   await expect(circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' })).toContainText('Chưa bắt đầu');
+  await expect(page.getByLabel('Mức sẵn sàng của lớp')).toContainText('Sẵn sàng chuyển bài: 0/3 học viên online');
 
   await page.getByRole('button', { name: 'Tạm dừng', exact: true }).click();
-  await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
+  const pausedHostStatus = page.getByText(/Đang tạm dừng · còn \d+ giây/);
+  await expect(pausedHostStatus).toBeVisible();
   await expect(studentPage.getByText(/Giáo viên đang tạm dừng · còn \d+ giây/)).toBeVisible();
+  const pausedBefore = Number((await pausedHostStatus.textContent())?.match(/còn (\d+) giây/)?.[1] ?? 0);
+  await page.getByRole('button', { name: 'Gia hạn thêm 30 giây' }).click();
+  await expect.poll(async () => Number((await pausedHostStatus.textContent())?.match(/còn (\d+) giây/)?.[1] ?? 0) - pausedBefore).toBeGreaterThanOrEqual(29);
+  const extendedRemaining = Number((await pausedHostStatus.textContent())?.match(/còn (\d+) giây/)?.[1] ?? 0);
+  await expect(studentPage.getByText(`Giáo viên đang tạm dừng · còn ${extendedRemaining} giây`)).toBeVisible();
 
   const studentProgress = circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
   const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
@@ -505,6 +512,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(studentProgress).toContainText('Đã hoàn thành');
   await expect(studentProgress).toContainText('Đã nộp đúng · 3 lần');
+  await expect(page.getByLabel('Mức sẵn sàng của lớp')).toContainText('Sẵn sàng chuyển bài: 3/3 học viên online');
   await page.getByRole('button', { name: 'Nộp chưa đạt (0)' }).click();
   await expect(studentProgress).toHaveCount(0);
   await page.getByRole('button', { name: 'Tất cả (3)' }).click();
@@ -513,7 +521,7 @@ test('default circuit room restores host and learners without duplicate grading'
 
   await page.reload();
   await expect(page.getByText('Đóng mạch đèn LED')).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
+  await expect(page.getByText(`Đang tạm dừng · còn ${extendedRemaining} giây`)).toBeVisible();
   await expect(page.getByText(/3\/60/)).toBeVisible();
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1);
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1);
@@ -591,8 +599,10 @@ test('default circuit room restores host and learners without duplicate grading'
   expect(postTimerRows.find((row) => row.studentId === studentId)?.kttx).toBe(0.5);
   expect(postTimerRows.find((row) => row.studentId === peerId)?.kttx).toBe(0.5);
   expect(postTimerRows.find((row) => row.studentId === lateLearnerId)?.kttx).toBe(0.5);
-  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Chấm ngay và chuyển bài' }).click();
+  await expect(page.getByText('Half Adder — tổng S và bit nhớ C')).toBeVisible();
+  await page.getByRole('button', { name: 'Chấm ngay và chuyển bài' }).click();
+  await expect(page.getByText('Full Adder — cộng A, B và Cin')).toBeVisible();
   await lateContext.close();
   await peerContext.close();
   await studentContext.close();

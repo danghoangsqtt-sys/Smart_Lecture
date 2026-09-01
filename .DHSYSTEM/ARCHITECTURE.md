@@ -136,7 +136,7 @@ Namespace mặc định, phòng theo `game:{roomCode}` và `proctor:{examId}`:
 | game:next | {} | GV chuyển câu tiếp |
 | proctor:watch | {examId} | GV mở màn hình giám thị |
 | circuit_simulate:circuit | {components, wires, submitted} | HV đồng bộ topology; server chỉ tăng attempt, ghi validation và chấm/cộng điểm khi `submitted=true` |
-| circuit_simulate:host-control | {action: pause\|resume\|skip\|restart} | Chỉ host điều khiển challenge; pause/resume giữ topology, skip không chấm, restart không thu hồi điểm đã ghi |
+| circuit_simulate:host-control | {action: pause\|resume\|extend\|evaluate\|skip\|restart} | Chỉ host điều khiển challenge; extend +30 giây có cap 10 phút, evaluate dùng grader hiện hữu rồi chuyển bài, skip không chấm, restart không thu hồi điểm đã ghi |
 | circuit_simulate:inspect | {userId} | Chỉ host đã attach yêu cầu topology hiện tại của một học viên; server không trả reference circuit |
 | circuit_simulate:teacher-message | {userId, kind: hint\|retry, message?} | Chỉ host gửi hỗ trợ riêng tới socket học viên được chọn; hint trim/tối đa 300 ký tự, retry không reset state |
 | circuit_simulate:teacher-message-ack | {messageId} | Chỉ học viên đích đang xác thực xác nhận checkpoint mới nhất; sai message/user/session bị bỏ qua |
@@ -149,6 +149,7 @@ Topology học viên không được phát vào room chung `game:{roomCode}`. Ho
 `lastActivityAt` là epoch do server cập nhật chỉ khi học viên sửa mạch, gửi đo lường hoặc thao tác mô phỏng; các lần persist/attach/pause không làm mới mốc này. UI host tự suy ra “Cần hỗ trợ” sau 10 giây đối với trạng thái online/working. Hint/retry không broadcast vào room chung, không lưu lịch sử và không thay đổi topology, timer, completion, score hay KTTX.
 Checkpoint hỗ trợ mới nhất được persist trước khi phát. Nếu không có socket học viên đích, status là `queued`; mỗi connection mới nhận lại checkpoint chưa acknowledge đúng một lần rồi status thành `delivered`. Học viên xác nhận bằng message id để thành `acknowledged`; `host:sync` khôi phục cả ba trạng thái sau reload/restart. Gửi tin mới thay checkpoint cũ thay vì tạo lịch sử không giới hạn.
 Migration v23 bổ sung checkpoint lần nộp hiện tại vào `game_circuit_player_states`. Chỉ payload `submitted=true` tăng `submission_attempts` và ghi thời điểm/mã/phản hồi; đồng bộ topology thông thường không tạo attempt. Mã validation chỉ mô tả nhóm lỗi an toàn (`invalid_data`, `wire_count`, `component_count`, `connection`) hoặc `correct`, không chứa reference topology. Learner đích nhận `circuit_simulate:validation`; host nhận metadata qua progress/inspection room riêng. Checkpoint reset khi chuyển hoặc restart challenge và được khôi phục qua process restart.
+Điều khiển nhịp độ P61 tiếp tục dùng `game_circuit_runtime`: `extend` cộng đúng 30 giây vào deadline đang chạy hoặc `remaining_ms` đang pause (cap 10 phút), persist rồi broadcast control state; `evaluate` xóa timer và gọi duy nhất `evaluateCircuitSimulateChallenge` để chấm/chuyển bài. UI readiness chỉ derive completed/submitted/incorrect counts từ progress metadata riêng của host, không yêu cầu topology.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 ## 6. Luồng RAG pipeline (services/rag.ts)

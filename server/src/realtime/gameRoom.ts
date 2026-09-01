@@ -39,8 +39,10 @@ const zCircuitSimulate = z.object({
   timeStep: z.number().optional()
 });
 const zCircuitHostControl = z.object({
-  action: z.enum(['pause', 'resume', 'skip', 'restart']),
+  action: z.enum(['pause', 'resume', 'extend', 'evaluate', 'skip', 'restart']),
 });
+const CIRCUIT_EXTENSION_MS = 30_000;
+const CIRCUIT_MAX_REMAINING_MS = 10 * 60_000;
 const zCircuitInspect = z.object({
   userId: z.string().min(1).max(120),
 });
@@ -1887,6 +1889,30 @@ function controlCircuitSimulateChallenge(
       scheduleCircuitSimulateTimer(room);
     }
     emitCircuitSimulateControlState(room);
+    return;
+  }
+  if (action === 'extend') {
+    const now = Date.now();
+    if (room.circuitSimulatePaused) {
+      room.circuitSimulateRemainingMs = Math.min(
+        CIRCUIT_MAX_REMAINING_MS,
+        Math.max(0, room.circuitSimulateRemainingMs) + CIRCUIT_EXTENSION_MS,
+      );
+    } else {
+      const extendedRemaining = Math.min(
+        CIRCUIT_MAX_REMAINING_MS,
+        Math.max(0, room.circuitSimulateChallengeEndsAt - now) + CIRCUIT_EXTENSION_MS,
+      );
+      room.circuitSimulateChallengeEndsAt = now + extendedRemaining;
+      scheduleCircuitSimulateTimer(room);
+    }
+    persistCircuitRuntime(room);
+    emitCircuitSimulateControlState(room);
+    return;
+  }
+  if (action === 'evaluate') {
+    clearCircuitSimulateTimer(room);
+    evaluateCircuitSimulateChallenge(room);
     return;
   }
   if (action === 'skip') {
