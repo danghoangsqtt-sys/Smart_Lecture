@@ -273,7 +273,7 @@ test('teacher can review the six default circuit challenges before creating a ga
 });
 
 test('default circuit room restores host and learners without duplicate grading', async ({ page, request, browser }) => {
-  test.setTimeout(105_000);
+  test.setTimeout(120_000);
   const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
   const adminToken = (await adminLogin.json() as { token: string }).token;
   const createdStudent = await request.post('/api/users', {
@@ -389,6 +389,10 @@ test('default circuit room restores host and learners without duplicate grading'
   await latePage.keyboard.press('Escape');
   await expect(latePage.getByText('Đóng mạch đèn LED')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Tạm dừng', exact: true }).click();
+  await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
+  await expect(studentPage.getByText(/Giáo viên đang tạm dừng · còn \d+ giây/)).toBeVisible();
+
   const assembleCircuit = async (targetPage: typeof studentPage) => {
     await targetPage.getByTitle(/VCC/).click();
     await expect(targetPage.locator('[data-component-type="vcc"]')).toHaveCount(1);
@@ -452,8 +456,11 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
 
+  expect(await readTopology(studentPage)).toEqual(expectedTopology);
+
   await page.reload();
   await expect(page.getByText('Đóng mạch đèn LED')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
   await expect(page.getByText(/3\/60/)).toBeVisible();
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1);
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1);
@@ -485,6 +492,15 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(rejoinedLatePage.locator('[data-wire-id]')).toHaveCount(3);
   await expect(rejoinedLatePage.getByText(/Bạn đã hoàn thành thử thách này/)).toBeVisible();
   expect(await readTopology(rejoinedLatePage)).toEqual(expectedTopology);
+
+  await page.getByRole('button', { name: 'Tiếp tục', exact: true }).click();
+  await expect(page.getByText('Đồng hồ thử thách đang chạy')).toBeVisible();
+  await expect(studentPage.getByText(/Giáo viên đang tạm dừng/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Bỏ qua thử thách', exact: true }).click();
+  await expect(page.getByText('Cổng AND — hai chìa khoá')).toBeVisible();
+  await page.getByRole('button', { name: 'Làm lại thử thách', exact: true }).click();
+  await expect(page.getByText('Cổng AND — hai chìa khoá')).toBeVisible();
+  await expect(studentPage.getByText('Cổng AND — hai chìa khoá')).toBeVisible();
 
   await expect(page.getByText('D Flip-Flop — chốt dữ liệu theo xung clock')).toBeVisible({ timeout: 40_000 });
   const postTimerGradebook = await request.get(`/api/classes/${classId}/gradebook`, {

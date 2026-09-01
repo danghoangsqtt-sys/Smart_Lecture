@@ -478,6 +478,20 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 20,
+    up: () => {
+      const columns = db.prepare('PRAGMA table_info(game_circuit_runtime)').all() as { name: string }[];
+      if (!columns.some((column) => column.name === 'is_paused')) {
+        db.exec(`ALTER TABLE game_circuit_runtime
+          ADD COLUMN is_paused INTEGER NOT NULL DEFAULT 0 CHECK (is_paused IN (0, 1))`);
+      }
+      if (!columns.some((column) => column.name === 'remaining_ms')) {
+        db.exec(`ALTER TABLE game_circuit_runtime
+          ADD COLUMN remaining_ms INTEGER NOT NULL DEFAULT 0 CHECK (remaining_ms >= 0)`);
+      }
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

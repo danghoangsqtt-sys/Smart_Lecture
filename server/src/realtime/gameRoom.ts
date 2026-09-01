@@ -37,6 +37,9 @@ const zCircuitSimulate = z.object({
   inputs: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
   timeStep: z.number().optional()
 });
+const zCircuitHostControl = z.object({
+  action: z.enum(['pause', 'resume', 'skip', 'restart']),
+});
 
 interface PuzzleDef {
   keyword: string;
@@ -185,6 +188,8 @@ interface RoomState {
   circuitSimulateChallenges: CircuitChallenge[];
   circuitSimulateCurrentChallenge: number;
   circuitSimulateChallengeEndsAt: number;
+  circuitSimulatePaused: boolean;
+  circuitSimulateRemainingMs: number;
   simulateChallenges: CircuitChallenge[] | null;
 }
 
@@ -477,6 +482,7 @@ function nextStep(room: RoomState): void {
 function finishGame(room: RoomState): void {
   room.phase = 'finished';
   if (room.timer) clearTimeout(room.timer);
+  room.timer = null;
 
   let podium: { rank: number; name: string; score: number }[] = [];
   if (room.gameType === 'math_race') {
@@ -1013,6 +1019,10 @@ function circuitSimulateHostSnapshot(room: RoomState) {
       index: room.circuitSimulateCurrentChallenge,
       total: room.circuitSimulateChallenges.length,
       endsAt: room.circuitSimulateChallengeEndsAt,
+      paused: room.circuitSimulatePaused,
+      remainingMs: room.circuitSimulatePaused
+        ? room.circuitSimulateRemainingMs
+        : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
       title: activeChallenge.title,
       description: activeChallenge.description,
       targetBehavior: activeChallenge.targetBehavior,
@@ -1035,6 +1045,8 @@ function circuitMismatchFeedback(student: unknown, reference: unknown): string {
 interface CircuitRuntimeRow {
   challenge_index: number;
   challenge_ends_at: number;
+  is_paused: number;
+  remaining_ms: number;
 }
 
 interface CircuitPlayerStateRow {
@@ -1051,11 +1063,14 @@ interface CircuitPlayerStateRow {
 function createCircuitPersistenceStatements() {
   return {
     upsertRuntime: db.prepare(`
-      INSERT INTO game_circuit_runtime (game_session_id, challenge_index, challenge_ends_at, updated_at)
-      VALUES (?, ?, ?, datetime('now'))
+      INSERT INTO game_circuit_runtime (
+        game_session_id, challenge_index, challenge_ends_at, is_paused, remaining_ms, updated_at
+      ) VALUES (?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(game_session_id) DO UPDATE SET
         challenge_index = excluded.challenge_index,
         challenge_ends_at = excluded.challenge_ends_at,
+        is_paused = excluded.is_paused,
+        remaining_ms = excluded.remaining_ms,
         updated_at = datetime('now')
     `),
     upsertPlayer: db.prepare(`
@@ -1088,6 +1103,8 @@ function persistCircuitRuntime(room: RoomState): void {
     room.sessionId,
     room.circuitSimulateCurrentChallenge,
     room.circuitSimulateChallengeEndsAt,
+    room.circuitSimulatePaused ? 1 : 0,
+    Math.max(0, Math.trunc(room.circuitSimulateRemainingMs)),
   );
 }
 
@@ -1327,6 +1344,8 @@ function initCircuitSimulate(room: RoomState): void {
   room.circuitSimulatePlayers = new Map();
   configureCircuitSimulateChallenges(room);
   room.circuitSimulateCurrentChallenge = 0;
+  room.circuitSimulatePaused = false;
+  room.circuitSimulateRemainingMs = 0;
   for (const player of room.players.values()) {
     room.circuitSimulatePlayers.set(player.userId, {
       userId: player.userId,
@@ -1342,9 +1361,57 @@ function initCircuitSimulate(room: RoomState): void {
   sendCircuitSimulateChallenge(room);
 }
 
+function clearCircuitSimulateTimer(room: RoomState): void {
+  if (room.timer) clearTimeout(room.timer);
+  room.timer = null;
+}
+
+function circuitSimulateChallengePayload(room: RoomState) {
+  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (!challenge) return null;
+  return {
+    index: room.circuitSimulateCurrentChallenge,
+    total: room.circuitSimulateChallenges.length,
+    endsAt: room.circuitSimulateChallengeEndsAt,
+    paused: room.circuitSimulatePaused,
+    remainingMs: room.circuitSimulatePaused
+      ? room.circuitSimulateRemainingMs
+      : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
+    challenge: {
+      id: challenge.id,
+      title: challenge.title,
+      description: challenge.description,
+      starterCircuit: challenge.starterCircuit,
+      targetBehavior: challenge.targetBehavior,
+    },
+  };
+}
+
+function emitCircuitSimulateControlState(room: RoomState): void {
+  ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:control_state', {
+    index: room.circuitSimulateCurrentChallenge,
+    paused: room.circuitSimulatePaused,
+    remainingMs: room.circuitSimulatePaused
+      ? room.circuitSimulateRemainingMs
+      : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
+    endsAt: room.circuitSimulateChallengeEndsAt,
+  });
+}
+
+function scheduleCircuitSimulateTimer(room: RoomState): void {
+  clearCircuitSimulateTimer(room);
+  if (room.circuitSimulatePaused) return;
+  room.timer = setTimeout(() => {
+    room.timer = null;
+    if (room.circuitSimulatePaused || room.phase !== 'circuit_simulate') return;
+    evaluateCircuitSimulateChallenge(room);
+  }, Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()));
+}
+
 function sendCircuitSimulateChallenge(
   room: RoomState,
   challengeEndsAt = Date.now() + room.secondsPerQuestion * 1000,
+  resetCurrentChallenge = false,
 ): void {
   if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
     finishGame(room);
@@ -1353,35 +1420,25 @@ function sendCircuitSimulateChallenge(
   const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
   if (!challenge) return;
   for (const player of room.circuitSimulatePlayers.values()) {
-    if (player.circuitChallengeId === challenge.id) continue;
+    if (!resetCurrentChallenge && player.circuitChallengeId === challenge.id) continue;
     player.circuit = null;
     player.circuitChallengeId = challenge.id;
     player.measurements = {};
     player.simulationState = 'idle';
   }
+  room.circuitSimulatePaused = false;
+  room.circuitSimulateRemainingMs = 0;
   room.circuitSimulateChallengeEndsAt = challengeEndsAt;
   persistCircuitRoom(room);
-  ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', {
-    index: room.circuitSimulateCurrentChallenge,
-    total: room.circuitSimulateChallenges.length,
-    endsAt: room.circuitSimulateChallengeEndsAt,
-    challenge: {
-      id: challenge.id,
-      title: challenge.title,
-      description: challenge.description,
-      starterCircuit: challenge.starterCircuit,
-      targetBehavior: challenge.targetBehavior,
-    },
-  });
-  if (room.timer) clearTimeout(room.timer);
-  room.timer = setTimeout(() => {
-    evaluateCircuitSimulateChallenge(room);
-  }, Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()));
+  const payload = circuitSimulateChallengePayload(room);
+  if (payload) ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', payload);
+  scheduleCircuitSimulateTimer(room);
 }
 
 function restoreCircuitSimulateRoom(room: RoomState): boolean {
   const runtime = db.prepare(
-    'SELECT challenge_index, challenge_ends_at FROM game_circuit_runtime WHERE game_session_id = ?',
+    `SELECT challenge_index, challenge_ends_at, is_paused, remaining_ms
+     FROM game_circuit_runtime WHERE game_session_id = ?`,
   ).get(room.sessionId) as CircuitRuntimeRow | undefined;
   if (!runtime) return false;
 
@@ -1395,6 +1452,10 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
   room.circuitSimulateChallengeEndsAt = Number.isFinite(runtime.challenge_ends_at) && runtime.challenge_ends_at > 0
     ? runtime.challenge_ends_at
     : Date.now() + room.secondsPerQuestion * 1000;
+  room.circuitSimulatePaused = runtime.is_paused === 1;
+  room.circuitSimulateRemainingMs = room.circuitSimulatePaused && Number.isFinite(runtime.remaining_ms)
+    ? Math.max(0, Math.trunc(runtime.remaining_ms))
+    : 0;
 
   const validChallengeIds = new Set(room.circuitSimulateChallenges.map((challenge) => challenge.id));
   const rows = db.prepare(`
@@ -1440,7 +1501,18 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
     });
   }
 
-  sendCircuitSimulateChallenge(room, room.circuitSimulateChallengeEndsAt);
+  const currentChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
+  if (currentChallenge) {
+    for (const player of room.circuitSimulatePlayers.values()) {
+      if (player.circuitChallengeId === currentChallenge.id) continue;
+      player.circuit = null;
+      player.circuitChallengeId = currentChallenge.id;
+      player.measurements = {};
+      player.simulationState = 'idle';
+    }
+  }
+  if (room.circuitSimulatePaused) clearCircuitSimulateTimer(room);
+  else scheduleCircuitSimulateTimer(room);
   return true;
 }
 
@@ -1464,18 +1536,8 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
     persistCircuitPlayer(room, player);
   }
   const circuit = player.circuitChallengeId === challenge.id ? player.circuit : null;
-  socket.emit('circuit_simulate:challenge', {
-    index: room.circuitSimulateCurrentChallenge,
-    total: room.circuitSimulateChallenges.length,
-    endsAt: room.circuitSimulateChallengeEndsAt,
-    challenge: {
-      id: challenge.id,
-      title: challenge.title,
-      description: challenge.description,
-      starterCircuit: challenge.starterCircuit,
-      targetBehavior: challenge.targetBehavior,
-    },
-  });
+  const payload = circuitSimulateChallengePayload(room);
+  if (payload) socket.emit('circuit_simulate:challenge', payload);
   socket.emit('circuit_simulate:restored', {
     circuit,
     completed: player.completedChallenges.includes(challenge.id),
@@ -1538,6 +1600,43 @@ function nextCircuitSimulateChallenge(room: RoomState): void {
     return;
   }
   sendCircuitSimulateChallenge(room);
+}
+
+function controlCircuitSimulateChallenge(
+  room: RoomState,
+  action: z.infer<typeof zCircuitHostControl>['action'],
+): void {
+  if (action === 'pause') {
+    if (!room.circuitSimulatePaused) {
+      room.circuitSimulateRemainingMs = Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now());
+      room.circuitSimulatePaused = true;
+      clearCircuitSimulateTimer(room);
+      persistCircuitRuntime(room);
+    }
+    emitCircuitSimulateControlState(room);
+    return;
+  }
+  if (action === 'resume') {
+    if (room.circuitSimulatePaused) {
+      room.circuitSimulateChallengeEndsAt = Date.now() + room.circuitSimulateRemainingMs;
+      room.circuitSimulatePaused = false;
+      room.circuitSimulateRemainingMs = 0;
+      persistCircuitRuntime(room);
+      scheduleCircuitSimulateTimer(room);
+    }
+    emitCircuitSimulateControlState(room);
+    return;
+  }
+  if (action === 'skip') {
+    clearCircuitSimulateTimer(room);
+    nextCircuitSimulateChallenge(room);
+    return;
+  }
+  sendCircuitSimulateChallenge(
+    room,
+    Date.now() + room.secondsPerQuestion * 1000,
+    true,
+  );
 }
 
 function sendQuizShowQuestion(room: RoomState): void {
@@ -1790,6 +1889,8 @@ function loadRoomFromDb(sessionId: string): RoomState | null {
     circuitSimulateChallenges: [],
     circuitSimulateCurrentChallenge: 0,
     circuitSimulateChallengeEndsAt: 0,
+    circuitSimulatePaused: false,
+    circuitSimulateRemainingMs: 0,
     simulateChallenges: cfg.simulateChallenges
       ? cfg.simulateChallenges.map((entry, i) => ({
           id: `cfg_${i}`,
@@ -2373,6 +2474,14 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     // ============ CIRCUIT SIMULATE ============
+    socket.on('circuit_simulate:host-control', (raw: unknown) => {
+      const parsed = zCircuitHostControl.safeParse(raw);
+      if (!parsed.success || socket.data.role === 'student') return;
+      const room = rooms.get(String(socket.data.roomCode ?? ''));
+      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
+      controlCircuitSimulateChallenge(room, parsed.data.action);
+    });
+
     socket.on('circuit_simulate:circuit', (raw: unknown) => {
       const parsed = zCircuitDraw.safeParse(raw); // Reuse same schema for circuit data
       if (!parsed.success || socket.data.role !== 'student') return;

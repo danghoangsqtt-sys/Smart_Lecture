@@ -97,7 +97,7 @@ erDiagram
 - **grades**(class_id, student_id, kttx REAL NULL, process_1 REAL NULL, final_exam REAL NULL, PRIMARY KEY(class_id,student_id))
 - **game_sessions**(id, host_teacher_id, game_type, exam_id NULL, status lobby|running|finished, room_code, started_at)
 - **game_results**(game_session_id, student_id, score, rank, detail_json)
-- **game_circuit_runtime**(game_session_id PK/FK, challenge_index, challenge_ends_at epoch-ms, updated_at) — deadline tuyệt đối để timer tiếp tục sau restart
+- **game_circuit_runtime**(game_session_id PK/FK, challenge_index, challenge_ends_at epoch-ms, is_paused, remaining_ms, updated_at) — deadline tuyệt đối khi chạy; thời lượng còn lại là nguồn sự thật khi pause
 - **game_circuit_player_states**(game_session_id, student_id, display_name, score, circuit_json, circuit_challenge_id, simulation_state, measurements_json, completed_challenges_json, PK(game_session_id,student_id))
 - **rag_documents**(id, owner_id, filename, file_path, mime, status pending|parsing|ready|error, error_msg, page_count)
 - **rag_chunks**(id, rag_doc_id, seq, heading_path, text, page, embedding BLOB float32[])
@@ -135,11 +135,12 @@ Namespace mặc định, phòng theo `game:{roomCode}` và `proctor:{examId}`:
 | game:next | {} | GV chuyển câu tiếp |
 | proctor:watch | {examId} | GV mở màn hình giám thị |
 | circuit_simulate:circuit | {components, wires, submitted} | HV đồng bộ topology; server chỉ chấm/cộng điểm khi `submitted=true` |
+| circuit_simulate:host-control | {action: pause\|resume\|skip\|restart} | Chỉ host điều khiển challenge; pause/resume giữ topology, skip không chấm, restart không thu hồi điểm đã ghi |
 | proctor:flag | {examId, type} | Server phát khi HV tab-switch |
 
-Server→client: `host:sync`, `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `circuit_simulate:challenge`, `circuit_simulate:restored`, `circuit_simulate:challenge_passed`, `proctor:progress`, `proctor:redflag`.
+Server→client: `host:sync`, `lobby:update`, `leaderboard:update`, `question:show`, `game:finish`, `circuit_simulate:challenge`, `circuit_simulate:control_state`, `circuit_simulate:restored`, `circuit_simulate:challenge_passed`, `proctor:progress`, `proctor:redflag`.
 `host:sync` trả trạng thái công khai của phòng. Với game mạch đang chạy, payload bổ sung challenge hiện tại (không có reference circuit), tối đa 8 dòng hoàn thành dựng từ state server và bảng xếp hạng lấy từ điểm circuit player.
-Khi khởi động, server nạp các `circuit_simulate` đang `running`, dựng lại state từng học viên và đặt timer theo phần thời gian còn lại của `challenge_ends_at`. Học viên reconnect trước giáo viên vẫn có thể lazy-load phòng bằng `roomCode`; completed challenge và cộng KTTX được ghi trong cùng transaction để chống cộng trùng khi process dừng đột ngột.
+Khi khởi động, server nạp các `circuit_simulate` đang `running`, dựng lại state từng học viên và đặt timer theo phần thời gian còn lại của `challenge_ends_at`; phòng đang pause không đặt timer và giữ nguyên `remaining_ms` kể cả khi deadline cũ đã trôi qua. Học viên reconnect trước giáo viên vẫn có thể lazy-load phòng bằng `roomCode`; completed challenge và cộng KTTX được ghi trong cùng transaction để chống cộng trùng khi process dừng đột ngột.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 ## 6. Luồng RAG pipeline (services/rag.ts)

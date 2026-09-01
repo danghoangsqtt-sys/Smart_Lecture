@@ -212,8 +212,15 @@
 | T-5201 | Khôi phục challenge, topology và trạng thái hoàn thành khi học viên vào muộn/kết nối lại | P52 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + backend regression đầy đủ |
 | T-5301 | Khôi phục console giáo viên, feed và bảng điểm mạch khi reload/kết nối lại | P53 | done | typecheck + Browser E2E 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5401 | Lưu và khôi phục phòng mạch đang chạy sau khi Node.js server khởi động lại | P54 | done | migration v19 + real restart integration + Browser 4/4 + REST 86/86 + Socket 10/10 + regression 22/22 |
+| T-5501 | Điều khiển tạm dừng, tiếp tục, bỏ qua và làm lại challenge mạch có lưu trạng thái | P55 | done | migration v20 + paused restart + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 
 ## Session log
+### 2026-09-01 (Phase 55 — T-5501 completed)
+- Migration v20 lưu pause/remaining; host có bốn control được xác thực và cả giáo viên/học viên đều nhận trạng thái pacing server-authoritative.
+- Pause/resume không reset topology; skip không chấm; restart reset workspace hiện tại nhưng giữ completion, circuit score và KTTX.
+- Restart hai process giữ pause qua deadline cũ rồi resume đúng thời lượng; ba học viên vẫn nộp mạch khi pause và không bị cộng điểm trùng.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, regression 22/22, Excel, staged restore và circuit paused-restart đều pass.
+
 ### 2026-08-31 (Phase 54 — T-5401 completed)
 - Migration v19 thêm runtime theo phiên và state riêng từng học viên, tránh ghi lại JSON toàn lớp khi một người sửa mạch.
 - Server boot tự khôi phục phòng mạch đang chạy và timer theo deadline tuyệt đối; học viên có thể reconnect bằng room code trước host.

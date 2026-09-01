@@ -199,6 +199,8 @@ CREATE TABLE IF NOT EXISTS game_circuit_runtime (
   game_session_id TEXT PRIMARY KEY REFERENCES game_sessions(id) ON DELETE CASCADE,
   challenge_index INTEGER NOT NULL DEFAULT 0,
   challenge_ends_at INTEGER NOT NULL DEFAULT 0,
+  is_paused INTEGER NOT NULL DEFAULT 0 CHECK (is_paused IN (0, 1)),
+  remaining_ms INTEGER NOT NULL DEFAULT 0 CHECK (remaining_ms >= 0),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_game_circuit_runtime_updated ON game_circuit_runtime(updated_at);

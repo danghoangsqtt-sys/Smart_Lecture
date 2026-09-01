@@ -34,6 +34,13 @@
 - [x] Allow learner-first reconnect and recover exact topology, completion feed, leaderboard, and score.
 - [x] Keep challenge completion and KTTX atomic and idempotent across a real process restart.
 
+## Phase 55 — Circuit Teacher Controls ✅
+
+- [x] Add authorized pause, resume, skip, and restart actions for the current circuit challenge.
+- [x] Persist paused state and remaining duration across host reload and Node.js restart.
+- [x] Preserve learner topology on pause/resume and preserve completed score/KTTX on restart.
+- [x] Cover the host controls in Browser E2E and the paused timer in the real restart integration.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

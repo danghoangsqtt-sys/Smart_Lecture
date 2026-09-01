@@ -72,7 +72,15 @@ interface PlayerGameState {
   qsLifelines: { fiftyFifty: boolean; askAudience: boolean; phoneFriend: boolean };
   scores: { name: string; score: number; streak: number }[];
   circuitData: CircuitData;
-  challenge: { title: string; description: string; targetBehavior: string; index: number; total: number } | null;
+  challenge: {
+    title: string;
+    description: string;
+    targetBehavior: string;
+    index: number;
+    total: number;
+    paused: boolean;
+    remainingMs: number;
+  } | null;
   challengeCompleted: boolean;
   refCircuit: CircuitData | null;
   showRef: boolean;
@@ -320,10 +328,27 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
       setField('refCircuit', d?.referenceCircuit ?? null);
       setField('showRef', false);
     });
-    on('circuit_simulate:challenge', (d: { index: number; total: number; challenge: { title: string; description: string; targetBehavior: string; starterCircuit?: CircuitData | null } }) => {
-      setField('challenge', { ...d.challenge, index: d.index, total: d.total });
+    on('circuit_simulate:challenge', (d: {
+      index: number;
+      total: number;
+      paused: boolean;
+      remainingMs: number;
+      challenge: { title: string; description: string; targetBehavior: string; starterCircuit?: CircuitData | null };
+    }) => {
+      setField('challenge', {
+        ...d.challenge,
+        index: d.index,
+        total: d.total,
+        paused: d.paused,
+        remainingMs: d.remainingMs,
+      });
       setField('circuitData', d.challenge.starterCircuit ? { components: d.challenge.starterCircuit.components, wires: d.challenge.starterCircuit.wires } : { components: [], wires: [] });
       setField('challengeCompleted', false);
+    });
+    on('circuit_simulate:control_state', (d: { index: number; paused: boolean; remainingMs: number }) => {
+      setField('challenge', (current) => current && current.index === d.index
+        ? { ...current, paused: d.paused, remainingMs: d.remainingMs }
+        : current);
     });
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {
       if (d.userId === myId()) setField('challengeCompleted', true);
@@ -889,6 +914,11 @@ function CircuitPlayerView({
           <h3 className="mt-0.5 font-bold text-slate-800">{challenge.title}</h3>
           <p className="text-sm text-slate-600">{challenge.description}</p>
           <p className="mt-1 text-xs italic text-emerald-700"><i className="fas fa-bullseye" /> Mục tiêu: {challenge.targetBehavior}</p>
+          {challenge.paused && (
+            <p className="mt-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800" role="status">
+              <i className="fas fa-circle-pause" /> Giáo viên đang tạm dừng · còn {Math.ceil(challenge.remainingMs / 1000)} giây
+            </p>
+          )}
           {challengeCompleted && (
             <p className="mt-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               <i className="fas fa-circle-check" /> Bạn đã hoàn thành thử thách này — trạng thái được giữ khi kết nối lại.

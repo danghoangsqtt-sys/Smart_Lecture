@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Circuit teacher controls
+
+- Thêm nút Tạm dừng/Tiếp tục/Bỏ qua/Làm lại challenge mạch cho giáo viên, kèm trạng thái pause hiển thị cho học viên.
+- Thêm migration v20 lưu trạng thái pause và số mili-giây còn lại qua reload hoặc Node.js restart.
+- Giữ topology khi pause/resume; skip không chấm; restart đặt lại workspace hiện tại nhưng không thu hồi điểm/KTTX.
+- Kiểm chứng bằng Browser E2E ba học viên và restart hai process thật.
+
 ## 2026-08-31 — Circuit server-restart recovery
 
 - Thêm migration v19 lưu runtime challenge/deadline và state mạch riêng từng học viên.

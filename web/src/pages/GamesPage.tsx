@@ -144,7 +144,16 @@ interface HostConsoleState {
   qsReveal: { correctIdx: number; correctText?: string } | null;
   qsScores: { name: string; score: number; streak: number }[];
   cdPending: { userId: string; name: string; circuit: any }[];
-  csChallenge: { title: string; description: string; targetBehavior: string; index: number; total: number } | null;
+  csChallenge: {
+    title: string;
+    description: string;
+    targetBehavior: string;
+    index: number;
+    total: number;
+    endsAt: number;
+    paused: boolean;
+    remainingMs: number;
+  } | null;
   csPasses: { name: string; points: number; key: number }[];
 }
 
@@ -154,7 +163,16 @@ interface HostSyncPayload {
   leaderboard?: { name: string; score: number }[];
   ropePos: number;
   circuitSimulate?: {
-    challenge: { title: string; description: string; targetBehavior: string; index: number; total: number };
+    challenge: {
+      title: string;
+      description: string;
+      targetBehavior: string;
+      index: number;
+      total: number;
+      endsAt: number;
+      paused: boolean;
+      remainingMs: number;
+    };
     passes: { userId: string; name: string; challengeId: string; points: number }[];
   } | null;
 }
@@ -1108,9 +1126,33 @@ function useHostConsoleEffects(
       if (d.correct) toast.success(`✅ Mạch của ${d.name} đã được chấm ĐÚNG`);
       else toast.info(`↩ ${d.name} chưa khớp — học viên có thể nộp lại`);
     });
-    on('circuit_simulate:challenge', (d: { index: number; total: number; challenge: { title: string; description: string; targetBehavior: string } }) => {
-      setField('csChallenge', { ...d.challenge, index: d.index, total: d.total });
+    on('circuit_simulate:challenge', (d: {
+      index: number;
+      total: number;
+      endsAt: number;
+      paused: boolean;
+      remainingMs: number;
+      challenge: { title: string; description: string; targetBehavior: string };
+    }) => {
+      setField('csChallenge', {
+        ...d.challenge,
+        index: d.index,
+        total: d.total,
+        endsAt: d.endsAt,
+        paused: d.paused,
+        remainingMs: d.remainingMs,
+      });
       setField('phase', 'sandbox');
+    });
+    on('circuit_simulate:control_state', (d: {
+      index: number;
+      endsAt: number;
+      paused: boolean;
+      remainingMs: number;
+    }) => {
+      setField('csChallenge', (current) => current && current.index === d.index
+        ? { ...current, endsAt: d.endsAt, paused: d.paused, remainingMs: d.remainingMs }
+        : current);
     });
     on('circuit_simulate:challenge_passed', (d: { userId: string; name: string; points: number }) => {
       feedKey.current += 1;
@@ -1153,6 +1195,9 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
   function circuitVerify(userId: string, correct: boolean) {
     socketRef.current?.emit('circuit_draw:verify', { userId, correct, feedback: '' });
     toast.success(correct ? 'Đã chấm ĐÚNG — cộng KTTX' : 'Đã chấm SAI');
+  }
+  function circuitControl(action: 'pause' | 'resume' | 'skip' | 'restart') {
+    socketRef.current?.emit('circuit_simulate:host-control', { action });
   }
 
   async function cancel() {
@@ -1282,6 +1327,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
         state={state}
         onQuizNext={qsNext}
         onCircuitVerify={circuitVerify}
+        onCircuitControl={circuitControl}
       />
 
       {session.gameType === 'tug_of_war' && phase !== 'lobby' && teams && (
@@ -1384,11 +1430,13 @@ function HostSandboxViews({
   state,
   onQuizNext,
   onCircuitVerify,
+  onCircuitControl,
 }: {
   session: GameSessionInfo;
   state: HostConsoleState;
   onQuizNext: () => void;
   onCircuitVerify: (userId: string, correct: boolean) => void;
+  onCircuitControl: (action: 'pause' | 'resume' | 'skip' | 'restart') => void;
 }) {
   const {
     phase, players, bingoLast, bingoCalled, bingoWinner, memBoard, memPairs, memFeed,
@@ -1570,6 +1618,34 @@ function HostSandboxViews({
           <h4 className="mt-0.5 font-bold text-slate-800">{csChallenge.title}</h4>
           <p className="text-sm text-slate-600">{csChallenge.description}</p>
           <p className="mt-1 text-xs italic text-emerald-700"><i className="fas fa-bullseye" /> Mục tiêu: {csChallenge.targetBehavior}</p>
+          <div
+            className={`mt-4 rounded-sm border px-3 py-2 ${csChallenge.paused ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-900'}`}
+            role="status"
+            aria-live="polite"
+          >
+            <p className="text-xs font-semibold">
+              <i className={`fas ${csChallenge.paused ? 'fa-circle-pause' : 'fa-clock'}`} />{' '}
+              {csChallenge.paused
+                ? `Đang tạm dừng · còn ${Math.ceil(csChallenge.remainingMs / 1000)} giây`
+                : 'Đồng hồ thử thách đang chạy'}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2" aria-label="Điều khiển thử thách mạch">
+            <Button
+              variant={csChallenge.paused ? 'primary' : 'secondary'}
+              onClick={() => onCircuitControl(csChallenge.paused ? 'resume' : 'pause')}
+              aria-label={csChallenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
+            >
+              <i className={`fas ${csChallenge.paused ? 'fa-play' : 'fa-pause'}`} />
+              {csChallenge.paused ? 'Tiếp tục' : 'Tạm dừng'}
+            </Button>
+            <Button variant="secondary" onClick={() => onCircuitControl('restart')} aria-label="Làm lại thử thách">
+              <i className="fas fa-rotate-right" /> Làm lại thử thách
+            </Button>
+            <Button variant="ghost" onClick={() => onCircuitControl('skip')} aria-label="Bỏ qua thử thách">
+              <i className="fas fa-forward-step" /> Bỏ qua thử thách
+            </Button>
+          </div>
           {csPasses.length > 0 && (
             <ul className="mt-3 space-y-1">
               {csPasses.map((f) => (

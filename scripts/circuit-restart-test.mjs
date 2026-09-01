@@ -71,6 +71,10 @@ function waitForConnect(socket) {
   });
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function completedLedCircuit() {
   return {
     components: [
@@ -180,6 +184,18 @@ async function prepare() {
     check('correct circuit completed before restart', passed?.challengeId === 'digital_1' && passed?.points === 100);
     check('KTTX awarded once before restart', (await readKttx(classId, studentId, teacherToken)) === 0.5);
 
+    const pausedPromise = waitFor(
+      host,
+      'circuit_simulate:control_state',
+      (payload) => payload?.paused === true && payload?.index === 0,
+    );
+    host.emit('circuit_simulate:host-control', { action: 'pause' });
+    const paused = await pausedPromise;
+    check(
+      'teacher pause stores a positive remaining duration',
+      Number.isFinite(paused?.remainingMs) && paused.remainingMs > 0 && paused.remainingMs <= 14_000,
+    );
+
     writeFileSync(STATE_PATH, JSON.stringify({
       teacherToken,
       studentToken,
@@ -188,6 +204,7 @@ async function prepare() {
       sessionId,
       roomCode,
       originalEndsAt: challenge.endsAt,
+      pausedRemainingMs: paused.remainingMs,
     }, null, 2));
     console.log('Circuit restart prepare PASS');
   } finally {
@@ -205,30 +222,52 @@ async function verify() {
     await waitForConnect(learner);
     const restoredChallengePromise = waitFor(learner, 'circuit_simulate:challenge', (payload) => payload?.index === 0);
     const restoredStatePromise = waitFor(learner, 'circuit_simulate:restored');
-    const nextChallengePromise = waitFor(
-      learner,
-      'circuit_simulate:challenge',
-      (payload) => payload?.index === 1,
-      Math.max(5_000, state.originalEndsAt - Date.now() + 5_000),
-    );
     learner.emit('game:join', { roomCode: state.roomCode });
     const [challenge, restored] = await Promise.all([restoredChallengePromise, restoredStatePromise]);
     check('learner reconnects before host after restart', challenge?.index === 0);
     check('absolute challenge deadline preserved', challenge?.endsAt === state.originalEndsAt);
+    check('paused challenge restored for learner', challenge?.paused === true && challenge?.remainingMs === state.pausedRemainingMs);
     check('exact topology restored after restart', restored?.circuit?.components?.length === 4 && restored?.circuit?.wires?.length === 3);
     check('completed state restored after restart', restored?.completed === true);
+
+    await delay(Math.max(0, state.originalEndsAt - Date.now() + 600));
 
     await waitForConnect(host);
     const hostSyncPromise = waitFor(host, 'host:sync');
     host.emit('game:host-attach', { sessionId: state.sessionId });
     const hostSync = await hostSyncPromise;
     check('host challenge deadline restored', hostSync?.circuitSimulate?.challenge?.endsAt === state.originalEndsAt);
+    check(
+      'host remains paused after the old deadline and process restart',
+      hostSync?.circuitSimulate?.challenge?.paused === true
+        && hostSync?.circuitSimulate?.challenge?.remainingMs === state.pausedRemainingMs,
+    );
     check('host completion feed restored', hostSync?.circuitSimulate?.passes?.length === 1 && hostSync.circuitSimulate.passes[0]?.name === 'Restart Student');
     check('host circuit leaderboard restored', hostSync?.leaderboard?.length === 1 && hostSync.leaderboard[0]?.score === 100);
     check('KTTX unchanged immediately after restart', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
 
+    const resumedPromise = waitFor(
+      learner,
+      'circuit_simulate:control_state',
+      (payload) => payload?.paused === false && payload?.index === 0,
+    );
+    host.emit('circuit_simulate:host-control', { action: 'resume' });
+    const resumed = await resumedPromise;
+    const resumedDuration = resumed?.endsAt - Date.now();
+    check(
+      'resume schedules the persisted remaining duration',
+      Number.isFinite(resumedDuration)
+        && resumedDuration > Math.max(0, state.pausedRemainingMs - 1_500)
+        && resumedDuration <= state.pausedRemainingMs,
+    );
+    const nextChallengePromise = waitFor(
+      learner,
+      'circuit_simulate:challenge',
+      (payload) => payload?.index === 1,
+      Math.max(5_000, resumed.endsAt - Date.now() + 5_000),
+    );
     const nextChallenge = await nextChallengePromise;
-    check('timer resumes and advances from original deadline', nextChallenge?.index === 1 && nextChallenge?.endsAt > state.originalEndsAt);
+    check('resumed timer advances to the next challenge', nextChallenge?.index === 1 && nextChallenge?.endsAt > resumed.endsAt);
     check('timer evaluation does not duplicate KTTX', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
     console.log('Circuit restart verify PASS');
   } finally {
