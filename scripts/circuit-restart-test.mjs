@@ -194,9 +194,20 @@ async function prepare() {
     const challenge = await challengePromise;
     check('first challenge has absolute deadline', Number.isFinite(challenge.endsAt) && challenge.endsAt > Date.now());
 
+    const validationPromise = waitFor(
+      learner,
+      'circuit_simulate:validation',
+      (payload) => payload?.correct === true,
+    );
     const passedPromise = waitFor(learner, 'circuit_simulate:challenge_passed');
     learner.emit('circuit_simulate:circuit', completedLedCircuit());
-    const passed = await passedPromise;
+    const [validation, passed] = await Promise.all([validationPromise, passedPromise]);
+    check(
+      'correct submission records a bounded validation checkpoint',
+      validation?.code === 'correct'
+        && validation?.attempts === 1
+        && Number.isFinite(validation?.submittedAt),
+    );
     check('correct circuit completed before restart', passed?.challengeId === 'digital_1' && passed?.points === 100);
     check('KTTX awarded once before restart', (await readKttx(classId, studentId, teacherToken)) === 0.5);
 
@@ -219,6 +230,13 @@ async function prepare() {
     host.emit('circuit_simulate:inspect', { userId: studentId });
     const inspection = await inspectionPromise;
     check('learner activity timestamp captured before restart', Number.isFinite(inspection?.lastActivityAt) && inspection.lastActivityAt > 0);
+    check(
+      'host sees current submission diagnostics before restart',
+      inspection?.submissionAttempts === 1
+        && inspection?.lastValidationCode === 'correct'
+        && inspection?.lastValidationFeedback === validation.feedback
+        && inspection?.lastSubmissionAt === validation.submittedAt,
+    );
 
     learner.disconnect();
     await delay(150);
@@ -251,6 +269,10 @@ async function prepare() {
       originalEndsAt: challenge.endsAt,
       pausedRemainingMs: paused.remainingMs,
       lastActivityAt: inspection.lastActivityAt,
+      submissionAttempts: inspection.submissionAttempts,
+      lastSubmissionAt: inspection.lastSubmissionAt,
+      lastValidationCode: inspection.lastValidationCode,
+      lastValidationFeedback: inspection.lastValidationFeedback,
       queuedMessage,
       queuedMessageId: queuedAck.messageId,
     }, null, 2));
@@ -286,6 +308,13 @@ async function verify() {
     check('paused challenge restored for learner', challenge?.paused === true && challenge?.remainingMs === state.pausedRemainingMs);
     check('exact topology restored after restart', restored?.circuit?.components?.length === 4 && restored?.circuit?.wires?.length === 3);
     check('completed state restored after restart', restored?.completed === true);
+    check(
+      'learner validation checkpoint restored after restart',
+      restored?.validation?.correct === true
+        && restored?.validation?.attempts === state.submissionAttempts
+        && restored?.validation?.submittedAt === state.lastSubmissionAt
+        && restored?.validation?.feedback === state.lastValidationFeedback,
+    );
     check(
       'learner-first reconnect receives exact queued assistance after restart',
       queuedMessage?.message === state.queuedMessage && queuedMessage?.messageId === state.queuedMessageId,
@@ -349,7 +378,11 @@ async function verify() {
         && progress?.componentCount === 4
         && progress?.wireCount === 3
         && progress?.score === 100
-        && progress?.lastActivityAt === state.lastActivityAt,
+        && progress?.lastActivityAt === state.lastActivityAt
+        && progress?.submissionAttempts === state.submissionAttempts
+        && progress?.lastSubmissionAt === state.lastSubmissionAt
+        && progress?.lastValidationCode === state.lastValidationCode
+        && progress?.lastValidationFeedback === state.lastValidationFeedback,
     );
     const inspectionPromise = waitFor(
       host,
@@ -363,6 +396,13 @@ async function verify() {
       inspection?.circuit?.components?.length === 4 && inspection?.circuit?.wires?.length === 3,
     );
     check('inspection restores exact learner activity timestamp', inspection?.lastActivityAt === state.lastActivityAt);
+    check(
+      'inspection restores exact submission diagnostics',
+      inspection?.submissionAttempts === state.submissionAttempts
+        && inspection?.lastSubmissionAt === state.lastSubmissionAt
+        && inspection?.lastValidationCode === state.lastValidationCode
+        && inspection?.lastValidationFeedback === state.lastValidationFeedback,
+    );
 
     await expectNoEvent(
       learner,

@@ -148,6 +148,10 @@ interface CircuitProgressRow {
   componentCount: number;
   wireCount: number;
   lastActivityAt: number;
+  submissionAttempts: number;
+  lastSubmissionAt: number | null;
+  lastValidationCode: 'correct' | 'invalid_data' | 'wire_count' | 'component_count' | 'connection' | null;
+  lastValidationFeedback: string | null;
 }
 
 interface CircuitInspection extends CircuitProgressRow {
@@ -174,16 +178,18 @@ const CIRCUIT_PROGRESS_STATUS: Record<CircuitProgressRow['status'], { label: str
   not_started: { label: 'Chưa bắt đầu', className: 'bg-amber-100 text-amber-800' },
 };
 const CIRCUIT_STUCK_AFTER_MS = 10_000;
-type CircuitSupportFilter = 'all' | 'attention' | 'pending' | 'offline';
+type CircuitSupportFilter = 'all' | 'attention' | 'incorrect' | 'pending' | 'offline';
 
 function circuitSupportMeta(row: CircuitProgressRow, assistance: CircuitAssistanceStatus | undefined, now: number) {
+  const incorrect = !row.completedCurrent && row.submissionAttempts > 0
+    && row.lastValidationCode !== null && row.lastValidationCode !== 'correct';
   const stuck = row.online && row.status === 'working' && now - row.lastActivityAt >= CIRCUIT_STUCK_AFTER_MS;
   const queued = assistance?.status === 'queued';
   const pending = assistance?.status === 'delivered';
-  const attention = stuck || queued || pending;
-  const priority = stuck ? 0 : queued ? 1 : pending ? 2 : row.status === 'disconnected' ? 3
-    : row.status === 'working' ? 4 : row.status === 'not_started' ? 5 : 6;
-  return { stuck, queued, pending, attention, priority };
+  const attention = incorrect || stuck || queued || pending;
+  const priority = incorrect ? 0 : stuck ? 1 : queued ? 2 : pending ? 3 : row.status === 'disconnected' ? 4
+    : row.status === 'working' ? 5 : row.status === 'not_started' ? 6 : 7;
+  return { incorrect, stuck, queued, pending, attention, priority };
 }
 
 interface HostConsoleState {
@@ -1814,6 +1820,12 @@ function circuitActivityLabel(row: CircuitProgressRow, now: number): string {
   return ageSeconds < 2 ? 'Vừa thao tác' : `Hoạt động ${ageSeconds} giây trước`;
 }
 
+function circuitSubmissionLabel(row: CircuitProgressRow, now: number): string {
+  if (row.lastSubmissionAt === null) return '';
+  const ageSeconds = Math.max(0, Math.floor((now - row.lastSubmissionAt) / 1_000));
+  return ageSeconds < 2 ? 'vừa nộp' : `nộp ${ageSeconds} giây trước`;
+}
+
 function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, onTeacherMessage, now }: {
   progress: CircuitProgressRow[];
   inspection: CircuitInspection | null;
@@ -1832,15 +1844,18 @@ function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, o
       || left.row.lastActivityAt - right.row.lastActivityAt
       || left.row.name.localeCompare(right.row.name));
   const attentionCount = prioritized.filter((entry) => entry.meta.attention).length;
+  const incorrectCount = prioritized.filter((entry) => entry.meta.incorrect).length;
   const pendingCount = prioritized.filter((entry) => entry.meta.pending).length;
   const offlineCount = prioritized.filter((entry) => entry.row.status === 'disconnected').length;
   const visible = prioritized.filter((entry) => filter === 'all'
     || (filter === 'attention' && entry.meta.attention)
+    || (filter === 'incorrect' && entry.meta.incorrect)
     || (filter === 'pending' && entry.meta.pending)
     || (filter === 'offline' && entry.row.status === 'disconnected'));
   const filterOptions: Array<{ id: CircuitSupportFilter; label: string; count: number }> = [
     { id: 'all', label: 'Tất cả', count: progress.length },
     { id: 'attention', label: 'Cần xử lý', count: attentionCount },
+    { id: 'incorrect', label: 'Nộp chưa đạt', count: incorrectCount },
     { id: 'pending', label: 'Chờ xác nhận', count: pendingCount },
     { id: 'offline', label: 'Ngoại tuyến', count: offlineCount },
   ];
@@ -1892,6 +1907,7 @@ function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, o
                 <button type="button" onClick={() => { setHint(''); onInspect(row.userId); }} aria-label={`Xem mạch ${row.name}`} className={`w-full rounded-sm border p-3 text-left transition ${selected ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-200' : 'border-slate-200 bg-slate-50 hover:border-blue-300 hover:bg-white'}`}>
                   <span className="flex items-start justify-between gap-2"><span className="min-w-0 truncate text-sm font-semibold text-slate-800">{row.name}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.className}`}>{status.label}</span></span>
                   <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>{row.componentCount} linh kiện · {row.wireCount} dây</span><span>{row.completedCount}/{row.totalChallenges} bài · {row.score}đ</span><span className={meta.stuck ? 'font-semibold text-rose-700' : ''}>{circuitActivityLabel(row, now)}</span></span>
+                  {row.submissionAttempts > 0 && row.lastValidationCode && <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.lastValidationCode === 'correct' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{row.lastValidationCode === 'correct' ? 'Đã nộp đúng' : 'Nộp chưa đạt'} · {row.submissionAttempts} lần</span>}
                   {rowAssistance && <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${rowAssistance.status === 'acknowledged' ? 'bg-emerald-100 text-emerald-700' : rowAssistance.status === 'delivered' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-800'}`}>{rowAssistance.status === 'acknowledged' ? 'Đã xác nhận hỗ trợ' : rowAssistance.status === 'delivered' ? 'Chờ xác nhận hỗ trợ' : 'Hỗ trợ đang xếp hàng'}</span>}
                 </button>
               </li>
@@ -1902,6 +1918,12 @@ function CircuitProgressMonitor({ progress, inspection, assistance, onInspect, o
       {inspection && (
         <div className="mt-3 rounded-sm border border-blue-200 bg-blue-50 p-3" aria-label={`Mạch hiện tại của ${inspection.name}`}>
           <div className="flex flex-wrap items-center justify-between gap-2"><h6 className="text-sm font-bold text-blue-900">Mạch hiện tại · {inspection.name}</h6><span className="text-[11px] text-blue-700">{inspection.componentCount} linh kiện · {inspection.wireCount} dây · mô phỏng {inspection.simulationState}</span></div>
+          {inspection.lastValidationCode && inspection.lastValidationFeedback && (
+            <div className={`mt-2 rounded-sm border px-3 py-2 text-xs ${inspection.lastValidationCode === 'correct' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-800'}`} role="status" aria-label={`Chẩn đoán lần nộp của ${inspection.name}`}>
+              <p className="font-bold"><i className={`fas ${inspection.lastValidationCode === 'correct' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`} /> {inspection.lastValidationCode === 'correct' ? 'Lần nộp gần nhất đã đạt' : 'Lần nộp gần nhất chưa đạt'} · {inspection.submissionAttempts} lần · {circuitSubmissionLabel(inspection, now)}</p>
+              <p className="mt-0.5">{inspection.lastValidationFeedback}</p>
+            </div>
+          )}
           {inspection.circuit && inspection.circuit.components.length > 0 ? (
             <div className="relative mt-2 h-64 overflow-hidden rounded-sm border border-blue-200 bg-white">
               <CircuitCanvas gameType="circuit_simulate" initialData={toCanvasData(inspection.circuit)} onChange={() => undefined} />

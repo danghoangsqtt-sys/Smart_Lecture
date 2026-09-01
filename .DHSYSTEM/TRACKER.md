@@ -217,8 +217,20 @@
 | T-5701 | Theo dõi hoạt động cuối và gửi gợi ý/yêu cầu kiểm tra lại riêng tư cho học viên mạch | P57 | done | migration v21 + selected-only hint/retry + restart privacy + Browser 4/4 + React Doctor 100 + REST 86/86 + Socket 10/10 + regression 22/22 |
 | T-5801 | Lưu, giao lại và xác nhận hỗ trợ riêng mới nhất cho học viên mạch | P58 | done | migration v22 + offline queue/reconnect ACK + restart learner-first recovery + Browser 4/4 + React Doctor 100 + full regression |
 | T-5901 | Hàng đợi ưu tiên và bộ lọc hỗ trợ học viên mạch cho lớp đông | P59 | done | derived triage + counts/filters/next learner + Browser 4/4 + React Doctor 100 + full regression |
+| T-6001 | Lưu và hiển thị chẩn đoán lần nộp mạch hiện tại cho học viên/giáo viên | P60 | done | migration v23 + learner persistent feedback + host incorrect triage + Browser 4/4 + React Doctor 100 + full regression |
 
 ## Session log
+### 2026-09-01 (Phase 60 — T-6001 completed)
+- Migration v23 lưu số lần nộp, thời điểm, mã và phản hồi validation gần nhất theo challenge; chỉ `submitted=true` tạo attempt và checkpoint reset khi chuyển/làm lại challenge.
+- Học viên có panel kết quả bền; host ưu tiên/lọc “Nộp chưa đạt”, thấy số lần và lý do an toàn trên row/inspection mà không nhận reference topology.
+- Browser chứng minh sai → lọc/chẩn đoán → sửa đúng → nộp lặp không cộng KTTX; restart phục hồi chính xác checkpoint cho learner và host.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart đều pass.
+
+### 2026-09-01 (Phase 60 — T-6001 started)
+- Chốt checkpoint giới hạn theo challenge: số lần nộp, thời điểm, mã kết quả và phản hồi an toàn; không lưu lịch sử vô hạn hay lộ mạch mẫu.
+- Bài nộp gần nhất chưa đạt sẽ trở thành tín hiệu triage riêng của host; học viên có panel phản hồi bền thay cho toast-only.
+- Doc-first gate hoàn tất; chuẩn bị migration v23, recovery, Browser và restart coverage.
+
 ### 2026-09-01 (Phase 59 — T-5901 completed)
 - Console giáo viên tự sắp học viên theo stuck online → queued offline → delivered chờ xác nhận → disconnected → trạng thái còn lại; trong cùng mức ưu tiên, học viên chờ lâu nhất đứng trước rồi tie-break theo tên.
 - Bổ sung số lượng, bộ lọc Tất cả/Cần xử lý/Chờ xác nhận/Ngoại tuyến, trạng thái hỗ trợ trên từng hàng và nút chuyển nhanh đến học viên cần hỗ trợ tiếp theo.

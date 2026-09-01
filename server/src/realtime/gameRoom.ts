@@ -136,6 +136,8 @@ interface CircuitDrawPlayer {
   feedback: string;
 }
 
+type CircuitValidationCode = 'correct' | 'invalid_data' | 'wire_count' | 'component_count' | 'connection';
+
 interface CircuitSimulatePlayer {
   userId: string;
   displayName: string;
@@ -146,6 +148,10 @@ interface CircuitSimulatePlayer {
   measurements: Record<string, number>;
   completedChallenges: string[];
   lastActivityAt: number;
+  submissionAttempts: number;
+  lastSubmissionAt: number | null;
+  lastValidationCode: CircuitValidationCode | null;
+  lastValidationFeedback: string | null;
 }
 
 type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate' | 'finished';
@@ -1032,6 +1038,10 @@ function circuitSimulateProgressRow(room: RoomState, player: CircuitSimulatePlay
     componentCount,
     wireCount,
     lastActivityAt: player.lastActivityAt,
+    submissionAttempts: player.submissionAttempts,
+    lastSubmissionAt: player.lastSubmissionAt,
+    lastValidationCode: player.lastValidationCode,
+    lastValidationFeedback: player.lastValidationFeedback,
   };
 }
 
@@ -1210,15 +1220,24 @@ function circuitSimulateHostSnapshot(room: RoomState) {
   };
 }
 
-function circuitMismatchFeedback(student: unknown, reference: unknown): string {
+function circuitValidationResult(student: unknown, reference: unknown): {
+  correct: boolean;
+  code: CircuitValidationCode;
+  feedback: string;
+} {
   const s = extractNetlist(student);
   const r = extractNetlist(reference);
-  if (!s || !r) return 'Dữ liệu mạch không hợp lệ. Hãy thử nộp lại.';
-  if (s.wireCount !== r.wireCount) return `Cần kiểm tra số dây nối (${s.wireCount}/${r.wireCount}).`;
-  for (const [type, count] of r.types) {
-    if (s.types.get(type) !== count) return 'Cần kiểm tra lại loại và số lượng linh kiện.';
+  if (!s || !r) return { correct: false, code: 'invalid_data', feedback: 'Dữ liệu mạch không hợp lệ. Hãy thử nộp lại.' };
+  if (circuitsMatch(student, reference)) return { correct: true, code: 'correct', feedback: 'Mạch đúng — kết quả đã được ghi nhận.' };
+  if (s.wireCount !== r.wireCount) {
+    return { correct: false, code: 'wire_count', feedback: `Cần kiểm tra số dây nối (${s.wireCount}/${r.wireCount}).` };
   }
-  return 'Các chân nối chưa đúng. Hãy kiểm tra chiều OUT → IN.';
+  for (const [type, count] of r.types) {
+    if (s.types.get(type) !== count) {
+      return { correct: false, code: 'component_count', feedback: 'Cần kiểm tra lại loại và số lượng linh kiện.' };
+    }
+  }
+  return { correct: false, code: 'connection', feedback: 'Các chân nối chưa đúng. Hãy kiểm tra chiều OUT → IN.' };
 }
 
 interface CircuitRuntimeRow {
@@ -1238,6 +1257,10 @@ interface CircuitPlayerStateRow {
   measurements_json: string;
   completed_challenges_json: string;
   last_activity_at: number;
+  submission_attempts: number;
+  last_submission_at: number | null;
+  last_validation_code: CircuitValidationCode | null;
+  last_validation_feedback: string | null;
 }
 
 function createCircuitPersistenceStatements() {
@@ -1256,8 +1279,9 @@ function createCircuitPersistenceStatements() {
     upsertPlayer: db.prepare(`
       INSERT INTO game_circuit_player_states (
         game_session_id, student_id, display_name, score, circuit_json, circuit_challenge_id,
-        simulation_state, measurements_json, completed_challenges_json, last_activity_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        simulation_state, measurements_json, completed_challenges_json, last_activity_at,
+        submission_attempts, last_submission_at, last_validation_code, last_validation_feedback, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(game_session_id, student_id) DO UPDATE SET
         display_name = excluded.display_name,
         score = excluded.score,
@@ -1267,6 +1291,10 @@ function createCircuitPersistenceStatements() {
         measurements_json = excluded.measurements_json,
         completed_challenges_json = excluded.completed_challenges_json,
         last_activity_at = excluded.last_activity_at,
+        submission_attempts = excluded.submission_attempts,
+        last_submission_at = excluded.last_submission_at,
+        last_validation_code = excluded.last_validation_code,
+        last_validation_feedback = excluded.last_validation_feedback,
         updated_at = datetime('now')
     `),
   };
@@ -1301,6 +1329,10 @@ function persistCircuitPlayer(room: RoomState, player: CircuitSimulatePlayer): v
     JSON.stringify(player.measurements),
     JSON.stringify(player.completedChallenges),
     Math.max(0, Math.trunc(player.lastActivityAt)),
+    Math.max(0, Math.trunc(player.submissionAttempts)),
+    player.lastSubmissionAt === null ? null : Math.max(0, Math.trunc(player.lastSubmissionAt)),
+    player.lastValidationCode,
+    player.lastValidationFeedback,
   );
 }
 
@@ -1539,6 +1571,10 @@ function initCircuitSimulate(room: RoomState): void {
       measurements: {},
       completedChallenges: [],
       lastActivityAt: Date.now(),
+      submissionAttempts: 0,
+      lastSubmissionAt: null,
+      lastValidationCode: null,
+      lastValidationFeedback: null,
     });
   }
   sendCircuitSimulateChallenge(room);
@@ -1610,6 +1646,10 @@ function sendCircuitSimulateChallenge(
     player.measurements = {};
     player.simulationState = 'idle';
     player.lastActivityAt = resetAt;
+    player.submissionAttempts = 0;
+    player.lastSubmissionAt = null;
+    player.lastValidationCode = null;
+    player.lastValidationFeedback = null;
   }
   room.circuitSimulatePaused = false;
   room.circuitSimulateRemainingMs = 0;
@@ -1649,7 +1689,8 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
   const validChallengeIds = new Set(room.circuitSimulateChallenges.map((challenge) => challenge.id));
   const rows = db.prepare(`
     SELECT student_id, display_name, score, circuit_json, circuit_challenge_id, simulation_state,
-           measurements_json, completed_challenges_json, last_activity_at
+           measurements_json, completed_challenges_json, last_activity_at, submission_attempts,
+           last_submission_at, last_validation_code, last_validation_feedback
     FROM game_circuit_player_states
     WHERE game_session_id = ?
     ORDER BY updated_at, student_id
@@ -1682,6 +1723,14 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
       lastActivityAt: Number.isFinite(row.last_activity_at) && row.last_activity_at > 0
         ? row.last_activity_at
         : Date.now(),
+      submissionAttempts: Number.isFinite(row.submission_attempts) && row.submission_attempts > 0
+        ? Math.trunc(row.submission_attempts)
+        : 0,
+      lastSubmissionAt: row.last_submission_at !== null && Number.isFinite(row.last_submission_at)
+        ? Math.max(0, Math.trunc(row.last_submission_at))
+        : null,
+      lastValidationCode: row.last_validation_code,
+      lastValidationFeedback: row.last_validation_feedback,
     };
     room.circuitSimulatePlayers.set(player.userId, player);
     room.players.set(player.userId, {
@@ -1703,6 +1752,10 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
       player.measurements = {};
       player.simulationState = 'idle';
       player.lastActivityAt = resetAt;
+      player.submissionAttempts = 0;
+      player.lastSubmissionAt = null;
+      player.lastValidationCode = null;
+      player.lastValidationFeedback = null;
     }
   }
   if (room.circuitSimulatePaused) clearCircuitSimulateTimer(room);
@@ -1726,6 +1779,10 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
       measurements: {},
       completedChallenges: [],
       lastActivityAt: Date.now(),
+      submissionAttempts: 0,
+      lastSubmissionAt: null,
+      lastValidationCode: null,
+      lastValidationFeedback: null,
     };
     room.circuitSimulatePlayers.set(userId, player);
     persistCircuitPlayer(room, player);
@@ -1737,6 +1794,15 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
     circuit,
     completed: player.completedChallenges.includes(challenge.id),
     simulationState: player.simulationState,
+    validation: player.lastValidationCode && player.lastValidationFeedback && player.lastSubmissionAt !== null
+      ? {
+          correct: player.lastValidationCode === 'correct',
+          code: player.lastValidationCode,
+          feedback: player.lastValidationFeedback,
+          attempts: player.submissionAttempts,
+          submittedAt: player.lastSubmissionAt,
+        }
+      : null,
   });
   deliverPendingCircuitAssistance(room, socket, userId);
 }
@@ -2794,14 +2860,19 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       player.circuitChallengeId = challenge.id;
       player.lastActivityAt = Date.now();
 
-      const correct = !!challenge?.referenceCircuit && circuitsMatch(player.circuit, challenge.referenceCircuit);
+      const validation = circuitValidationResult(player.circuit, challenge.referenceCircuit);
       if (parsed.data.submitted) {
+        player.submissionAttempts += 1;
+        player.lastSubmissionAt = player.lastActivityAt;
+        player.lastValidationCode = validation.code;
+        player.lastValidationFeedback = validation.feedback;
         socket.emit('circuit_simulate:validation', {
-          correct,
-          feedback: correct ? 'Mạch đúng — đang ghi nhận kết quả.' : circuitMismatchFeedback(player.circuit, challenge?.referenceCircuit),
+          ...validation,
+          attempts: player.submissionAttempts,
+          submittedAt: player.lastSubmissionAt,
         });
       }
-      if (parsed.data.submitted && challenge?.referenceCircuit && !player.completedChallenges.includes(challenge.id) && correct) {
+      if (parsed.data.submitted && challenge.referenceCircuit && !player.completedChallenges.includes(challenge.id) && validation.correct) {
         const newKttx = completeCircuitChallenge(room, player, challenge);
         ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
           userId: player.userId,

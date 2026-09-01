@@ -29,6 +29,14 @@ interface CrosswordState {
   total: number;
 }
 
+interface CircuitValidation {
+  correct: boolean;
+  code: 'correct' | 'invalid_data' | 'wire_count' | 'component_count' | 'connection';
+  feedback: string;
+  attempts: number;
+  submittedAt: number;
+}
+
 interface PlayerGameState {
   roomInput: string;
   showGuide: boolean;
@@ -82,6 +90,7 @@ interface PlayerGameState {
     remainingMs: number;
   } | null;
   challengeCompleted: boolean;
+  circuitValidation: CircuitValidation | null;
   teacherMessage: { messageId: string; kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number; acknowledged: boolean } | null;
   refCircuit: CircuitData | null;
   showRef: boolean;
@@ -104,7 +113,7 @@ function createPlayerGameState(roomInput: string): PlayerGameState {
     scWord: null, scGuess: '', scSolved: 0,
     qsQuestion: null, qsReveal: null, qsPicked: null, qsMasked: new Set(), qsAudience: null, qsHint: null,
     qsLifelines: { fiftyFifty: true, askAudience: true, phoneFriend: true }, scores: [],
-    circuitData: { components: [], wires: [] }, challenge: null, challengeCompleted: false, teacherMessage: null, refCircuit: null, showRef: false,
+    circuitData: { components: [], wires: [] }, challenge: null, challengeCompleted: false, circuitValidation: null, teacherMessage: null, refCircuit: null, showRef: false,
   };
 }
 
@@ -188,7 +197,7 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
         setField('scWord', null); setField('scGuess', ""); setField('scSolved', 0);
         setField('qsQuestion', null); setField('qsPicked', null); setField('qsMasked', new Set());
         setField('qsAudience', null); setField('qsHint', null); setField('scores', []); setField('qsReveal', null);
-        setField('circuitData', { components: [], wires: [] }); setField('challenge', null); setField('challengeCompleted', false);
+        setField('circuitData', { components: [], wires: [] }); setField('challenge', null); setField('challengeCompleted', false); setField('circuitValidation', null);
         setField('teacherMessage', null); setField('refCircuit', null); setField('showRef', false);
       }
     });
@@ -345,6 +354,7 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
       });
       setField('circuitData', d.challenge.starterCircuit ? { components: d.challenge.starterCircuit.components, wires: d.challenge.starterCircuit.wires } : { components: [], wires: [] });
       setField('challengeCompleted', false);
+      setField('circuitValidation', null);
     });
     on('circuit_simulate:control_state', (d: { index: number; paused: boolean; remainingMs: number }) => {
       setField('challenge', (current) => current && current.index === d.index
@@ -358,11 +368,14 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     on('circuit_simulate:restored', (d: {
       circuit: Parameters<typeof deserializeCircuitFromRoom>[0] | null;
       completed: boolean;
+      validation: CircuitValidation | null;
     }) => {
       if (d.circuit) setField('circuitData', deserializeCircuitFromRoom(d.circuit));
       setField('challengeCompleted', d.completed);
+      setField('circuitValidation', d.validation);
     });
-    on('circuit_simulate:validation', (d: { correct: boolean; feedback: string }) => {
+    on('circuit_simulate:validation', (d: CircuitValidation) => {
+      setField('circuitValidation', d);
       if (!d.correct) toast.error(d.feedback);
     });
     on('circuit_simulate:teacher-message', (d: { messageId: string; kind: 'hint' | 'retry'; message: string; teacherName: string; sentAt: number }) => {
@@ -919,7 +932,7 @@ function CircuitPlayerView({
   onAcknowledge: (messageId: string) => void;
   onToggleReference: () => void;
 }) {
-  const { gameType, challenge, challengeCompleted, teacherMessage, refCircuit, showRef, circuitData } = state;
+  const { gameType, challenge, challengeCompleted, circuitValidation, teacherMessage, refCircuit, showRef, circuitData } = state;
   const circuitMode = gameType === 'circuit_draw' ? 'circuit_draw' : 'circuit_simulate';
   return (
     <>
@@ -938,6 +951,17 @@ function CircuitPlayerView({
             <p className="mt-2 rounded-sm border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
               <i className="fas fa-circle-check" /> Bạn đã hoàn thành thử thách này — trạng thái được giữ khi kết nối lại.
             </p>
+          )}
+          {circuitValidation && (
+            <div
+              className={`mt-2 rounded-sm border px-3 py-2 text-sm ${circuitValidation.correct ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-rose-300 bg-rose-50 text-rose-800'}`}
+              role="status"
+              aria-live="polite"
+              aria-label="Kết quả nộp mạch"
+            >
+              <p className="text-[10px] font-bold uppercase tracking-wide"><i className={`fas ${circuitValidation.correct ? 'fa-circle-check' : 'fa-triangle-exclamation'}`} /> Lần nộp {circuitValidation.attempts}</p>
+              <p className="mt-0.5 font-medium">{circuitValidation.feedback}</p>
+            </div>
           )}
           {teacherMessage && (
             <div className={`mt-2 rounded-sm border px-3 py-2 text-sm ${teacherMessage.kind === 'hint' ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-violet-300 bg-violet-50 text-violet-900'}`} role="status" aria-live="polite">

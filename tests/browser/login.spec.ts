@@ -397,6 +397,19 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(page.getByText(/Đang tạm dừng · còn \d+ giây/)).toBeVisible();
   await expect(studentPage.getByText(/Giáo viên đang tạm dừng · còn \d+ giây/)).toBeVisible();
 
+  const studentProgress = circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
+  const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
+  await submitButton.click();
+  const learnerValidation = studentPage.getByLabel('Kết quả nộp mạch');
+  await expect(learnerValidation).toContainText('Lần nộp 1');
+  await expect(learnerValidation).toContainText('Cần kiểm tra số dây nối (0/3).');
+  await expect(studentProgress).toContainText('Nộp chưa đạt · 1 lần');
+  await page.getByRole('button', { name: 'Nộp chưa đạt (1)' }).click();
+  await expect(studentProgress).toBeVisible();
+  await studentProgress.click();
+  await expect(page.getByLabel('Chẩn đoán lần nộp của Circuit Student')).toContainText('Cần kiểm tra số dây nối (0/3).');
+  await page.getByRole('button', { name: 'Tất cả (3)' }).click();
+
   const assembleCircuit = async (targetPage: typeof studentPage) => {
     await targetPage.getByTitle(/VCC/).click();
     await expect(targetPage.locator('[data-component-type="vcc"]')).toHaveCount(1);
@@ -448,7 +461,6 @@ test('default circuit room restores host and learners without duplicate grading'
   expect(await readTopology(peerPage)).toEqual(expectedTopology);
   expect(await readTopology(latePage)).toEqual(expectedTopology);
 
-  const studentProgress = circuitProgress.getByRole('button', { name: 'Xem mạch Circuit Student' });
   await expect(studentProgress).toContainText('4 linh kiện · 3 dây');
   await studentProgress.click();
   const studentInspection = page.getByLabel('Mạch hiện tại của Circuit Student');
@@ -479,18 +491,23 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(latePage.getByText(retryMessage, { exact: true })).toHaveCount(0);
   expect(await readTopology(studentPage)).toEqual(expectedTopology);
 
-  const submitButton = studentPage.getByRole('button', { name: 'Nộp mạch' });
   await submitButton.click();
   await submitButton.click();
   await peerPage.getByRole('button', { name: 'Nộp mạch' }).click();
   await latePage.getByRole('button', { name: 'Nộp mạch' }).click();
   await expect(studentPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
+  await expect(learnerValidation).toContainText('Lần nộp 3');
+  await expect(learnerValidation).toContainText('Mạch đúng — kết quả đã được ghi nhận.');
   await expect(peerPage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
   await expect(latePage.getByText(/Bạn đã.*vượt qua thử thách/)).toBeVisible();
   await expect(page.getByText(/Circuit Student vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Peer vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(page.getByText(/Circuit Late vượt qua thử thách/)).toHaveCount(1, { timeout: 10_000 });
   await expect(studentProgress).toContainText('Đã hoàn thành');
+  await expect(studentProgress).toContainText('Đã nộp đúng · 3 lần');
+  await page.getByRole('button', { name: 'Nộp chưa đạt (0)' }).click();
+  await expect(studentProgress).toHaveCount(0);
+  await page.getByRole('button', { name: 'Tất cả (3)' }).click();
 
   expect(await readTopology(studentPage)).toEqual(expectedTopology);
 

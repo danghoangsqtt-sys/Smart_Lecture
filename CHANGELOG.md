@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Circuit submission diagnostics
+
+- Thêm migration v23 lưu số lần nộp và checkpoint validation gần nhất của challenge mạch hiện tại.
+- Học viên luôn thấy phản hồi lần nộp mới nhất thay vì chỉ nhận toast ngắn; kết quả được khôi phục sau reconnect/restart.
+- Giáo viên có bộ lọc “Nộp chưa đạt”, badge số lần, lý do an toàn và mức ưu tiên cao trong hàng đợi hỗ trợ.
+- Chỉ lần nộp rõ ràng mới tăng attempt; giữ nguyên privacy, timer, topology và chống cộng trùng điểm/KTTX.
+
 ## 2026-09-01 — Circuit support triage
 
 - Sắp xếp bảng tiến độ theo mức cần can thiệp và thời gian hoạt động cũ nhất để giáo viên xử lý học viên đang kẹt trước.

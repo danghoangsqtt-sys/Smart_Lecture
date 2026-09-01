@@ -530,6 +530,28 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 23,
+    up: () => {
+      const columns = db.prepare('PRAGMA table_info(game_circuit_player_states)').all() as { name: string }[];
+      if (!columns.some((column) => column.name === 'submission_attempts')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN submission_attempts INTEGER NOT NULL DEFAULT 0 CHECK (submission_attempts >= 0)`);
+      }
+      if (!columns.some((column) => column.name === 'last_submission_at')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN last_submission_at INTEGER CHECK (last_submission_at IS NULL OR last_submission_at >= 0)`);
+      }
+      if (!columns.some((column) => column.name === 'last_validation_code')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN last_validation_code TEXT CHECK (last_validation_code IS NULL OR last_validation_code IN ('correct', 'invalid_data', 'wire_count', 'component_count', 'connection'))`);
+      }
+      if (!columns.some((column) => column.name === 'last_validation_feedback')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN last_validation_feedback TEXT CHECK (last_validation_feedback IS NULL OR length(last_validation_feedback) <= 300)`);
+      }
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

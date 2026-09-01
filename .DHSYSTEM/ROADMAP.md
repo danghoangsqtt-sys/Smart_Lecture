@@ -69,6 +69,13 @@
 - [x] Let the teacher jump to the oldest learner in the highest active support priority.
 - [x] Cover realtime queue transitions in Browser E2E without changing backend contracts.
 
+## Phase 60 — Circuit Submission Diagnostics ✅
+
+- [x] Persist the current challenge's attempt count and latest safe validation checkpoint.
+- [x] Keep submission feedback visible for the learner and private from peers.
+- [x] Add incorrect-submission priority, count, filter, row badge, and inspection reason for the host.
+- [x] Restore diagnostics through reload/process restart and preserve idempotent grading.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold
