@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
+import ExcelJS from 'exceljs';
 import { io } from 'socket.io-client';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4100';
@@ -27,6 +28,19 @@ async function request(method, path, token, body) {
   });
   const data = await response.json().catch(() => ({}));
   return { ok: response.ok, status: response.status, data };
+}
+
+async function download(path, token) {
+  const response = await fetch(`${BASE}/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return {
+    ok: response.ok,
+    status: response.status,
+    contentType: response.headers.get('content-type') ?? '',
+    disposition: response.headers.get('content-disposition') ?? '',
+    body: Buffer.from(await response.arrayBuffer()),
+  };
 }
 
 async function login(username, password) {
@@ -595,6 +609,7 @@ async function verify() {
           && !Object.hasOwn(detail, 'circuit')
           && !Object.hasOwn(detail, 'feedback'),
       );
+      database.prepare('UPDATE users SET display_name = ? WHERE id = ?').run('=2+2', state.studentId);
       database.prepare(
         `INSERT INTO game_sessions (
            id, host_teacher_id, class_id, game_type, room_code, config_json, status, finished_at
@@ -637,6 +652,57 @@ async function verify() {
         && recent.data?.reports?.some((report) => report.session?.id === state.sessionId)
         && !recent.data?.reports?.some((report) => report.session?.id === corruptSessionId),
     );
+    const csvExport = await download(
+      `/games/${state.sessionId}/circuit-debrief/export?format=csv`,
+      state.teacherToken,
+    );
+    const csvText = csvExport.body.toString('utf8');
+    check(
+      'CSV export has safe filename, UTF-8 BOM, summary and formula-neutralized learner row',
+      csvExport.ok
+        && csvExport.contentType.startsWith('text/csv')
+        && csvExport.disposition.includes(`tong-ket-mach-${state.sessionId}.csv`)
+        && csvExport.body.subarray(0, 3).equals(Buffer.from([0xEF, 0xBB, 0xBF]))
+        && csvText.includes('TỔNG KẾT HỌC TẬP MẠCH')
+        && csvText.includes("'=2+2")
+        && csvText.includes('Lượt chưa đạt')
+        && !csvText.includes(state.studentId),
+    );
+    const xlsxExport = await download(
+      `/games/${state.sessionId}/circuit-debrief/export?format=xlsx`,
+      state.teacherToken,
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(xlsxExport.body);
+    const exportSheet = workbook.getWorksheet('Tổng kết mạch');
+    check(
+      'XLSX export parses with bounded columns and safe learner metrics',
+      xlsxExport.ok
+        && xlsxExport.contentType.includes('spreadsheetml.sheet')
+        && xlsxExport.disposition.includes(`tong-ket-mach-${state.sessionId}.xlsx`)
+        && exportSheet?.getCell('A1').value === 'SMARTLECTURE — TỔNG KẾT HỌC TẬP MẠCH'
+        && exportSheet?.getCell('B17').value === "'=2+2"
+        && exportSheet?.getCell('G17').value === 100
+        && (exportSheet?.getColumn(2).width ?? 0) === 30,
+    );
+    const invalidExport = await request(
+      'GET',
+      `/games/${state.sessionId}/circuit-debrief/export?format=pdf`,
+      state.teacherToken,
+    );
+    check('invalid circuit export format is rejected', invalidExport.status === 400 && invalidExport.data?.error?.code === 'BAD_INPUT');
+    const deniedExport = await request(
+      'GET',
+      `/games/${state.sessionId}/circuit-debrief/export?format=csv`,
+      state.outsiderToken,
+    );
+    check('unrelated teacher cannot export circuit debrief', deniedExport.status === 403);
+    const corruptExport = await request(
+      'GET',
+      `/games/${corruptSessionId}/circuit-debrief/export?format=xlsx`,
+      state.teacherToken,
+    );
+    check('unavailable malformed debrief cannot be exported', corruptExport.status === 404 && corruptExport.data?.error?.code === 'DEBRIEF_NOT_AVAILABLE');
     const outsiderRecent = await request(
       'GET',
       `/games/mine/recent-circuit-debriefs?classId=${encodeURIComponent(state.classId)}`,

@@ -221,8 +221,20 @@
 | T-6101 | Điều chỉnh nhịp độ challenge mạch theo mức sẵn sàng của lớp | P61 | done | readiness + durable capped +30s + evaluate-now + Browser 4/4 + React Doctor 100 + full regression |
 | T-6201 | Tổng kết học tập mạch theo lớp và từng học viên khi kết thúc game | P62 | done | migration v24 + realtime/result debrief + Browser 4/4 + React Doctor 100 + full regression |
 | T-6301 | Phục hồi và mở lại tổng kết mạch gần đây từ dữ liệu bền vững | P63 | done | Zod read model + authorized REST + reload/expand UI + Browser 4/4 + full regression |
+| T-6401 | Xuất tổng kết mạch an toàn dạng CSV/XLSX | P64 | done | shared authorized export + formula safety + Browser downloads + parsed CSV/XLSX + full regression |
 
 ## Session log
+### 2026-09-02 (Phase 64 — T-6401 completed)
+- Route export dùng lại loader P63, trả CSV BOM hoặc XLSX có sheet/độ rộng cột; filename chỉ chứa session ID an toàn.
+- Metadata và tên học viên được trung hoà formula injection; file loại internal learner ID, topology, feedback, assistance và raw JSON.
+- Nút CSV/XLSX dùng chung xuất hiện ở live finish và report phục hồi; Browser xác nhận download thật, backend parse workbook và nội dung CSV.
+- Verify: typecheck/build, Doctor 90/100 với 0 error và 2 warning complexity sẵn có, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore/export parsing đều pass.
+
+### 2026-09-02 (Phase 64 — T-6401 started)
+- Chốt export một phiên qua read model P63, gồm metadata/summary/learner metrics và loại toàn bộ topology/raw JSON/internal ID.
+- CSV có BOM, XLSX có sheet/độ rộng rõ ràng; text do người dùng kiểm soát phải trung hoà formula injection.
+- Doc-first gate hoàn tất; chuẩn bị route, shared UI actions, Browser download và backend file-content coverage.
+
 ### 2026-09-02 (Phase 63 — T-6301 completed)
 - API dựng lại debrief từ detail P62 hợp lệ, trả một phiên hoặc tối đa 10 phiên gần đây theo chính host và class scope.
 - JSON cũ/hỏng bị bỏ qua hoặc trả `DEBRIEF_NOT_AVAILABLE`; không trả raw detail và không attach room đã kết thúc.

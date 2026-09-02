@@ -630,6 +630,13 @@ test('default circuit room restores host and learners without duplicate grading'
   const recoveredDebrief = recentDebriefs.getByLabel('Tổng kết học tập mạch');
   await expect(recoveredDebrief).toContainText('3/18 lượt bài');
   await expect(recoveredDebrief.getByRole('row')).toHaveCount(4);
+  const recoveredExportActions = recentDebriefs.getByLabel('Xuất tổng kết mạch');
+  const csvDownloadPromise = page.waitForEvent('download');
+  await recoveredExportActions.getByRole('button', { name: 'Xuất tổng kết mạch dạng CSV' }).click();
+  expect((await csvDownloadPromise).suggestedFilename()).toMatch(/^tong-ket-mach-.+\.csv$/);
+  const xlsxDownloadPromise = page.waitForEvent('download');
+  await recoveredExportActions.getByRole('button', { name: 'Xuất tổng kết mạch dạng XLSX' }).click();
+  expect((await xlsxDownloadPromise).suggestedFilename()).toMatch(/^tong-ket-mach-.+\.xlsx$/);
   await lateContext.close();
   await peerContext.close();
   await studentContext.close();

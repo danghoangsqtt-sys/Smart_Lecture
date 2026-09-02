@@ -97,6 +97,13 @@
 - [x] Show and expand recent circuit reports after page reload without reopening the room.
 - [x] Cover authorization, malformed data, reload, and regression behavior.
 
+## Phase 64 — Circuit Debrief Export ✅
+
+- [x] Export one authorized recovered debrief as UTF-8 CSV and XLSX.
+- [x] Include safe session metadata, class summary, and learner rows without internal/private data.
+- [x] Add export actions to live and recovered debrief views.
+- [x] Verify file contents, spreadsheet safety, authorization, downloads, and regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

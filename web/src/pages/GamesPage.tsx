@@ -741,12 +741,43 @@ function RecentCircuitDebriefs({ reports, loading }: { reports: RecentCircuitDeb
                   <i className={`fas ${expanded ? 'fa-chevron-up' : 'fa-chevron-down'} self-center text-slate-400`} />
                 </span>
               </button>
-              {expanded && <div id={`circuit-debrief-${report.session.id}`} className="border-t border-slate-200 p-4"><CircuitLearningDebriefView debrief={report.debrief} /></div>}
+              {expanded && <div id={`circuit-debrief-${report.session.id}`} className="border-t border-slate-200 p-4"><div className="mb-3 flex justify-end"><CircuitDebriefExportActions sessionId={report.session.id} /></div><CircuitLearningDebriefView debrief={report.debrief} /></div>}
             </Card>
           );
         })}
       </div>
     </section>
+  );
+}
+
+function CircuitDebriefExportActions({ sessionId }: { sessionId: string }) {
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null);
+  async function download(format: 'csv' | 'xlsx') {
+    setExporting(format);
+    try {
+      const token = useAuthStore.getState().token;
+      const response = await fetch(`/api/games/${encodeURIComponent(sessionId)}/circuit-debrief/export?format=${format}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Không thể xuất tổng kết mạch');
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tong-ket-mach-${sessionId}.${format}`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Đã xuất tổng kết mạch ${format.toUpperCase()}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Không thể xuất tổng kết mạch');
+    } finally {
+      setExporting(null);
+    }
+  }
+  return (
+    <div className="flex flex-wrap gap-2" aria-label="Xuất tổng kết mạch">
+      <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={exporting !== null} onClick={() => void download('xlsx')} aria-label="Xuất tổng kết mạch dạng XLSX"><i className="fas fa-file-excel" /> {exporting === 'xlsx' ? 'Đang xuất…' : 'Xuất XLSX'}</Button>
+      <Button variant="secondary" className="!px-3 !py-1.5 text-xs" disabled={exporting !== null} onClick={() => void download('csv')} aria-label="Xuất tổng kết mạch dạng CSV"><i className="fas fa-file-csv" /> {exporting === 'csv' ? 'Đang xuất…' : 'Xuất CSV'}</Button>
+    </div>
   );
 }
 
@@ -1620,7 +1651,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
         <Card className="p-6">
           <h3 className="mb-4 text-xl font-bold text-slate-800"><i className="fas fa-trophy text-amber-500" /> {session.gameType === 'circuit_simulate' && state.circuitDebrief ? 'Tổng kết học tập mạch' : 'Kết quả cuối'}</h3>
           {session.gameType === 'circuit_simulate' && state.circuitDebrief && (
-            <CircuitLearningDebriefView debrief={state.circuitDebrief} />
+            <><div className="mb-3 flex justify-end"><CircuitDebriefExportActions sessionId={session.id} /></div><CircuitLearningDebriefView debrief={state.circuitDebrief} /></>
           )}
           <ol className="space-y-1.5">
             {(session.gameType === 'math_race' ? raceRows.map((r) => ({ name: r.name, score: r.solved })) : leaderboard).map((r, i) => (

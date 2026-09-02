@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Circuit debrief export
+
+- Thêm export tổng kết mạch một phiên dạng CSV UTF-8 BOM và XLSX từ cùng read model/phân quyền P63.
+- Tệp gồm metadata phiên, tổng quan lớp và metric từng học viên; loại internal ID, topology, feedback, assistance và raw JSON.
+- Trung hoà text có thể thành công thức bảng tính, đặt filename ASCII-safe và kiểm chứng bằng parse workbook thật.
+- Thêm nút xuất dùng chung tại màn hình kết thúc trực tiếp và report được phục hồi sau reload.
+
 ## 2026-09-02 — Circuit debrief recovery
 
 - Thêm read model Zod dựng lại tổng kết mạch từ `game_results.detail_json`, bỏ qua dữ liệu cũ/hỏng và không trả raw JSON.

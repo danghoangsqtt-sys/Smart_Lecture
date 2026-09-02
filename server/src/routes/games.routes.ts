@@ -5,6 +5,7 @@ import { db, queryAll, tx } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, getClassOrThrow } from '../utils/access.js';
+import { createCsvBuffer, createXlsxBuffer, type SpreadsheetRows } from '../utils/spreadsheet.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -80,6 +81,51 @@ function readPersistedCircuitDebrief(sessionId: string) {
     },
     learners,
   };
+}
+
+function getCircuitDebriefOrThrow(row: GameRow, req: AuthedRequest) {
+  assertHost(row, req);
+  if (row.game_type !== 'circuit_simulate') throw new HttpError(400, 'WRONG_GAME_TYPE', 'Phiên này không phải game mô phỏng mạch');
+  if (row.status !== 'finished') throw new HttpError(400, 'NOT_FINISHED', 'Game chưa kết thúc');
+  const debrief = readPersistedCircuitDebrief(row.id);
+  if (!debrief) throw new HttpError(404, 'DEBRIEF_NOT_AVAILABLE', 'Phiên chưa có tổng kết học tập mạch hợp lệ');
+  return debrief;
+}
+
+function spreadsheetSafeText(value: string): string {
+  return /^[=+\-@\t\r]/u.test(value) ? `'${value}` : value;
+}
+
+function circuitDebriefExportRows(row: GameRow, debrief: NonNullable<ReturnType<typeof readPersistedCircuitDebrief>>): SpreadsheetRows {
+  const session = serializeSession(row);
+  const summary = debrief.summary;
+  return [
+    ['SMARTLECTURE — TỔNG KẾT HỌC TẬP MẠCH'],
+    ['Tên phiên', spreadsheetSafeText(session.config.title || 'Mô phỏng mạch')],
+    ['Mã phiên', row.id],
+    ['Mã phòng', spreadsheetSafeText(row.room_code)],
+    ['Kết thúc', row.finished_at ?? ''],
+    [],
+    ['TỔNG QUAN'],
+    ['Số học viên', summary.learnerCount],
+    ['Hoàn thành toàn bộ', summary.completedAllCount],
+    ['Tổng lượt bài hoàn thành', summary.totalCompletions],
+    ['Tổng lượt bài có thể', summary.totalPossible],
+    ['Tỷ lệ hoàn thành (%)', summary.completionRate],
+    ['Tổng lượt nộp', summary.totalSubmissionAttempts],
+    ['Lượt chưa đạt', summary.incorrectSubmissionAttempts],
+    [],
+    ['STT', 'Học viên', 'Bài hoàn thành', 'Tổng bài', 'Lượt nộp', 'Lượt chưa đạt', 'Điểm'],
+    ...debrief.learners.map((learner, index) => [
+      index + 1,
+      spreadsheetSafeText(learner.name),
+      learner.completedCount,
+      learner.totalChallenges,
+      learner.totalSubmissionAttempts,
+      learner.incorrectSubmissionAttempts,
+      learner.score,
+    ]),
+  ];
 }
 
 router.post(
@@ -313,12 +359,28 @@ router.get(
   requireRole('teacher', 'admin'),
   h(async (req, res) => {
     const row = getGameOrThrow(String(req.params.id));
-    assertHost(row, req as AuthedRequest);
-    if (row.game_type !== 'circuit_simulate') throw new HttpError(400, 'WRONG_GAME_TYPE', 'Phiên này không phải game mô phỏng mạch');
-    if (row.status !== 'finished') throw new HttpError(400, 'NOT_FINISHED', 'Game chưa kết thúc');
-    const debrief = readPersistedCircuitDebrief(row.id);
-    if (!debrief) throw new HttpError(404, 'DEBRIEF_NOT_AVAILABLE', 'Phiên chưa có tổng kết học tập mạch hợp lệ');
+    const debrief = getCircuitDebriefOrThrow(row, req as AuthedRequest);
     res.json({ session: serializeSession(row), finishedAt: row.finished_at, debrief });
+  }),
+);
+
+router.get(
+  '/games/:id/circuit-debrief/export',
+  requireRole('teacher', 'admin'),
+  h(async (req, res) => {
+    const parsed = z.object({ format: z.enum(['csv', 'xlsx']).default('xlsx') }).safeParse(req.query);
+    if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Định dạng xuất phải là csv hoặc xlsx');
+    const row = getGameOrThrow(String(req.params.id));
+    const debrief = getCircuitDebriefOrThrow(row, req as AuthedRequest);
+    const rows = circuitDebriefExportRows(row, debrief);
+    const format = parsed.data.format;
+    const buffer = format === 'csv'
+      ? createCsvBuffer(rows)
+      : await createXlsxBuffer('Tổng kết mạch', rows, [8, 30, 18, 14, 14, 16, 12]);
+    const safeSessionId = row.id.replace(/[^A-Za-z0-9_-]/gu, '_');
+    res.setHeader('Content-Type', format === 'csv' ? 'text/csv; charset=utf-8' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="tong-ket-mach-${safeSessionId}.${format}"`);
+    res.send(buffer);
   }),
 );
 
