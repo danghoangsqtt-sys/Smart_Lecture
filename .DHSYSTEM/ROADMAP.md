@@ -125,6 +125,13 @@
 - [x] Preserve validation, API payloads, circuit templates, and room handoff.
 - [x] Remove the `CreateGameTab` complexity diagnostic and verify regressions.
 
+## Phase 68 — Presentation Canvas Lifecycle Hardening ✅
+
+- [x] Isolate each PDF/PPTX document lifecycle by source identity.
+- [x] Initialize and persist annotations/settings without derived ready state.
+- [x] Harden async page rendering and remove render-local pure work.
+- [x] Preserve all presentation tools and verify Browser/backend regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

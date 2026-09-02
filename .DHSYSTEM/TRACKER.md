@@ -225,8 +225,20 @@
 | T-6501 | Tách console host theo lifecycle và từng miền game | P65 | done | Doctor 0 issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6601 | Tách monitor hỗ trợ học viên mạch theo từng trách nhiệm | P66 | done | Doctor 0 changed issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6701 | Tách orchestration và payload builder của luồng tạo game | P67 | done | Doctor 100/100 + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
+| T-6801 | Ổn định lifecycle nguồn, annotation và render của Presentation Canvas | P68 | done | Doctor 100/100 + Browser annotation flow + full regression/restart PASS |
 
 ## Session log
+### 2026-09-02 (Phase 68 — T-6801 completed)
+- Document surface remount theo source identity; annotation/settings init lazy từ material-scoped storage và migrate legacy URL key an toàn.
+- Loại ready-state/effect hydration; async page render kiểm tra cancellation trước view update/error; pointer/stroke render chuyển ra module scope và render một lượt.
+- Doctor changed-scope 100/100; full scan giảm 23 → 18 và không còn finding nào tại `PresentationCanvas`.
+- Verify: typecheck/build, Browser 4/4 với toolbar/shortcut/ink/storage, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/export parsing đều pass.
+
+### 2026-09-02 (Phase 68 — T-6801 started)
+- Chốt keyed document surface theo source identity; annotation/settings khởi tạo lazy từ storage thay cho ready-state/effect sync.
+- Giữ nguyên schema, legacy migration, palette, shortcut và toàn bộ pen/highlight/laser/shape/eraser/undo/redo.
+- Doc-first gate hoàn tất; start tag `SmartLecture-DH-p68-t6801` trỏ đúng baseline P67 `0758ae9`.
+
 ### 2026-09-02 (Phase 67 — T-6701 completed)
 - Tạo pure typed serializer dùng chung cho create/save, giữ nguyên field của question, KTTX, crossword, template và per-challenge circuit.
 - Tách question/subject catalogs, circuit draft, controller hook và workspace render; `CreateGameTab` chỉ nối controller với workspace.

@@ -20,7 +20,6 @@ interface AnnotationAction {
 }
 interface AnnotationState { strokes: Stroke[]; undoHistory: AnnotationAction[]; redoHistory: AnnotationAction[]; }
 type AnnotationEvent =
-  | { type: 'hydrate'; strokes: Stroke[] }
   | { type: 'add'; stroke: Stroke }
   | { type: 'erase-at'; target: { x: number; y: number }; page: number }
   | { type: 'erase-stroke'; stroke: Stroke }
@@ -54,12 +53,52 @@ function annotationStorageKey(kind: 'annotations' | 'annotation-settings', sourc
   return `smartlecture:${kind}:${materialId ?? sourceUrl}`;
 }
 
+function storedPresentationValue(kind: 'annotations' | 'annotation-settings', sourceUrl: string, fallback: string): string {
+  const key = annotationStorageKey(kind, sourceUrl);
+  const legacyKey = `smartlecture:${kind}:${sourceUrl}`;
+  const stored = sessionStorage.getItem(key);
+  const legacy = sessionStorage.getItem(legacyKey);
+  const value = stored ?? legacy ?? fallback;
+  if (!stored && legacy) sessionStorage.setItem(key, value);
+  return value;
+}
+
+function initialAnnotationState(sourceUrl: string): AnnotationState {
+  try {
+    return { strokes: JSON.parse(storedPresentationValue('annotations', sourceUrl, '[]')) as Stroke[], undoHistory: [], redoHistory: [] };
+  } catch {
+    return { strokes: [], undoHistory: [], redoHistory: [] };
+  }
+}
+
+function initialAnnotationSettings(sourceUrl: string): Required<AnnotationSettings> {
+  try {
+    const saved = JSON.parse(storedPresentationValue('annotation-settings', sourceUrl, '{}')) as AnnotationSettings;
+    return {
+      penColor: INK_COLORS.some((color) => color.value === saved.penColor) ? saved.penColor! : INK_COLORS[0]!.value,
+      highlightColor: HIGHLIGHT_COLORS.some((color) => color.value === saved.highlightColor) ? saved.highlightColor! : HIGHLIGHT_COLORS[0]!.value,
+    };
+  } catch {
+    return { penColor: INK_COLORS[0]!.value, highlightColor: HIGHLIGHT_COLORS[0]!.value };
+  }
+}
+
+function normalizedPointerPoint(event: PointerEvent<SVGSVGElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+}
+
+function strokeRenderIdentity(stroke: Stroke): string {
+  const first = stroke.points[0];
+  const last = stroke.points.at(-1);
+  return `${stroke.page}:${stroke.tool}:${stroke.color ?? ''}:${stroke.points.length}:${first?.x ?? 0}:${first?.y ?? 0}:${last?.x ?? 0}:${last?.y ?? 0}`;
+}
+
 function appendHistory<T>(history: T[], value: T): T[] { return [...history.slice(-99), value]; }
 function restoreAt(items: Stroke[], stroke: Stroke, index: number): Stroke[] { return items.some((item) => item === stroke) ? items : [...items.slice(0, index), stroke, ...items.slice(index)]; }
 function restoreRemoved(items: Stroke[], removed: Array<{ stroke: Stroke; index: number }>): Stroke[] { return removed.slice().sort((a, b) => a.index - b.index).reduce((next, item) => restoreAt(next, item.stroke, item.index), items); }
 function removeActionStrokes(items: Stroke[], action: AnnotationAction): Stroke[] { return action.kind === 'clear-page' ? items.filter((item) => !action.removed?.some((removed) => removed.stroke === item)) : items.filter((item) => item !== action.stroke); }
 function annotationReducer(state: AnnotationState, event: AnnotationEvent): AnnotationState {
-  if (event.type === 'hydrate') return { strokes: event.strokes, undoHistory: [], redoHistory: [] };
   if (event.type === 'add') {
     const strokes = [...state.strokes.slice(-99), event.stroke];
     return { strokes, undoHistory: appendHistory(state.undoHistory, { kind: 'add', stroke: event.stroke, index: strokes.length - 1 }), redoHistory: [] };
@@ -97,7 +136,30 @@ function annotationReducer(state: AnnotationState, event: AnnotationEvent): Anno
   return { strokes, undoHistory: appendHistory(state.undoHistory, action), redoHistory: state.redoHistory.slice(0, -1) };
 }
 
+function AnnotationStroke({ stroke, surface, eraserActive, onErase }: {
+  stroke: Stroke;
+  surface: { width: number; height: number };
+  eraserActive: boolean;
+  onErase: (stroke: Stroke) => void;
+}) {
+  const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
+  const style = stroke.tool === 'highlight'
+    ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 }
+    : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
+  const removeOnTouch = eraserActive ? (event: PointerEvent<SVGElement>) => { event.preventDefault(); event.stopPropagation(); onErase(stroke); } : undefined;
+  if (stroke.tool === 'ellipse' && stroke.points.length > 1) {
+    const first = stroke.points[0]!;
+    const last = stroke.points.at(-1)!;
+    return <ellipse cx={(first.x + last.x) * surface.width / 2} cy={(first.y + last.y) * surface.height / 2} rx={Math.abs(first.x - last.x) * surface.width / 2} ry={Math.abs(first.y - last.y) * surface.height / 2} fill="none" onPointerDown={removeOnTouch} {...style} />;
+  }
+  return <polyline points={points} fill="none" strokeLinecap="round" strokeLinejoin="round" onPointerDown={removeOnTouch} {...style} />;
+}
+
 export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps) {
+  return <PresentationDocument key={sourceUrl} title={title} sourceUrl={sourceUrl} />;
+}
+
+function PresentationDocument({ title, sourceUrl }: PresentationCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const presentationRef = useRef<HTMLElement>(null);
   const documentRef = useRef<PDFDocumentProxy | null>(null);
@@ -107,15 +169,15 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   const [error, setError] = useState<string | null>(null);
   const [surface, setSurface] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState<Tool>('pen');
-  const [penColor, setPenColor] = useState('#ef4444');
-  const [highlightColor, setHighlightColor] = useState('#facc15');
-  const [settingsReadyFor, setSettingsReadyFor] = useState<string | null>(null);
-  const [annotationsReadyFor, setAnnotationsReadyFor] = useState<string | null>(null);
-  const [annotations, dispatchAnnotations] = useReducer(annotationReducer, { strokes: [], undoHistory: [], redoHistory: [] });
+  const [annotationSettings, setAnnotationSettings] = useState(() => initialAnnotationSettings(sourceUrl));
+  const [annotations, dispatchAnnotations] = useReducer(annotationReducer, sourceUrl, initialAnnotationState);
   const [draft, setDraft] = useState<Stroke | null>(null);
   const draftRef = useRef<Stroke | null>(null);
   const [laser, setLaser] = useState<{ x: number; y: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const { penColor, highlightColor } = annotationSettings;
+  const setPenColor = (penColor: string) => setAnnotationSettings((current) => ({ ...current, penColor }));
+  const setHighlightColor = (highlightColor: string) => setAnnotationSettings((current) => ({ ...current, highlightColor }));
   const inkColor = tool === 'highlight' ? highlightColor : penColor;
   const selectTool = (nextTool: Tool) => setTool(nextTool);
   const annotationKey = annotationStorageKey('annotations', sourceUrl);
@@ -125,7 +187,6 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     let cancelled = false;
     void (async () => {
       try {
-        setError(null); setPageNumber(1); setPageCount(0);
         const response = await fetch(sourceUrl);
         if (!response.ok) throw new Error(`Không thể tải tài liệu (${response.status})`);
         const document = await getDocument({ data: await response.arrayBuffer() }).promise;
@@ -140,38 +201,11 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
   }, [sourceUrl]);
 
   useEffect(() => {
-    setAnnotationsReadyFor(null);
-    try {
-      const legacyKey = `smartlecture:annotations:${sourceUrl}`;
-      const saved = sessionStorage.getItem(annotationKey) ?? sessionStorage.getItem(legacyKey) ?? '[]';
-      dispatchAnnotations({ type: 'hydrate', strokes: JSON.parse(saved) as Stroke[] });
-      if (!sessionStorage.getItem(annotationKey) && sessionStorage.getItem(legacyKey)) sessionStorage.setItem(annotationKey, saved);
-    } catch { dispatchAnnotations({ type: 'hydrate', strokes: [] }); }
-    setAnnotationsReadyFor(annotationKey);
-  }, [annotationKey, sourceUrl]);
-  useEffect(() => {
-    if (annotationsReadyFor !== annotationKey) return;
     sessionStorage.setItem(annotationKey, JSON.stringify(annotations.strokes.slice(-100)));
-  }, [annotationKey, annotations.strokes, annotationsReadyFor]);
+  }, [annotationKey, annotations.strokes]);
   useEffect(() => {
-    setSettingsReadyFor(null);
-    try {
-      const legacyKey = `smartlecture:annotation-settings:${sourceUrl}`;
-      const saved = sessionStorage.getItem(settingsKey) ?? sessionStorage.getItem(legacyKey) ?? '{}';
-      const settings = JSON.parse(saved) as AnnotationSettings;
-      setPenColor(INK_COLORS.some((color) => color.value === settings.penColor) ? settings.penColor! : INK_COLORS[0]!.value);
-      setHighlightColor(HIGHLIGHT_COLORS.some((color) => color.value === settings.highlightColor) ? settings.highlightColor! : HIGHLIGHT_COLORS[0]!.value);
-      if (!sessionStorage.getItem(settingsKey) && sessionStorage.getItem(legacyKey)) sessionStorage.setItem(settingsKey, saved);
-    } catch {
-      setPenColor(INK_COLORS[0]!.value);
-      setHighlightColor(HIGHLIGHT_COLORS[0]!.value);
-    }
-    setSettingsReadyFor(settingsKey);
-  }, [settingsKey, sourceUrl]);
-  useEffect(() => {
-    if (settingsReadyFor !== settingsKey) return;
     sessionStorage.setItem(settingsKey, JSON.stringify({ penColor, highlightColor } satisfies AnnotationSettings));
-  }, [settingsKey, penColor, highlightColor, settingsReadyFor]);
+  }, [settingsKey, penColor, highlightColor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +214,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       const canvas = canvasRef.current;
       if (!document || !canvas || pageCount === 0) return;
       const page = await document.getPage(pageNumber);
+      if (cancelled) return;
       const viewport = page.getViewport({ scale: zoom });
       const ratio = window.devicePixelRatio || 1;
       canvas.width = Math.floor(viewport.width * ratio);
@@ -191,7 +226,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       if (!context) return;
       await page.render({ canvas, canvasContext: context, viewport, transform: [ratio, 0, 0, ratio, 0, 0] }).promise;
       if (cancelled) canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-    })().catch((cause) => setError(cause instanceof Error ? cause.message : 'Không thể vẽ trang PDF'));
+    })().catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Không thể vẽ trang PDF'); });
     return () => { cancelled = true; };
   }, [pageNumber, pageCount, zoom]);
 
@@ -219,12 +254,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     return () => document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
 
-  const point = (event: PointerEvent<SVGSVGElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
-  };
   const start = (event: PointerEvent<SVGSVGElement>) => {
-    const next = point(event); event.currentTarget.setPointerCapture(event.pointerId);
+    const next = normalizedPointerPoint(event); event.currentTarget.setPointerCapture(event.pointerId);
     if (tool === 'laser') { setLaser(next); return; }
     if (tool === 'eraser') { eraseAt(next); return; }
     const nextDraft = { tool, page: pageNumber, points: [next], color: inkColor } as Stroke;
@@ -232,7 +263,7 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     setDraft(nextDraft);
   };
   const move = (event: PointerEvent<SVGSVGElement>) => {
-    const next = point(event);
+    const next = normalizedPointerPoint(event);
     if (tool === 'laser') { setLaser(next); return; }
     if (tool === 'eraser') return;
     const value = draftRef.current;
@@ -261,13 +292,14 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
     if (document.fullscreenElement === presentationRef.current) await document.exitFullscreen();
     else await presentationRef.current?.requestFullscreen();
   };
-  const renderStroke = (stroke: Stroke, key: string) => {
-    const points = stroke.points.map((item) => `${item.x * surface.width},${item.y * surface.height}`).join(' ');
-    const style = stroke.tool === 'highlight' ? { stroke: stroke.color ?? '#facc15', strokeOpacity: 0.45, strokeWidth: 18 } : { stroke: stroke.color ?? '#ef4444', strokeOpacity: 1, strokeWidth: stroke.tool === 'underline' ? 4 : 3 };
-    const removeOnTouch = tool === 'eraser' ? (event: PointerEvent<SVGElement>) => { event.preventDefault(); event.stopPropagation(); eraseStroke(stroke); } : undefined;
-    if (stroke.tool === 'ellipse' && stroke.points.length > 1) { const a = stroke.points[0]!; const b = stroke.points.at(-1)!; return <ellipse key={key} cx={(a.x + b.x) * surface.width / 2} cy={(a.y + b.y) * surface.height / 2} rx={Math.abs(a.x - b.x) * surface.width / 2} ry={Math.abs(a.y - b.y) * surface.height / 2} fill="none" onPointerDown={removeOnTouch} {...style} />; }
-    return <polyline key={key} points={points} fill="none" strokeLinecap="round" strokeLinejoin="round" onPointerDown={removeOnTouch} {...style} />;
-  };
+  const strokeOccurrences = new Map<string, number>();
+  const pageStrokeElements = annotations.strokes.flatMap((stroke) => {
+    if (stroke.page !== pageNumber) return [];
+    const identity = strokeRenderIdentity(stroke);
+    const occurrence = strokeOccurrences.get(identity) ?? 0;
+    strokeOccurrences.set(identity, occurrence + 1);
+    return [<AnnotationStroke key={`${identity}:${occurrence}`} stroke={stroke} surface={surface} eraserActive={tool === 'eraser'} onErase={eraseStroke} />];
+  });
 
   if (error) return <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">{error}</div>;
   return <section ref={presentationRef} className="relative flex flex-col overflow-hidden rounded-lg border border-slate-700 bg-slate-900 fullscreen:h-screen fullscreen:rounded-none" aria-label={`Trình chiếu ${title}`}>
@@ -290,8 +322,8 @@ export function PresentationCanvas({ title, sourceUrl }: PresentationCanvasProps
       <div className="relative" style={{ width: surface.width || undefined, height: surface.height || undefined }}>
         <canvas ref={canvasRef} className="max-w-none bg-white shadow-xl" />
         {surface.width > 0 && <svg className="absolute inset-0 touch-none" width={surface.width} height={surface.height} onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish}>
-          {annotations.strokes.filter((item) => item.page === pageNumber).map((item, index) => renderStroke(item, `${item.page}-${index}`))}
-          {draft && renderStroke(draft, 'draft')}
+          {pageStrokeElements}
+          {draft && <AnnotationStroke stroke={draft} surface={surface} eraserActive={tool === 'eraser'} onErase={eraseStroke} />}
           {laser && <circle cx={laser.x * surface.width} cy={laser.y * surface.height} r="8" fill="#ef4444" fillOpacity="0.8" />}
         </svg>}
       </div>

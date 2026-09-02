@@ -162,6 +162,8 @@ Monitor hỗ trợ mạch P66 dựng queue qua một pure builder từ progress/
 
 Luồng tạo game P67 dùng một pure serializer duy nhất cho cả `/games` và `/prepared-games`, với helper circuit template dùng chung cho template mặc định/per-challenge. Question/subject catalogs và circuit draft có hook riêng; controller hook sở hữu state/request, còn `CreateGameWorkspace` chỉ compose selector, crossword, settings và modal. Các validation gate và payload theo mode vì vậy có một nguồn sự thật phía client mà không đổi contract server.
 
+Presentation Canvas P68 có public wrapper keyed theo `sourceUrl`, nên mỗi material sở hữu riêng PDF document, page/zoom, annotation reducer, palette và async render lifecycle. Annotation/settings được init lazy từ material-scoped session storage (có migrate legacy URL key) rồi persist trực tiếp; không còn prop-sync ready state. Page fetch/render kiểm tra cancellation trước khi cập nhật surface hoặc error, ngăn tài liệu cũ ghi vào canvas mới khi giáo viên chuyển nội dung nhanh.
+
 ## 6. Luồng RAG pipeline (services/rag.ts)
 
 ```

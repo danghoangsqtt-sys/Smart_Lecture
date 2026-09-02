@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Presentation canvas lifecycle hardening
+
+- Cô lập lifecycle PDF/PPTX theo source identity để page, canvas, annotation và settings không rò giữa hai tài liệu.
+- Khởi tạo annotation/palette trực tiếp từ material-scoped session storage, giữ legacy migration và cap 100 nét.
+- Bổ sung cancellation guard cho document/page async render; tách pointer/stroke pure work và render nét theo trang trong một lượt.
+- Giữ nguyên bút lông, highlight, laser, khoanh/gạch chân/đường thẳng, tẩy, undo/redo và toàn màn hình; Browser annotation flow tiếp tục pass.
+
 ## 2026-09-02 — Game creator orchestration modularization
 
 - Thêm pure typed payload serializer dùng chung khi tạo phòng và lưu game, gồm đầy đủ question/KTTX/crossword/circuit fields.
