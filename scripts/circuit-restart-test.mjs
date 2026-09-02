@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { io } from 'socket.io-client';
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4100';
@@ -194,6 +195,18 @@ async function prepare() {
     const challenge = await challengePromise;
     check('first challenge has absolute deadline', Number.isFinite(challenge.endsAt) && challenge.endsAt > Date.now());
 
+    const incorrectValidationPromise = waitFor(
+      learner,
+      'circuit_simulate:validation',
+      (payload) => payload?.correct === false,
+    );
+    learner.emit('circuit_simulate:circuit', { components: [], wires: [], submitted: true });
+    const incorrectValidation = await incorrectValidationPromise;
+    check(
+      'incorrect explicit submission starts cumulative diagnostics',
+      incorrectValidation?.attempts === 1 && incorrectValidation?.code === 'wire_count',
+    );
+
     const validationPromise = waitFor(
       learner,
       'circuit_simulate:validation',
@@ -205,7 +218,7 @@ async function prepare() {
     check(
       'correct submission records a bounded validation checkpoint',
       validation?.code === 'correct'
-        && validation?.attempts === 1
+        && validation?.attempts === 2
         && Number.isFinite(validation?.submittedAt),
     );
     check('correct circuit completed before restart', passed?.challengeId === 'digital_1' && passed?.points === 100);
@@ -246,7 +259,9 @@ async function prepare() {
     check('learner activity timestamp captured before restart', Number.isFinite(inspection?.lastActivityAt) && inspection.lastActivityAt > 0);
     check(
       'host sees current submission diagnostics before restart',
-      inspection?.submissionAttempts === 1
+      inspection?.submissionAttempts === 2
+        && inspection?.totalSubmissionAttempts === 2
+        && inspection?.incorrectSubmissionAttempts === 1
         && inspection?.lastValidationCode === 'correct'
         && inspection?.lastValidationFeedback === validation.feedback
         && inspection?.lastSubmissionAt === validation.submittedAt,
@@ -284,6 +299,8 @@ async function prepare() {
       pausedRemainingMs: extended.remainingMs,
       lastActivityAt: inspection.lastActivityAt,
       submissionAttempts: inspection.submissionAttempts,
+      totalSubmissionAttempts: inspection.totalSubmissionAttempts,
+      incorrectSubmissionAttempts: inspection.incorrectSubmissionAttempts,
       lastSubmissionAt: inspection.lastSubmissionAt,
       lastValidationCode: inspection.lastValidationCode,
       lastValidationFeedback: inspection.lastValidationFeedback,
@@ -394,6 +411,8 @@ async function verify() {
         && progress?.score === 100
         && progress?.lastActivityAt === state.lastActivityAt
         && progress?.submissionAttempts === state.submissionAttempts
+        && progress?.totalSubmissionAttempts === state.totalSubmissionAttempts
+        && progress?.incorrectSubmissionAttempts === state.incorrectSubmissionAttempts
         && progress?.lastSubmissionAt === state.lastSubmissionAt
         && progress?.lastValidationCode === state.lastValidationCode
         && progress?.lastValidationFeedback === state.lastValidationFeedback,
@@ -413,6 +432,8 @@ async function verify() {
     check(
       'inspection restores exact submission diagnostics',
       inspection?.submissionAttempts === state.submissionAttempts
+        && inspection?.totalSubmissionAttempts === state.totalSubmissionAttempts
+        && inspection?.incorrectSubmissionAttempts === state.incorrectSubmissionAttempts
         && inspection?.lastSubmissionAt === state.lastSubmissionAt
         && inspection?.lastValidationCode === state.lastValidationCode
         && inspection?.lastValidationFeedback === state.lastValidationFeedback,
@@ -506,6 +527,57 @@ async function verify() {
     const nextChallenge = await nextChallengePromise;
     check('host immediate evaluation advances to the next challenge', nextChallenge?.index === 1 && nextChallenge?.endsAt > Date.now());
     check('immediate evaluation does not duplicate KTTX', (await readKttx(state.classId, state.studentId, state.teacherToken)) === 0.5);
+    for (let index = 2; index <= 5; index += 1) {
+      const challengePromise = waitFor(
+        learner,
+        'circuit_simulate:challenge',
+        (payload) => payload?.index === index,
+      );
+      host.emit('circuit_simulate:host-control', { action: 'evaluate' });
+      await challengePromise;
+    }
+    const finishedPromise = waitFor(
+      host,
+      'circuit_simulate:learning_debrief',
+      (payload) => payload?.summary?.learnerCount === 1,
+    );
+    const learnerPrivacyPromise = expectNoEvent(
+      learner,
+      'circuit_simulate:learning_debrief',
+      () => host.emit('circuit_simulate:host-control', { action: 'evaluate' }),
+    );
+    const debrief = await finishedPromise;
+    await learnerPrivacyPromise;
+    check('learner does not receive host-only circuit debrief', true);
+    check(
+      'finish payload contains authoritative cumulative circuit debrief',
+      debrief?.summary?.totalCompletions === 1
+        && debrief?.summary?.totalPossible === 6
+        && debrief?.summary?.completionRate === 17
+        && debrief?.summary?.totalSubmissionAttempts === state.totalSubmissionAttempts
+        && debrief?.summary?.incorrectSubmissionAttempts === state.incorrectSubmissionAttempts
+        && debrief?.learners?.[0]?.userId === state.studentId,
+    );
+    const database = new DatabaseSync(process.env.DB_PATH);
+    try {
+      const result = database.prepare(
+        'SELECT detail_json FROM game_results WHERE game_session_id = ? AND student_id = ?',
+      ).get(state.sessionId, state.studentId);
+      const detail = JSON.parse(result?.detail_json ?? '{}');
+      check(
+        'safe per-learner debrief persisted in game result detail',
+        detail.type === 'circuit_learning_debrief'
+          && detail.version === 1
+          && detail.completedCount === 1
+          && detail.totalChallenges === 6
+          && detail.totalSubmissionAttempts === state.totalSubmissionAttempts
+          && detail.incorrectSubmissionAttempts === state.incorrectSubmissionAttempts
+          && !Object.hasOwn(detail, 'circuit')
+          && !Object.hasOwn(detail, 'feedback'),
+      );
+    } finally {
+      database.close();
+    }
     console.log('Circuit restart verify PASS');
   } finally {
     learner.disconnect();

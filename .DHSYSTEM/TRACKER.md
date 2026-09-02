@@ -219,8 +219,20 @@
 | T-5901 | Hàng đợi ưu tiên và bộ lọc hỗ trợ học viên mạch cho lớp đông | P59 | done | derived triage + counts/filters/next learner + Browser 4/4 + React Doctor 100 + full regression |
 | T-6001 | Lưu và hiển thị chẩn đoán lần nộp mạch hiện tại cho học viên/giáo viên | P60 | done | migration v23 + learner persistent feedback + host incorrect triage + Browser 4/4 + React Doctor 100 + full regression |
 | T-6101 | Điều chỉnh nhịp độ challenge mạch theo mức sẵn sàng của lớp | P61 | done | readiness + durable capped +30s + evaluate-now + Browser 4/4 + React Doctor 100 + full regression |
+| T-6201 | Tổng kết học tập mạch theo lớp và từng học viên khi kết thúc game | P62 | done | migration v24 + realtime/result debrief + Browser 4/4 + React Doctor 100 + full regression |
 
 ## Session log
+### 2026-09-01 (Phase 62 — T-6201 completed)
+- Migration v24 giữ tổng lượt nộp/chưa đạt xuyên challenge và restart; live edit, timer và host evaluate không làm tăng counter.
+- Kênh host-only phát debrief lớp/học viên an toàn trước `game:finished`; transaction kết thúc ghi detail theo learner ID và cập nhật idempotent, không chứa topology/feedback.
+- Host có thẻ tổng quan và bảng kết quả mạch; Browser đi đến màn hình cuối, restart test kiểm tra trực tiếp SQLite.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/debrief đều pass.
+
+### 2026-09-01 (Phase 62 — T-6201 started)
+- Chốt debrief an toàn gồm tiến độ hoàn thành, tổng lượt nộp/chưa đạt và điểm; không chứa topology, reference circuit, feedback hay tin hỗ trợ.
+- Cumulative counter chỉ tăng khi học viên chủ động nộp, không tăng do live edit, timer hoặc host evaluate; tồn tại xuyên challenge/restart.
+- Doc-first gate hoàn tất; chuẩn bị migration v24, finish payload/result persistence, UI và Browser/process-restart coverage.
+
 ### 2026-09-01 (Phase 61 — T-6101 completed)
 - Host thấy tỷ lệ hoàn thành online, số đã nộp/chưa đạt và thanh readiness mà không tải topology.
 - `extend` cộng đúng 30 giây khi chạy hoặc pause, cap 10 phút, persist/reschedule/broadcast từ server; `evaluate` dùng evaluator hiện hữu rồi chuyển bài.

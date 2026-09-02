@@ -154,6 +154,31 @@ interface CircuitSimulatePlayer {
   lastSubmissionAt: number | null;
   lastValidationCode: CircuitValidationCode | null;
   lastValidationFeedback: string | null;
+  totalSubmissionAttempts: number;
+  incorrectSubmissionAttempts: number;
+}
+
+interface CircuitDebriefRow {
+  userId: string;
+  name: string;
+  completedCount: number;
+  totalChallenges: number;
+  totalSubmissionAttempts: number;
+  incorrectSubmissionAttempts: number;
+  score: number;
+}
+
+interface CircuitLearningDebrief {
+  summary: {
+    learnerCount: number;
+    completedAllCount: number;
+    totalCompletions: number;
+    totalPossible: number;
+    totalSubmissionAttempts: number;
+    incorrectSubmissionAttempts: number;
+    completionRate: number;
+  };
+  learners: CircuitDebriefRow[];
 }
 
 type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate' | 'finished';
@@ -507,6 +532,7 @@ function finishGame(room: RoomState): void {
   room.timer = null;
 
   let podium: { rank: number; name: string; score: number }[] = [];
+  const circuitDebrief = room.gameType === 'circuit_simulate' ? buildCircuitLearningDebrief(room) : null;
   if (room.gameType === 'math_race') {
     podium = [...room.racePlayers.values()]
       .sort((a, b) => b.solved - a.solved || a.startedAt - b.startedAt)
@@ -552,13 +578,17 @@ function finishGame(room: RoomState): void {
       .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
   }
 
+  if (circuitDebrief) {
+    ioRef?.to(circuitHostRoom(room)).emit('circuit_simulate:learning_debrief', circuitDebrief);
+  }
   ioRef?.to(`game:${room.roomCode}`).emit('game:finished', { podium });
 
   try {
     const insertResult = db.prepare(
       `INSERT INTO game_results (game_session_id, student_id, score, rank, detail_json)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(game_session_id, student_id) DO UPDATE SET score = excluded.score, rank = excluded.rank`
+       ON CONFLICT(game_session_id, student_id) DO UPDATE SET
+         score = excluded.score, rank = excluded.rank, detail_json = excluded.detail_json`
     );
     const nameToPlayer = new Map<string, string>();
     for (const p of room.players.values()) nameToPlayer.set(p.displayName, p.userId);
@@ -567,13 +597,24 @@ function finishGame(room: RoomState): void {
     for (const m of room.memoryPlayers.values()) nameToPlayer.set(m.displayName, m.userId);
     for (const w of room.wordScramblePlayers.values()) nameToPlayer.set(w.displayName, w.userId);
     for (const q of room.quizShowPlayers.values()) nameToPlayer.set(q.displayName, q.userId);
-    for (const c of room.circuitSimulatePlayers.values()) nameToPlayer.set(c.displayName, c.userId);
+    const circuitResultDetail = (learner: CircuitDebriefRow) => JSON.stringify({
+      type: 'circuit_learning_debrief',
+      version: 1,
+      completedCount: learner.completedCount,
+      totalChallenges: learner.totalChallenges,
+      totalSubmissionAttempts: learner.totalSubmissionAttempts,
+      incorrectSubmissionAttempts: learner.incorrectSubmissionAttempts,
+    });
 
     tx(() => {
-      for (const entry of podium) {
-        const userId = nameToPlayer.get(entry.name);
-        if (userId) {
-          insertResult.run(room.sessionId, userId, entry.score, entry.rank, '{}');
+      if (circuitDebrief) {
+        for (const [index, learner] of circuitDebrief.learners.entries()) {
+          insertResult.run(room.sessionId, learner.userId, learner.score, index + 1, circuitResultDetail(learner));
+        }
+      } else {
+        for (const entry of podium) {
+          const userId = nameToPlayer.get(entry.name);
+          if (userId) insertResult.run(room.sessionId, userId, entry.score, entry.rank, '{}');
         }
       }
       db.prepare("UPDATE game_sessions SET status = 'finished', finished_at = datetime('now') WHERE id = ?").run(room.sessionId);
@@ -1009,6 +1050,35 @@ function circuitsMatch(student: unknown, reference: unknown): boolean {
   return true;
 }
 
+function buildCircuitLearningDebrief(room: RoomState): CircuitLearningDebrief {
+  const totalChallenges = room.circuitSimulateChallenges.length;
+  const learners = [...room.circuitSimulatePlayers.values()]
+    .map((player): CircuitDebriefRow => ({
+      userId: player.userId,
+      name: player.displayName,
+      completedCount: player.completedChallenges.length,
+      totalChallenges,
+      totalSubmissionAttempts: player.totalSubmissionAttempts,
+      incorrectSubmissionAttempts: player.incorrectSubmissionAttempts,
+      score: player.score,
+    }))
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+  const totalCompletions = learners.reduce((sum, learner) => sum + learner.completedCount, 0);
+  const totalPossible = learners.length * totalChallenges;
+  return {
+    summary: {
+      learnerCount: learners.length,
+      completedAllCount: learners.filter((learner) => totalChallenges > 0 && learner.completedCount === totalChallenges).length,
+      totalCompletions,
+      totalPossible,
+      totalSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.totalSubmissionAttempts, 0),
+      incorrectSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.incorrectSubmissionAttempts, 0),
+      completionRate: totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0,
+    },
+    learners,
+  };
+}
+
 function circuitHostRoom(room: RoomState): string {
   return `game-host:${room.sessionId}`;
 }
@@ -1041,6 +1111,8 @@ function circuitSimulateProgressRow(room: RoomState, player: CircuitSimulatePlay
     wireCount,
     lastActivityAt: player.lastActivityAt,
     submissionAttempts: player.submissionAttempts,
+    totalSubmissionAttempts: player.totalSubmissionAttempts,
+    incorrectSubmissionAttempts: player.incorrectSubmissionAttempts,
     lastSubmissionAt: player.lastSubmissionAt,
     lastValidationCode: player.lastValidationCode,
     lastValidationFeedback: player.lastValidationFeedback,
@@ -1263,6 +1335,8 @@ interface CircuitPlayerStateRow {
   last_submission_at: number | null;
   last_validation_code: CircuitValidationCode | null;
   last_validation_feedback: string | null;
+  total_submission_attempts: number;
+  incorrect_submission_attempts: number;
 }
 
 function createCircuitPersistenceStatements() {
@@ -1282,8 +1356,9 @@ function createCircuitPersistenceStatements() {
       INSERT INTO game_circuit_player_states (
         game_session_id, student_id, display_name, score, circuit_json, circuit_challenge_id,
         simulation_state, measurements_json, completed_challenges_json, last_activity_at,
-        submission_attempts, last_submission_at, last_validation_code, last_validation_feedback, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        submission_attempts, last_submission_at, last_validation_code, last_validation_feedback,
+        total_submission_attempts, incorrect_submission_attempts, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT(game_session_id, student_id) DO UPDATE SET
         display_name = excluded.display_name,
         score = excluded.score,
@@ -1297,6 +1372,8 @@ function createCircuitPersistenceStatements() {
         last_submission_at = excluded.last_submission_at,
         last_validation_code = excluded.last_validation_code,
         last_validation_feedback = excluded.last_validation_feedback,
+        total_submission_attempts = excluded.total_submission_attempts,
+        incorrect_submission_attempts = excluded.incorrect_submission_attempts,
         updated_at = datetime('now')
     `),
   };
@@ -1335,6 +1412,8 @@ function persistCircuitPlayer(room: RoomState, player: CircuitSimulatePlayer): v
     player.lastSubmissionAt === null ? null : Math.max(0, Math.trunc(player.lastSubmissionAt)),
     player.lastValidationCode,
     player.lastValidationFeedback,
+    Math.max(0, Math.trunc(player.totalSubmissionAttempts)),
+    Math.max(0, Math.trunc(player.incorrectSubmissionAttempts)),
   );
 }
 
@@ -1577,6 +1656,8 @@ function initCircuitSimulate(room: RoomState): void {
       lastSubmissionAt: null,
       lastValidationCode: null,
       lastValidationFeedback: null,
+      totalSubmissionAttempts: 0,
+      incorrectSubmissionAttempts: 0,
     });
   }
   sendCircuitSimulateChallenge(room);
@@ -1692,7 +1773,8 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
   const rows = db.prepare(`
     SELECT student_id, display_name, score, circuit_json, circuit_challenge_id, simulation_state,
            measurements_json, completed_challenges_json, last_activity_at, submission_attempts,
-           last_submission_at, last_validation_code, last_validation_feedback
+           last_submission_at, last_validation_code, last_validation_feedback,
+           total_submission_attempts, incorrect_submission_attempts
     FROM game_circuit_player_states
     WHERE game_session_id = ?
     ORDER BY updated_at, student_id
@@ -1733,6 +1815,12 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
         : null,
       lastValidationCode: row.last_validation_code,
       lastValidationFeedback: row.last_validation_feedback,
+      totalSubmissionAttempts: Number.isFinite(row.total_submission_attempts) && row.total_submission_attempts > 0
+        ? Math.trunc(row.total_submission_attempts)
+        : 0,
+      incorrectSubmissionAttempts: Number.isFinite(row.incorrect_submission_attempts) && row.incorrect_submission_attempts > 0
+        ? Math.trunc(row.incorrect_submission_attempts)
+        : 0,
     };
     room.circuitSimulatePlayers.set(player.userId, player);
     room.players.set(player.userId, {
@@ -1785,6 +1873,8 @@ function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: str
       lastSubmissionAt: null,
       lastValidationCode: null,
       lastValidationFeedback: null,
+      totalSubmissionAttempts: 0,
+      incorrectSubmissionAttempts: 0,
     };
     room.circuitSimulatePlayers.set(userId, player);
     persistCircuitPlayer(room, player);
@@ -2889,6 +2979,8 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const validation = circuitValidationResult(player.circuit, challenge.referenceCircuit);
       if (parsed.data.submitted) {
         player.submissionAttempts += 1;
+        player.totalSubmissionAttempts += 1;
+        if (!validation.correct) player.incorrectSubmissionAttempts += 1;
         player.lastSubmissionAt = player.lastActivityAt;
         player.lastValidationCode = validation.code;
         player.lastValidationFeedback = validation.feedback;

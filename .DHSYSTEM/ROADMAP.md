@@ -83,6 +83,13 @@
 - [x] Let the host evaluate current circuits and advance immediately through the existing grader.
 - [x] Cover authorization, restart persistence, and no-duplicate grading in integration tests.
 
+## Phase 62 — Circuit Learning Debrief ✅
+
+- [x] Persist cumulative submitted and incorrect circuit attempts across challenge changes and restart.
+- [x] Build one authoritative safe class/learner debrief when the circuit game finishes.
+- [x] Persist per-learner debrief details in game results and render the host final summary.
+- [x] Cover finalization, privacy, idempotency, and restart durability in integration tests.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

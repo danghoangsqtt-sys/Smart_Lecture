@@ -552,6 +552,20 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       }
     },
   },
+  {
+    version: 24,
+    up: () => {
+      const columns = db.prepare('PRAGMA table_info(game_circuit_player_states)').all() as { name: string }[];
+      if (!columns.some((column) => column.name === 'total_submission_attempts')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN total_submission_attempts INTEGER NOT NULL DEFAULT 0 CHECK (total_submission_attempts >= 0)`);
+      }
+      if (!columns.some((column) => column.name === 'incorrect_submission_attempts')) {
+        db.exec(`ALTER TABLE game_circuit_player_states
+          ADD COLUMN incorrect_submission_attempts INTEGER NOT NULL DEFAULT 0 CHECK (incorrect_submission_attempts >= 0)`);
+      }
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

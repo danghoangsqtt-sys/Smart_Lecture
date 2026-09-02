@@ -149,9 +149,32 @@ interface CircuitProgressRow {
   wireCount: number;
   lastActivityAt: number;
   submissionAttempts: number;
+  totalSubmissionAttempts: number;
+  incorrectSubmissionAttempts: number;
   lastSubmissionAt: number | null;
   lastValidationCode: 'correct' | 'invalid_data' | 'wire_count' | 'component_count' | 'connection' | null;
   lastValidationFeedback: string | null;
+}
+
+interface CircuitLearningDebrief {
+  summary: {
+    learnerCount: number;
+    completedAllCount: number;
+    totalCompletions: number;
+    totalPossible: number;
+    totalSubmissionAttempts: number;
+    incorrectSubmissionAttempts: number;
+    completionRate: number;
+  };
+  learners: Array<{
+    userId: string;
+    name: string;
+    completedCount: number;
+    totalChallenges: number;
+    totalSubmissionAttempts: number;
+    incorrectSubmissionAttempts: number;
+    score: number;
+  }>;
 }
 
 interface CircuitInspection extends CircuitProgressRow {
@@ -235,6 +258,7 @@ interface HostConsoleState {
   csProgress: CircuitProgressRow[];
   csInspection: CircuitInspection | null;
   csAssistance: CircuitAssistanceStatus[];
+  circuitDebrief: CircuitLearningDebrief | null;
 }
 
 interface HostSyncPayload {
@@ -271,7 +295,7 @@ function createHostConsoleState(): HostConsoleState {
     bingoLast: null, bingoCalled: [], bingoWinner: null,
     memBoard: [], memPairs: 0, memFeed: [], scProgress: [],
     qsQ: null, qsIdx: 0, qsTot: 0, qsReveal: null, qsScores: [],
-    cdPending: [], csChallenge: null, csPasses: [], csProgress: [], csInspection: null, csAssistance: [],
+    cdPending: [], csChallenge: null, csPasses: [], csProgress: [], csInspection: null, csAssistance: [], circuitDebrief: null,
   };
 }
 
@@ -1127,6 +1151,7 @@ function useHostConsoleEffects(
     on('tug:result', (d: { winnerTeam: 'A' | 'B'; teamA: number; teamB: number }) => setField('tugResult', d));
     on('race:start', (d: { endsAt: number }) => { setField('phase', 'race'); setField('raceEndsAt', d.endsAt); });
     on('race:update', (d: { rows: { name: string; solved: number }[] }) => setField('raceRows', d.rows));
+    on('circuit_simulate:learning_debrief', (d: CircuitLearningDebrief) => setField('circuitDebrief', d));
     on('game:finished', () => setField('phase', 'finished'));
     on('game:error', (d: { message: string }) => toast.error(d.message));
 
@@ -1520,7 +1545,10 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
 
       {phase === 'finished' && (
         <Card className="p-6">
-          <h3 className="mb-4 text-xl font-bold text-slate-800"><i className="fas fa-trophy text-amber-500" /> Kết quả cuối</h3>
+          <h3 className="mb-4 text-xl font-bold text-slate-800"><i className="fas fa-trophy text-amber-500" /> {session.gameType === 'circuit_simulate' && state.circuitDebrief ? 'Tổng kết học tập mạch' : 'Kết quả cuối'}</h3>
+          {session.gameType === 'circuit_simulate' && state.circuitDebrief && (
+            <CircuitLearningDebriefView debrief={state.circuitDebrief} />
+          )}
           <ol className="space-y-1.5">
             {(session.gameType === 'math_race' ? raceRows.map((r) => ({ name: r.name, score: r.solved })) : leaderboard).map((r, i) => (
               <li key={r.name} className={`flex justify-between rounded-sm border px-4 py-2 ${i === 0 ? 'border-amber-200 bg-gradient-to-r from-amber-100 to-transparent text-lg font-bold' : i < 3 ? 'border-slate-200 bg-slate-100' : 'border-slate-100 bg-slate-50 text-sm'}`}>
@@ -1748,6 +1776,26 @@ function HostSandboxViews({
       )}
 
     </>
+  );
+}
+
+function CircuitLearningDebriefView({ debrief }: { debrief: CircuitLearningDebrief }) {
+  const { summary, learners } = debrief;
+  return (
+    <section className="mb-6" aria-label="Tổng kết học tập mạch">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-sm border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-semibold uppercase text-blue-700">Hoàn thành lớp</p><p className="mt-1 text-2xl font-black text-blue-950">{summary.completionRate}%</p><p className="text-xs text-blue-700">{summary.totalCompletions}/{summary.totalPossible} lượt bài</p></div>
+        <div className="rounded-sm border border-emerald-200 bg-emerald-50 p-3"><p className="text-xs font-semibold uppercase text-emerald-700">Hoàn thành toàn bộ</p><p className="mt-1 text-2xl font-black text-emerald-950">{summary.completedAllCount}/{summary.learnerCount}</p><p className="text-xs text-emerald-700">học viên</p></div>
+        <div className="rounded-sm border border-slate-200 bg-slate-50 p-3"><p className="text-xs font-semibold uppercase text-slate-600">Tổng lượt nộp</p><p className="mt-1 text-2xl font-black text-slate-900">{summary.totalSubmissionAttempts}</p><p className="text-xs text-slate-600">lượt chủ động</p></div>
+        <div className="rounded-sm border border-rose-200 bg-rose-50 p-3"><p className="text-xs font-semibold uppercase text-rose-700">Cần sửa</p><p className="mt-1 text-2xl font-black text-rose-950">{summary.incorrectSubmissionAttempts}</p><p className="text-xs text-rose-700">lượt chưa đạt</p></div>
+      </div>
+      <div className="overflow-x-auto rounded-sm border border-slate-200">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-100 text-xs uppercase text-slate-600"><tr><th className="px-3 py-2">Học viên</th><th className="px-3 py-2 text-center">Tiến độ</th><th className="px-3 py-2 text-center">Lượt nộp</th><th className="px-3 py-2 text-center">Chưa đạt</th><th className="px-3 py-2 text-right">Điểm</th></tr></thead>
+          <tbody>{learners.map((learner) => <tr key={learner.userId} className="border-t border-slate-100"><td className="px-3 py-2 font-semibold text-slate-800">{learner.name}</td><td className="px-3 py-2 text-center">{learner.completedCount}/{learner.totalChallenges}</td><td className="px-3 py-2 text-center">{learner.totalSubmissionAttempts}</td><td className={`px-3 py-2 text-center font-semibold ${learner.incorrectSubmissionAttempts > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{learner.incorrectSubmissionAttempts}</td><td className="px-3 py-2 text-right font-bold">{learner.score} đ</td></tr>)}</tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

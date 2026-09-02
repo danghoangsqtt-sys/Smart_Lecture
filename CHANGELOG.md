@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-01 — Circuit learning debrief
+
+- Thêm migration v24 lưu tổng lượt nộp và lượt chưa đạt theo học viên xuyên challenge và process restart.
+- Kết thúc game mạch phát tổng kết lớp/học viên qua kênh host-only, không chứa topology, mạch mẫu, phản hồi validation hay nội dung hỗ trợ.
+- Lưu detail phiên bản hoá theo đúng learner ID trong `game_results` và cập nhật idempotent khi ghi lại kết quả.
+- Console giáo viên có thẻ tỷ lệ hoàn thành, tổng lượt nộp/chưa đạt và bảng tiến độ từng học viên.
+
 ## 2026-09-01 — Circuit adaptive pacing
 
 - Hiển thị mức sẵn sàng chuyển bài theo số học viên online đã hoàn thành, đã nộp và chưa đạt.
