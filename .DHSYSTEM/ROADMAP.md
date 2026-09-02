@@ -90,6 +90,13 @@
 - [x] Persist per-learner debrief details in game results and render the host final summary.
 - [x] Cover finalization, privacy, idempotency, and restart durability in integration tests.
 
+## Phase 63 — Circuit Debrief Recovery ✅
+
+- [x] Reconstruct P62 debriefs from validated versioned result details.
+- [x] Add host-scoped single/recent retrieval with authorized class filtering.
+- [x] Show and expand recent circuit reports after page reload without reopening the room.
+- [x] Cover authorization, malformed data, reload, and regression behavior.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

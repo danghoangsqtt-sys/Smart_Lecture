@@ -119,6 +119,7 @@ async function prepare() {
   console.log('=== CIRCUIT RESTART TEST: PREPARE ===');
   const suffix = `${Date.now()}`;
   const teacherUsername = `restart.teacher.${suffix}`;
+  const outsiderUsername = `restart.outsider.${suffix}`;
   const studentUsername = `restart.student.${suffix}`;
   const teacherInitialPassword = 'Teacher@123';
   const teacherPassword = 'Teacher@1234';
@@ -132,7 +133,8 @@ async function prepare() {
     role: 'teacher',
     displayName: 'Restart Teacher',
   });
-  check('restart teacher created', teacherCreated.status === 201);
+  const teacherId = teacherCreated.data.user?.id;
+  check('restart teacher created', teacherCreated.status === 201 && typeof teacherId === 'string');
   let teacherToken = await login(teacherUsername, teacherInitialPassword);
   const teacherChanged = await request('POST', '/auth/change-password', teacherToken, {
     oldPassword: teacherInitialPassword,
@@ -140,6 +142,21 @@ async function prepare() {
   });
   check('restart teacher password activated', teacherChanged.ok);
   teacherToken = await login(teacherUsername, teacherPassword);
+
+  const outsiderCreated = await request('POST', '/users', adminToken, {
+    username: outsiderUsername,
+    password: teacherInitialPassword,
+    role: 'teacher',
+    displayName: 'Restart Outsider',
+  });
+  check('unrelated restart teacher created', outsiderCreated.status === 201);
+  let outsiderToken = await login(outsiderUsername, teacherInitialPassword);
+  const outsiderChanged = await request('POST', '/auth/change-password', outsiderToken, {
+    oldPassword: teacherInitialPassword,
+    newPassword: teacherPassword,
+  });
+  check('unrelated restart teacher password activated', outsiderChanged.ok);
+  outsiderToken = await login(outsiderUsername, teacherPassword);
 
   const studentCreated = await request('POST', '/users', adminToken, {
     username: studentUsername,
@@ -290,6 +307,8 @@ async function prepare() {
 
     writeFileSync(STATE_PATH, JSON.stringify({
       teacherToken,
+      teacherId,
+      outsiderToken,
       studentToken,
       studentId,
       classId,
@@ -559,6 +578,7 @@ async function verify() {
         && debrief?.learners?.[0]?.userId === state.studentId,
     );
     const database = new DatabaseSync(process.env.DB_PATH);
+    const corruptSessionId = `corrupt-debrief-${Date.now()}`;
     try {
       const result = database.prepare(
         'SELECT detail_json FROM game_results WHERE game_session_id = ? AND student_id = ?',
@@ -575,9 +595,54 @@ async function verify() {
           && !Object.hasOwn(detail, 'circuit')
           && !Object.hasOwn(detail, 'feedback'),
       );
+      database.prepare(
+        `INSERT INTO game_sessions (
+           id, host_teacher_id, class_id, game_type, room_code, config_json, status, finished_at
+         ) VALUES (?, ?, ?, 'circuit_simulate', ?, ?, 'finished', datetime('now', '+1 second'))`,
+      ).run(
+        corruptSessionId,
+        state.teacherId,
+        state.classId,
+        `corrupt-${Date.now()}`,
+        JSON.stringify({ title: 'Corrupt circuit debrief', secondsPerQuestion: 14 }),
+      );
+      database.prepare(
+        `INSERT INTO game_results (game_session_id, student_id, score, rank, detail_json)
+         VALUES (?, ?, 0, 1, ?)`,
+      ).run(corruptSessionId, state.studentId, '{"type":"circuit_learning_debrief","version":1,"completedCount":99}');
     } finally {
       database.close();
     }
+    const recovered = await request('GET', `/games/${state.sessionId}/circuit-debrief`, state.teacherToken);
+    check(
+      'host retrieves durable debrief through authorized REST recovery',
+      recovered.ok
+        && recovered.data?.debrief?.summary?.learnerCount === 1
+        && recovered.data?.debrief?.learners?.[0]?.userId === state.studentId,
+    );
+    const deniedStudent = await request('GET', `/games/${state.sessionId}/circuit-debrief`, state.studentToken);
+    check('student cannot retrieve circuit debrief', deniedStudent.status === 403);
+    const deniedOutsider = await request('GET', `/games/${state.sessionId}/circuit-debrief`, state.outsiderToken);
+    check('unrelated teacher cannot retrieve circuit debrief', deniedOutsider.status === 403);
+    const corrupt = await request('GET', `/games/${corruptSessionId}/circuit-debrief`, state.teacherToken);
+    check('malformed stored detail returns unavailable without raw JSON', corrupt.status === 404 && corrupt.data?.error?.code === 'DEBRIEF_NOT_AVAILABLE');
+    const recent = await request(
+      'GET',
+      `/games/mine/recent-circuit-debriefs?classId=${encodeURIComponent(state.classId)}&limit=5`,
+      state.teacherToken,
+    );
+    check(
+      'recent feed omits malformed detail and returns the valid persisted session',
+      recent.ok
+        && recent.data?.reports?.some((report) => report.session?.id === state.sessionId)
+        && !recent.data?.reports?.some((report) => report.session?.id === corruptSessionId),
+    );
+    const outsiderRecent = await request(
+      'GET',
+      `/games/mine/recent-circuit-debriefs?classId=${encodeURIComponent(state.classId)}`,
+      state.outsiderToken,
+    );
+    check('unrelated teacher cannot bypass class filter scope', outsiderRecent.status === 403);
     console.log('Circuit restart verify PASS');
   } finally {
     learner.disconnect();

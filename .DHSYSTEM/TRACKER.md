@@ -220,8 +220,20 @@
 | T-6001 | Lưu và hiển thị chẩn đoán lần nộp mạch hiện tại cho học viên/giáo viên | P60 | done | migration v23 + learner persistent feedback + host incorrect triage + Browser 4/4 + React Doctor 100 + full regression |
 | T-6101 | Điều chỉnh nhịp độ challenge mạch theo mức sẵn sàng của lớp | P61 | done | readiness + durable capped +30s + evaluate-now + Browser 4/4 + React Doctor 100 + full regression |
 | T-6201 | Tổng kết học tập mạch theo lớp và từng học viên khi kết thúc game | P62 | done | migration v24 + realtime/result debrief + Browser 4/4 + React Doctor 100 + full regression |
+| T-6301 | Phục hồi và mở lại tổng kết mạch gần đây từ dữ liệu bền vững | P63 | done | Zod read model + authorized REST + reload/expand UI + Browser 4/4 + full regression |
 
 ## Session log
+### 2026-09-02 (Phase 63 — T-6301 completed)
+- API dựng lại debrief từ detail P62 hợp lệ, trả một phiên hoặc tối đa 10 phiên gần đây theo chính host và class scope.
+- JSON cũ/hỏng bị bỏ qua hoặc trả `DEBRIEF_NOT_AVAILABLE`; không trả raw detail và không attach room đã kết thúc.
+- Games page hiển thị report gần đây, mở lại bảng P62 sau reload; Teaching Mode truyền class filter đã khóa.
+- Verify: typecheck/build, React Doctor 100/100, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/retrieval đều pass.
+
+### 2026-09-02 (Phase 63 — T-6301 started)
+- Chốt đường đọc lịch sử tách khỏi room realtime: parse detail P62 qua Zod, dựng lại summary và không trả raw JSON.
+- Feed gần đây chỉ lấy phiên do chính giáo viên host; filter lớp phải qua quyền quản lý hiện hữu.
+- Doc-first gate hoàn tất; chuẩn bị REST, UI reload/expand, Browser và restart authorization coverage.
+
 ### 2026-09-01 (Phase 62 — T-6201 completed)
 - Migration v24 giữ tổng lượt nộp/chưa đạt xuyên challenge và restart; live edit, timer và host evaluate không làm tăng counter.
 - Kênh host-only phát debrief lớp/học viên an toàn trước `game:finished`; transaction kết thúc ghi detail theo learner ID và cập nhật idempotent, không chứa topology/feedback.

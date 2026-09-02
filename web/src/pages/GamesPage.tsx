@@ -99,6 +99,7 @@ const NEEDS_QUESTIONS = new Set<GameMode>(['quick_quiz', 'tug_of_war', 'hand_rai
 const KTTX_MODES = new Set<GameMode>(['hand_raise', 'crossword', 'word_scramble', 'quiz_show', 'bingo', 'circuit_draw', 'circuit_simulate']);
 const USES_SECONDS = new Set<GameMode>(['quick_quiz', 'tug_of_war', 'hand_raise', 'quiz_show', 'circuit_draw', 'circuit_simulate']);
 const GAME_GUIDE_PREFERENCE = 'smart-lecture-hide-game-guides';
+const FINISHED_AT_FORMATTER = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
 const DEFAULT_CIRCUIT_CHALLENGE_GUIDE = [
   { title: 'Đèn LED', observation: 'Bật công tắc để kiểm tra đường tín hiệu HIGH và LED sáng.' },
   { title: 'Cổng AND', observation: 'So sánh LED khi lần lượt bật A, B và cả hai đầu vào.' },
@@ -175,6 +176,12 @@ interface CircuitLearningDebrief {
     incorrectSubmissionAttempts: number;
     score: number;
   }>;
+}
+
+interface RecentCircuitDebrief {
+  session: GameSessionInfo;
+  finishedAt: string | null;
+  debrief: CircuitLearningDebrief;
 }
 
 interface CircuitInspection extends CircuitProgressRow {
@@ -372,6 +379,8 @@ export default function GamesPage({
   const [session, setSession] = useState<GameSessionInfo | null>(null);
   const [recoveringSession, setRecoveringSession] = useState(() => !lockedClassId);
   const [guideMode, setGuideMode] = useState<GameMode | null>(() => autoShowGuides && !shouldHideGameGuides() ? 'quick_quiz' : null);
+  const [recentDebriefs, setRecentDebriefs] = useState<RecentCircuitDebrief[]>([]);
+  const [loadingRecentDebriefs, setLoadingRecentDebriefs] = useState(true);
 
   useEffect(() => {
     if (lockedClassId) return;
@@ -386,6 +395,23 @@ export default function GamesPage({
       });
     return () => { active = false; };
   }, [lockedClassId]);
+
+  useEffect(() => {
+    let active = true;
+    const classId = lockedClassId || initialClassId;
+    const query = classId ? `?classId=${encodeURIComponent(classId)}&limit=5` : '?limit=5';
+    void api<{ reports: RecentCircuitDebrief[] }>(`/games/mine/recent-circuit-debriefs${query}`)
+      .then(({ reports }) => {
+        if (active) setRecentDebriefs(reports);
+      })
+      .catch(() => {
+        if (active) setRecentDebriefs([]);
+      })
+      .finally(() => {
+        if (active) setLoadingRecentDebriefs(false);
+      });
+    return () => { active = false; };
+  }, [initialClassId, lockedClassId]);
 
   function launchSession(nextSession: GameSessionInfo) {
     setSession(nextSession);
@@ -413,6 +439,7 @@ export default function GamesPage({
       <PageHeader title="Trò chơi" subtitle="Kiểm tra bài cũ ngay trên lớp — học viên tham gia bằng tài khoản" actions={
         tab !== 'picker' && tab !== 'saved' ? <Button variant="secondary" onClick={() => setGuideMode(tab)}><i className="fas fa-circle-play" /> Cách chơi</Button> : undefined
       } />
+      <RecentCircuitDebriefs reports={recentDebriefs} loading={loadingRecentDebriefs} />
       <div className="mb-5 flex w-fit flex-wrap gap-1 rounded-sm border border-slate-200 bg-white p-1">
         {(Object.keys(MODE_META) as GameMode[]).map((k) => (
           <button key={k} onClick={() => selectGame(k)} className={`flex items-center gap-1.5 rounded-sm px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-blue-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
@@ -674,6 +701,52 @@ function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, 
         onClose={closeTemplateEditor}
       />
     </div>
+  );
+}
+
+function formatFinishedAt(value: string | null): string {
+  if (!value) return 'Không rõ thời gian';
+  const parsed = new Date(`${value.replace(' ', 'T')}Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return FINISHED_AT_FORMATTER.format(parsed);
+}
+
+function RecentCircuitDebriefs({ reports, loading }: { reports: RecentCircuitDebrief[]; loading: boolean }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  if (loading) {
+    return <Card className="mb-4 flex items-center gap-2 p-4 text-sm text-slate-500"><Spinner /> Đang tải tổng kết mạch gần đây…</Card>;
+  }
+  if (reports.length === 0) return null;
+  return (
+    <section className="mb-5" aria-label="Tổng kết mạch gần đây">
+      <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-600"><i className="fas fa-clock-rotate-left" /> Tổng kết mạch gần đây</h2>
+      <div className="space-y-2">
+        {reports.map((report) => {
+          const expanded = expandedId === report.session.id;
+          const summary = report.debrief.summary;
+          return (
+            <Card key={report.session.id} className="overflow-hidden p-0">
+              <button
+                type="button"
+                className="flex w-full flex-wrap items-center justify-between gap-3 p-4 text-left hover:bg-slate-50"
+                aria-expanded={expanded}
+                aria-controls={`circuit-debrief-${report.session.id}`}
+                onClick={() => setExpandedId(expanded ? null : report.session.id)}
+              >
+                <span><span className="block font-bold text-slate-900">{report.session.config.title || 'Mô phỏng mạch'}</span><span className="text-xs text-slate-500">Kết thúc {formatFinishedAt(report.finishedAt)}</span></span>
+                <span className="flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-blue-100 px-2.5 py-1 text-blue-800">Hoàn thành {summary.completionRate}%</span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">{summary.learnerCount} học viên</span>
+                  <span className="rounded-full bg-rose-100 px-2.5 py-1 text-rose-700">{summary.incorrectSubmissionAttempts} lượt chưa đạt</span>
+                  <i className={`fas ${expanded ? 'fa-chevron-up' : 'fa-chevron-down'} self-center text-slate-400`} />
+                </span>
+              </button>
+              {expanded && <div id={`circuit-debrief-${report.session.id}`} className="border-t border-slate-200 p-4"><CircuitLearningDebriefView debrief={report.debrief} /></div>}
+            </Card>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

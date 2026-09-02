@@ -13,6 +13,75 @@ function generateRoomCode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+const storedCircuitDebriefSchema = z
+  .object({
+    type: z.literal('circuit_learning_debrief'),
+    version: z.literal(1),
+    completedCount: z.number().int().min(0).max(100),
+    totalChallenges: z.number().int().min(1).max(100),
+    totalSubmissionAttempts: z.number().int().min(0).max(1_000_000),
+    incorrectSubmissionAttempts: z.number().int().min(0).max(1_000_000),
+  })
+  .refine((detail) => detail.completedCount <= detail.totalChallenges, 'completedCount exceeds totalChallenges')
+  .refine(
+    (detail) => detail.incorrectSubmissionAttempts <= detail.totalSubmissionAttempts,
+    'incorrectSubmissionAttempts exceeds totalSubmissionAttempts',
+  );
+
+interface StoredCircuitResultRow {
+  student_id: string;
+  display_name: string;
+  score: number;
+  detail_json: string;
+}
+
+function parseStoredCircuitDetail(raw: string) {
+  try {
+    const parsed = storedCircuitDebriefSchema.safeParse(JSON.parse(raw) as unknown);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function readPersistedCircuitDebrief(sessionId: string) {
+  const rows = db.prepare(
+    `SELECT gr.student_id, u.display_name, gr.score, gr.detail_json
+     FROM game_results gr
+     JOIN users u ON u.id = gr.student_id
+     WHERE gr.game_session_id = ?
+     ORDER BY gr.rank, u.display_name, gr.student_id`,
+  ).all(sessionId) as unknown as StoredCircuitResultRow[];
+  const learners = rows.flatMap((row) => {
+    const detail = parseStoredCircuitDetail(row.detail_json);
+    if (!detail) return [];
+    return [{
+      userId: row.student_id,
+      name: row.display_name,
+      completedCount: detail.completedCount,
+      totalChallenges: detail.totalChallenges,
+      totalSubmissionAttempts: detail.totalSubmissionAttempts,
+      incorrectSubmissionAttempts: detail.incorrectSubmissionAttempts,
+      score: Number.isFinite(row.score) ? row.score : 0,
+    }];
+  });
+  if (learners.length === 0) return null;
+  const totalCompletions = learners.reduce((sum, learner) => sum + learner.completedCount, 0);
+  const totalPossible = learners.reduce((sum, learner) => sum + learner.totalChallenges, 0);
+  return {
+    summary: {
+      learnerCount: learners.length,
+      completedAllCount: learners.filter((learner) => learner.completedCount === learner.totalChallenges).length,
+      totalCompletions,
+      totalPossible,
+      totalSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.totalSubmissionAttempts, 0),
+      incorrectSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.incorrectSubmissionAttempts, 0),
+      completionRate: totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0,
+    },
+    learners,
+  };
+}
+
 router.post(
   '/games',
   requireRole('teacher', 'admin'),
@@ -204,6 +273,55 @@ router.get(
   })
 );
 
+router.get(
+  '/games/mine/recent-circuit-debriefs',
+  requireRole('teacher', 'admin'),
+  h(async (req, res) => {
+    const authed = req as AuthedRequest;
+    const parsed = z.object({
+      classId: z.string().min(1).optional(),
+      limit: z.coerce.number().int().min(1).max(10).default(5),
+    }).safeParse(req.query);
+    if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', 'Bộ lọc tổng kết không hợp lệ');
+    if (parsed.data.classId) {
+      const cls = getClassOrThrow(parsed.data.classId);
+      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với lớp này');
+    }
+    const scanLimit = Math.min(parsed.data.limit * 5, 50);
+    const rows = db.prepare(
+      `SELECT * FROM game_sessions
+       WHERE host_teacher_id = ? AND game_type = 'circuit_simulate' AND status = 'finished'
+         AND (? IS NULL OR class_id = ?)
+       ORDER BY finished_at DESC, created_at DESC
+       LIMIT ?`,
+    ).all(
+      authed.user.id,
+      parsed.data.classId ?? null,
+      parsed.data.classId ?? null,
+      scanLimit,
+    ) as unknown as GameRow[];
+    const reports = rows.flatMap((row) => {
+      const debrief = readPersistedCircuitDebrief(row.id);
+      return debrief ? [{ session: serializeSession(row), finishedAt: row.finished_at, debrief }] : [];
+    }).slice(0, parsed.data.limit);
+    res.json({ reports });
+  }),
+);
+
+router.get(
+  '/games/:id/circuit-debrief',
+  requireRole('teacher', 'admin'),
+  h(async (req, res) => {
+    const row = getGameOrThrow(String(req.params.id));
+    assertHost(row, req as AuthedRequest);
+    if (row.game_type !== 'circuit_simulate') throw new HttpError(400, 'WRONG_GAME_TYPE', 'Phiên này không phải game mô phỏng mạch');
+    if (row.status !== 'finished') throw new HttpError(400, 'NOT_FINISHED', 'Game chưa kết thúc');
+    const debrief = readPersistedCircuitDebrief(row.id);
+    if (!debrief) throw new HttpError(404, 'DEBRIEF_NOT_AVAILABLE', 'Phiên chưa có tổng kết học tập mạch hợp lệ');
+    res.json({ session: serializeSession(row), finishedAt: row.finished_at, debrief });
+  }),
+);
+
 router.post(
   '/games/random-pick',
   requireRole('teacher', 'admin'),
@@ -359,6 +477,9 @@ export interface GameRow {
   config_json: string;
   status: string;
   current_question_index: number;
+  class_id: string | null;
+  created_at: string;
+  finished_at: string | null;
 }
 
 export function getGameOrThrow(id: string): GameRow {

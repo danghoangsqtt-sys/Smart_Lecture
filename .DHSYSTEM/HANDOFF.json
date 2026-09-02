@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.0-planned",
   "created": "2026-08-23",
-  "status": "phase-62-completed",
-  "phase_current": "P62-circuit-learning-debrief",
+  "status": "phase-63-completed",
+  "phase_current": "P63-circuit-debrief-recovery",
   "workflow_state": "verified",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Select and specify the next classroom milestone from the verified P62 circuit learning debrief baseline."
+  "next_action": "Select and specify the next classroom milestone from the verified P63 durable debrief recovery baseline."
 }

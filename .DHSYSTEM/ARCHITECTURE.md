@@ -120,6 +120,7 @@ erDiagram
 | Attendance | POST /classes/:cid/sessions · PUT /sessions/:sid/records | teacher |
 | RAG | POST /rag/documents (upload) · GET /rag/documents/:id/status · POST /rag/chat (GV) | teacher |
 | System | GET /health · GET /system/info (LAN IP + QR payload) · POST /system/backup | admin |
+| Circuit debrief | GET /games/:id/circuit-debrief · GET /games/mine/recent-circuit-debriefs?classId&limit | host teacher/admin; recent feed is own sessions |
 
 Quy tắc: mọi mutation có zod validate; lỗi chuẩn `{error: {code, message}}`; phân quyền middleware `requireRole('teacher')`.
 
@@ -151,6 +152,7 @@ Checkpoint hỗ trợ mới nhất được persist trước khi phát. Nếu kh
 Migration v23 bổ sung checkpoint lần nộp hiện tại vào `game_circuit_player_states`. Chỉ payload `submitted=true` tăng `submission_attempts` và ghi thời điểm/mã/phản hồi; đồng bộ topology thông thường không tạo attempt. Mã validation chỉ mô tả nhóm lỗi an toàn (`invalid_data`, `wire_count`, `component_count`, `connection`) hoặc `correct`, không chứa reference topology. Learner đích nhận `circuit_simulate:validation`; host nhận metadata qua progress/inspection room riêng. Checkpoint reset khi chuyển hoặc restart challenge và được khôi phục qua process restart.
 Điều khiển nhịp độ P61 tiếp tục dùng `game_circuit_runtime`: `extend` cộng đúng 30 giây vào deadline đang chạy hoặc `remaining_ms` đang pause (cap 10 phút), persist rồi broadcast control state; `evaluate` xóa timer và gọi duy nhất `evaluateCircuitSimulateChallenge` để chấm/chuyển bài. UI readiness chỉ derive completed/submitted/incorrect counts từ progress metadata riêng của host, không yêu cầu topology.
 Migration v24 bổ sung `total_submission_attempts` và `incorrect_submission_attempts`. Hai counter chỉ tăng khi learner phát payload `submitted=true`, không reset khi chuyển/làm lại challenge và không tăng do timer/host evaluate. Khi kết thúc, server dựng debrief một lần, phát `circuit_simulate:learning_debrief` chỉ vào host room trước event chung `game:finished`, rồi ghi detail an toàn theo learner ID trong transaction `game_results`; payload/detail không chứa topology, reference circuit, validation feedback hay assistance message.
+Read model P63 đọc các result detail version 1 qua Zod, loại dòng legacy/hỏng và tính lại summary từ metric an toàn. Endpoint một phiên kiểm tra đúng host (admin được phép); feed gần đây chỉ quét có giới hạn các phiên `circuit_simulate` đã kết thúc do chính user host và class filter phải qua `canManageClass`. Luồng này không nạp room realtime hay topology.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 ## 6. Luồng RAG pipeline (services/rag.ts)

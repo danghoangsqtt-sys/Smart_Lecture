@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Circuit debrief recovery
+
+- Thêm read model Zod dựng lại tổng kết mạch từ `game_results.detail_json`, bỏ qua dữ liệu cũ/hỏng và không trả raw JSON.
+- Bổ sung API một phiên và danh sách gần đây theo đúng host, giới hạn tối đa 10 report và kiểm tra quyền khi lọc lớp.
+- Trang Trò chơi hiển thị tổng kết mạch gần đây, mở lại bảng chi tiết sau reload mà không khôi phục room realtime đã kết thúc.
+- Regression xác nhận student/giáo viên khác bị chặn, class filter không vượt scope và phiên lỗi không che phiên hợp lệ.
+
 ## 2026-09-01 — Circuit learning debrief
 
 - Thêm migration v24 lưu tổng lượt nộp và lượt chưa đạt theo học viên xuyên challenge và process restart.
