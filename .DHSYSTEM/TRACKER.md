@@ -222,8 +222,20 @@
 | T-6201 | Tổng kết học tập mạch theo lớp và từng học viên khi kết thúc game | P62 | done | migration v24 + realtime/result debrief + Browser 4/4 + React Doctor 100 + full regression |
 | T-6301 | Phục hồi và mở lại tổng kết mạch gần đây từ dữ liệu bền vững | P63 | done | Zod read model + authorized REST + reload/expand UI + Browser 4/4 + full regression |
 | T-6401 | Xuất tổng kết mạch an toàn dạng CSV/XLSX | P64 | done | shared authorized export + formula safety + Browser downloads + parsed CSV/XLSX + full regression |
+| T-6501 | Tách console host theo lifecycle và từng miền game | P65 | done | Doctor 0 issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 
 ## Session log
+### 2026-09-02 (Phase 65 — T-6501 completed)
+- `HostConsole` chỉ còn sở hữu reducer, Socket/API callback và điều phối các view theo lifecycle; không đổi event/payload hay state source.
+- Lobby, giơ tay, ô chữ, kéo co, đua toán, quiz và kết quả cuối đã tách riêng; sandbox tách tiếp Bingo, Memory, Xếp chữ, Quiz Show, Vẽ mạch và Mô phỏng mạch.
+- Hai cảnh báo complexity P64 được loại không suppression/config; Doctor changed-scope trả 0 issue (scanner hiện tại chấm 91 với diagnostics rỗng).
+- Verify: typecheck/build, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/export parsing đều pass.
+
+### 2026-09-02 (Phase 65 — T-6501 started)
+- Chốt refactor thuần frontend: giữ nguyên reducer, Socket lifecycle, API, text, aria, CSS và mọi luật game.
+- `HostConsole` chỉ điều phối; các lifecycle/game view nhận typed props tối thiểu; sandbox trở thành dispatcher mỏng.
+- Doc-first gate hoàn tất; start tag `SmartLecture-DH-p65-t6501` trỏ đúng baseline P64 `a00c595`.
+
 ### 2026-09-02 (Phase 64 — T-6401 completed)
 - Route export dùng lại loader P63, trả CSV BOM hoặc XLSX có sheet/độ rộng cột; filename chỉ chứa session ID an toàn.
 - Metadata và tên học viên được trung hoà formula injection; file loại internal learner ID, topology, feedback, assistance và raw JSON.

@@ -104,6 +104,13 @@
 - [x] Add export actions to live and recovered debrief views.
 - [x] Verify file contents, spreadsheet safety, authorization, downloads, and regressions.
 
+## Phase 65 — Game Host Console Modularization ✅
+
+- [x] Extract focused lifecycle and per-game host views.
+- [x] Keep reducer, Socket, API, accessibility, and visual contracts unchanged.
+- [x] Remove all changed-scope React Doctor diagnostics without suppression.
+- [x] Verify all Browser and backend regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

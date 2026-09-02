@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Game host console modularization
+
+- Tách console giáo viên thành các view theo lifecycle và từng loại game, giữ `HostConsole` làm ranh giới điều phối reducer/Socket/API.
+- Biến sandbox host thành composition mỏng cho Bingo, Memory Match, Xếp chữ, Quiz Show, Vẽ mạch và Mô phỏng mạch.
+- Giữ nguyên điều kiện render, nội dung, aria, CSS, callback/event payload, tổng kết/xuất mạch và bonus panel.
+- Loại toàn bộ cảnh báo React Doctor trong changed scope và xác nhận lại bằng Browser, REST, Socket, security/data cùng restart regression.
+
 ## 2026-09-02 — Circuit debrief export
 
 - Thêm export tổng kết mạch một phiên dạng CSV UTF-8 BOM và XLSX từ cùng read model/phân quyền P63.

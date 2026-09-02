@@ -156,6 +156,8 @@ Read model P63 đọc các result detail version 1 qua Zod, loại dòng legacy/
 Export P64 gọi lại cùng loader P63 rồi dựng một ma trận hàng dùng chung cho CSV/XLSX. CSV có UTF-8 BOM; XLSX dùng worksheet `Tổng kết mạch` và độ rộng cột giới hạn. Text do user kiểm soát được prefix dấu nháy nếu bắt đầu bằng ký tự công thức; file không chứa learner ID, topology, feedback, assistance hay raw JSON.
 Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
+Host console P65 giữ `useHostConsoleEffects` là chủ sở hữu duy nhất của realtime lifecycle và giữ reducer/callback trong `HostConsole`. Phần render được chia theo lifecycle (header, lobby, giơ tay, ô chữ, kéo co, đua toán, vòng quiz, kết quả) và theo sandbox game (Bingo, Memory Match, Xếp chữ, Quiz Show, Vẽ mạch, Mô phỏng mạch). Các view con chỉ nhận typed props, không đăng ký Socket listener, không gọi API và không tạo nguồn state thứ hai; vì vậy việc mở rộng UI game không làm thay đổi contract server hay persistence.
+
 ## 6. Luồng RAG pipeline (services/rag.ts)
 
 ```
