@@ -66,6 +66,113 @@ function createSimulationChallenge(): SimulationChallengeDraft {
   return { id: nextDraftId('simulation-challenge'), title: '', description: '', points: 100, tpl: null };
 }
 
+interface GamePayloadInput {
+  mode: GameMode;
+  title: string;
+  selectedIds: Set<string>;
+  secondsPerQuestion: number;
+  durationSec: number;
+  difficulty: number;
+  pointsPerCorrect: 0.25 | 0.5 | 1;
+  lockOnStart: boolean;
+  classId: string;
+  subjectId: string;
+  template: CircuitData | null;
+  simulationChallenges: SimulationChallengeDraft[];
+  puzzleKeyword: string;
+  puzzleRows: PuzzleRowDraft[];
+}
+
+function serializeCircuitTemplate(template: CircuitData) {
+  return {
+    components: template.components.map((component) => ({ id: component.id, type: component.type, x: component.x, y: component.y, rot: component.rot, props: component.props })),
+    wires: template.wires.map((wire) => ({ id: wire.id, from: wire.from, to: wire.to })),
+  };
+}
+
+function buildGamePayload(input: GamePayloadInput): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    gameType: input.mode,
+    title: input.title.trim() || MODE_META[input.mode].label,
+    questionIds: NEEDS_QUESTIONS.has(input.mode) ? [...input.selectedIds] : undefined,
+    secondsPerQuestion: input.secondsPerQuestion,
+    durationSec: input.durationSec,
+    difficulty: input.difficulty,
+    lockOnStart: input.lockOnStart,
+    classId: input.classId || undefined,
+    subjectId: input.subjectId || undefined,
+  };
+  if (KTTX_MODES.has(input.mode)) body.pointsPerCorrect = input.pointsPerCorrect;
+  if ((input.mode === 'circuit_draw' || input.mode === 'circuit_simulate') && input.template && input.template.components.length > 0) {
+    body.circuitTemplate = serializeCircuitTemplate(input.template);
+  }
+  if (input.mode === 'circuit_simulate') {
+    const validChallenges = input.simulationChallenges.filter((challenge) => challenge.title.trim());
+    if (validChallenges.length > 0) {
+      body.simulateChallenges = validChallenges.map((challenge) => ({
+        title: challenge.title.trim(),
+        description: challenge.description.trim(),
+        targetBehavior: challenge.description.trim(),
+        points: Math.min(1000, Math.max(10, Math.round(challenge.points))),
+        circuit: challenge.tpl && challenge.tpl.components.length > 0 ? serializeCircuitTemplate(challenge.tpl) : null,
+      }));
+    }
+  }
+  if (input.mode === 'crossword') {
+    body.pointsPerCorrect = input.pointsPerCorrect;
+    body.puzzle = {
+      keyword: input.puzzleKeyword.trim(),
+      rows: input.puzzleRows.map((row) => ({ clue: row.clue.trim(), word: row.word.trim() })),
+    };
+  }
+  return body;
+}
+
+function gameSubmissionReady(mode: GameMode, selectedIds: Set<string>, puzzleKeyword: string, puzzleRows: PuzzleRowDraft[]): boolean {
+  const crosswordReady = mode !== 'crossword'
+    || (puzzleKeyword.trim().length > 0 && puzzleRows.every((row) => row.clue.trim() && row.word.trim()));
+  return (!NEEDS_QUESTIONS.has(mode) || selectedIds.size > 0) && crosswordReady;
+}
+
+function toggleSelectedQuestion(current: Set<string>, questionId: string, checked: boolean): Set<string> {
+  const next = new Set(current);
+  if (checked) next.add(questionId); else next.delete(questionId);
+  return next;
+}
+
+function createGameActions(input: GamePayloadInput, onCreated: (session: GameSessionInfo) => void) {
+  async function create() {
+    try {
+      const body = buildGamePayload(input);
+      const response = await api<{ id: string; roomCode: string }>('/games', { method: 'POST', body: JSON.stringify(body) });
+      toast.success(`Đã tạo phòng ${response.roomCode}`);
+      onCreated({ id: response.id, roomCode: response.roomCode, gameType: input.mode, status: 'lobby', questionCount: input.selectedIds.size, config: { title: body.title as string, secondsPerQuestion: input.secondsPerQuestion } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Lỗi tạo game');
+    }
+  }
+  async function savePrepared() {
+    try {
+      const body = buildGamePayload(input);
+      await api('/prepared-games', {
+        method: 'POST',
+        body: JSON.stringify({
+          gameType: input.mode,
+          title: body.title,
+          classId: input.classId || null,
+          subjectId: input.subjectId || null,
+          questionIds: body.questionIds ?? [],
+          config: body,
+        }),
+      });
+      toast.success('Đã lưu game để dùng lại');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Lỗi lưu game');
+    }
+  }
+  return { create, savePrepared };
+}
+
 export interface GameSessionInfo {
   id: string;
   gameType: string;
@@ -499,8 +606,61 @@ export default function GamesPage({
   );
 }
 
-function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, onCreated }: { mode: GameMode; initialClassId: string; initialSubjectId: string; lockedClassId: string; onCreated: (session: GameSessionInfo) => void }) {
+function useGameQuestionCatalog(mode: GameMode, subjectId: string, chapter: string) {
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(mode !== 'math_race');
+  useEffect(() => {
+    if (!NEEDS_QUESTIONS.has(mode)) { setQuestions([]); setLoading(false); return; }
+    setLoading(true);
+    const params = new URLSearchParams({ limit: '500' });
+    if (subjectId) params.set('subjectId', subjectId);
+    if (chapter) params.set('chapter', chapter);
+    api<{ questions: Question[] }>(`/questions?${params}`)
+      .then((response) => setQuestions(response.questions))
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, [mode, subjectId, chapter]);
+  return { questions, loading };
+}
+
+function useClassSubjectCatalog(classId: string) {
+  const [subjects, setSubjects] = useState<SubjectInfo[]>([]);
+  useEffect(() => {
+    if (!classId) { setSubjects([]); return; }
+    api<{ subjects: SubjectInfo[] }>(`/classes/${classId}/subjects`)
+      .then((response) => setSubjects(response.subjects))
+      .catch(() => setSubjects([]));
+  }, [classId]);
+  return subjects;
+}
+
+function useCircuitTemplateDraft(mode: GameMode) {
+  const [template, setTemplate] = useState<CircuitData | null>(null);
+  const [open, setOpen] = useState(false);
+  const [challenges, setChallenges] = useState<SimulationChallengeDraft[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const editingChallenge = mode === 'circuit_simulate' && editingIndex !== null ? challenges[editingIndex] ?? null : null;
+
+  function close() { setOpen(false); setEditingIndex(null); }
+  function editChallenge(index: number) { setEditingIndex(index); setOpen(true); }
+  function update(data: CircuitData) {
+    const normalized = { components: data.components, wires: data.wires };
+    if (editingChallenge && editingIndex !== null) {
+      setChallenges((items) => items.map((item, index) => index === editingIndex ? { ...item, tpl: normalized } : item));
+    } else {
+      setTemplate(normalized);
+    }
+  }
+  return {
+    template, setTemplate, open, setOpen, challenges, setChallenges, editingIndex,
+    editingChallenge, canvasData: editingChallenge ? editingChallenge.tpl : template,
+    close, editChallenge, update,
+  };
+}
+
+interface CreateGameTabProps { mode: GameMode; initialClassId: string; initialSubjectId: string; lockedClassId: string; onCreated: (session: GameSessionInfo) => void }
+
+function useCreateGameController({ mode, initialClassId, initialSubjectId, lockedClassId, onCreated }: CreateGameTabProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [secondsPerQuestion, setSeconds] = useState(20);
   const [durationSec, setDurationSec] = useState(120);
@@ -508,7 +668,6 @@ function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, 
   const [pointsPerCorrect, setPointsPerCorrect] = useState<0.25 | 0.5 | 1>(0.5);
   const [lockOnStart, setLockOnStart] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState(lockedClassId || initialClassId);
-  const [subjects, setSubjects] = useState<SubjectInfo[]>([]);
   const [subjectId, setSubjectId] = useState(initialSubjectId);
   const [chapter, setChapter] = useState('');
   const [title, setTitle] = useState(MODE_META[mode].label);
@@ -519,30 +678,9 @@ function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, 
   const classId = lockedClassId || selectedClassId || routeClassId || classes[0]?.id || '';
   const [puzzleKeyword, setPuzzleKeyword] = useState('');
   const [puzzleRows, setPuzzleRows] = useState<PuzzleRowDraft[]>(() => [createPuzzleRow(), createPuzzleRow()]);
-  const [loading, setLoading] = useState(mode !== 'math_race');
-  const [tpl, setTpl] = useState<CircuitData | null>(null);
-  const [tplOpen, setTplOpen] = useState(false);
-  const [simCh, setSimCh] = useState<SimulationChallengeDraft[]>([]);
-  const [simEditIdx, setSimEditIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!NEEDS_QUESTIONS.has(mode)) { setQuestions([]); setLoading(false); return; }
-    setLoading(true);
-    const params = new URLSearchParams({ limit: '500' });
-    if (subjectId) params.set('subjectId', subjectId);
-    if (chapter) params.set('chapter', chapter);
-    api<{ questions: Question[] }>(`/questions?${params}`)
-      .then((r) => setQuestions(r.questions))
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
-  }, [mode, subjectId, chapter]);
-
-  useEffect(() => {
-    if (!classId) { setSubjects([]); return; }
-    api<{ subjects: SubjectInfo[] }>(`/classes/${classId}/subjects`)
-      .then((r) => setSubjects(r.subjects))
-      .catch(() => setSubjects([]));
-  }, [classId]);
+  const circuitEditor = useCircuitTemplateDraft(mode);
+  const { questions, loading } = useGameQuestionCatalog(mode, subjectId, chapter);
+  const subjects = useClassSubjectCatalog(classId);
 
   const chapters = [...new Set(questions.flatMap((question) => question.chapter ? [question.chapter] : []))]
     .sort((a, b) => a.localeCompare(b, 'vi'));
@@ -554,185 +692,85 @@ function CreateGameTab({ mode, initialClassId, initialSubjectId, lockedClassId, 
     setChapter('');
   }
 
-  function buildGamePayload(): Record<string, unknown> {
-      const body: Record<string, unknown> = {
-        gameType: mode,
-        title: title.trim() || MODE_META[mode].label,
-        questionIds: NEEDS_QUESTIONS.has(mode) ? [...selectedIds] : undefined,
-        secondsPerQuestion,
-        durationSec,
-        difficulty,
-        lockOnStart,
-        classId: classId || undefined,
-        subjectId: subjectId || undefined,
-      };
-      if (KTTX_MODES.has(mode)) {
-        body.pointsPerCorrect = pointsPerCorrect;
-      }
-      if ((mode === 'circuit_draw' || mode === 'circuit_simulate') && tpl && tpl.components.length > 0) {
-        body.circuitTemplate = {
-          components: tpl.components.map((c) => ({ id: c.id, type: c.type, x: c.x, y: c.y, rot: c.rot, props: c.props })),
-          wires: tpl.wires.map((w) => ({ id: w.id, from: w.from, to: w.to })),
-        };
-      }
-      if (mode === 'circuit_simulate' && simCh.length > 0) {
-        const valid = simCh.filter((c) => c.title.trim());
-        if (valid.length > 0) {
-          body.simulateChallenges = valid.map((c) => ({
-            title: c.title.trim(),
-            description: c.description.trim(),
-            targetBehavior: c.description.trim(),
-            points: Math.min(1000, Math.max(10, Math.round(c.points))),
-            circuit:
-              c.tpl && c.tpl.components.length > 0
-                ? {
-                    components: c.tpl.components.map((x) => ({ id: x.id, type: x.type, x: x.x, y: x.y, rot: x.rot, props: x.props })),
-                    wires: c.tpl.wires.map((w) => ({ id: w.id, from: w.from, to: w.to })),
-                  }
-                : null,
-          }));
-        }
-      }
-      if (mode === 'crossword') {
-        body.pointsPerCorrect = pointsPerCorrect;
-        body.puzzle = {
-          keyword: puzzleKeyword.trim(),
-          rows: puzzleRows.map((r) => ({ clue: r.clue.trim(), word: r.word.trim() })),
-        };
-      }
-      return body;
+  const payloadInput: GamePayloadInput = {
+    mode, title, selectedIds, secondsPerQuestion, durationSec, difficulty, pointsPerCorrect,
+    lockOnStart, classId, subjectId, template: circuitEditor.template,
+    simulationChallenges: circuitEditor.challenges, puzzleKeyword, puzzleRows,
+  };
+  const actions = createGameActions(payloadInput, onCreated);
+  const canSubmit = gameSubmissionReady(mode, selectedIds, puzzleKeyword, puzzleRows);
+
+  function toggleQuestion(questionId: string, checked: boolean) {
+    setSelectedIds((current) => toggleSelectedQuestion(current, questionId, checked));
   }
 
-  async function create() {
-    try {
-      const body = buildGamePayload();
-      const res = await api<{ id: string; roomCode: string }>('/games', { method: 'POST', body: JSON.stringify(body) });
-      toast.success(`Đã tạo phòng ${res.roomCode}`);
-      onCreated({ id: res.id, roomCode: res.roomCode, gameType: mode, status: 'lobby', questionCount: selectedIds.size, config: { title: body.title as string, secondsPerQuestion } });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lỗi tạo game');
-    }
+  function updatePuzzleRow(index: number, patch: Partial<PuzzleRowDraft>) {
+    setPuzzleRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
   }
 
-  async function savePrepared() {
-    try {
-      const body = buildGamePayload();
-      await api('/prepared-games', {
-        method: 'POST',
-        body: JSON.stringify({
-          gameType: mode,
-          title: body.title,
-          classId: classId || null,
-          subjectId: subjectId || null,
-          questionIds: body.questionIds ?? [],
-          config: body,
-        }),
-      });
-      toast.success('Đã lưu game để dùng lại');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lỗi lưu game');
-    }
+  function selectSubject(nextSubjectId: string) {
+    setSubjectId(nextSubjectId);
+    setChapter('');
   }
 
-  const crosswordReady = mode !== 'crossword'
-    || (
-      puzzleKeyword.trim().length > 0
-      && puzzleRows.every((row) => row.clue.trim() && row.word.trim())
-    );
-  const canSubmit = (!NEEDS_QUESTIONS.has(mode) || selectedIds.size > 0) && crosswordReady;
-  const editingSimulation = mode === 'circuit_simulate' && simEditIdx !== null
-    ? simCh[simEditIdx] ?? null
-    : null;
-  const canvasData = editingSimulation ? editingSimulation.tpl : tpl;
+  return {
+    mode, questions, selectedIds, loading, puzzleKeyword, puzzleRows,
+    onToggleQuestion: toggleQuestion,
+    onPuzzleKeywordChange: setPuzzleKeyword,
+    onPuzzleRowChange: updatePuzzleRow,
+    onAddPuzzleRow: () => setPuzzleRows((rows) => [...rows, createPuzzleRow()]),
+    onRemovePuzzleRow: () => setPuzzleRows((rows) => rows.slice(0, -1)),
+    settings: {
+      mode, title, classId, classLocked: Boolean(lockedClassId), classes, subjectId, subjects,
+      chapter, chapters, secondsPerQuestion, durationSec, difficulty, pointsPerCorrect,
+      lockOnStart, template: circuitEditor.template, challenges: circuitEditor.challenges, canSubmit,
+      onTitleChange: setTitle, onClassChange: selectClass, onSubjectChange: selectSubject,
+      onChapterChange: setChapter, onSecondsChange: setSeconds, onDurationChange: setDurationSec,
+      onDifficultyChange: setDifficulty, onPointsChange: setPointsPerCorrect,
+      onLockChange: setLockOnStart, onOpenTemplate: () => circuitEditor.setOpen(true),
+      onClearTemplate: () => circuitEditor.setTemplate(null), onChallengesChange: circuitEditor.setChallenges,
+      onEditChallenge: circuitEditor.editChallenge, onSave: () => void actions.savePrepared(), onCreate: () => void actions.create(),
+    },
+    templateEditor: {
+      open: circuitEditor.open, editingTitle: circuitEditor.editingChallenge?.title, editingIndex: circuitEditor.editingIndex,
+      data: circuitEditor.canvasData, onChange: circuitEditor.update, onClose: circuitEditor.close,
+    },
+  };
+}
 
-  function closeTemplateEditor() {
-    setTplOpen(false);
-    setSimEditIdx(null);
-  }
+function CreateGameTab(props: CreateGameTabProps) {
+  const workspace = useCreateGameController(props);
+  return <CreateGameWorkspace {...workspace} />;
+}
 
-  function updateCanvasData(data: CircuitData) {
-    const normalized = { components: data.components, wires: data.wires };
-    if (editingSimulation && simEditIdx !== null) {
-      setSimCh((items) => items.map((item, index) => index === simEditIdx ? { ...item, tpl: normalized } : item));
-    } else {
-      setTpl(normalized);
-    }
-  }
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      {NEEDS_QUESTIONS.has(mode) && (
-        <QuestionSelectionCard
-          questions={questions}
-          selectedIds={selectedIds}
-          loading={loading}
-          onToggle={(questionId, checked) => setSelectedIds((current) => {
-            const next = new Set(current);
-            if (checked) next.add(questionId); else next.delete(questionId);
-            return next;
-          })}
-        />
-      )}
-
-      {mode === 'crossword' && (
-        <CrosswordBuilder
-          keyword={puzzleKeyword}
-          rows={puzzleRows}
-          onKeywordChange={setPuzzleKeyword}
-          onRowChange={(index, patch) => setPuzzleRows((rows) =>
-            rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row)
-          )}
-          onAddRow={() => setPuzzleRows((rows) => [...rows, createPuzzleRow()])}
-          onRemoveRow={() => setPuzzleRows((rows) => rows.slice(0, -1))}
-        />
-      )}
-
-      <GameSettingsCard
-        mode={mode}
-        title={title}
-        classId={classId}
-        classLocked={Boolean(lockedClassId)}
-        classes={classes}
-        subjectId={subjectId}
-        subjects={subjects}
-        chapter={chapter}
-        chapters={chapters}
-        secondsPerQuestion={secondsPerQuestion}
-        durationSec={durationSec}
-        difficulty={difficulty}
-        pointsPerCorrect={pointsPerCorrect}
-        lockOnStart={lockOnStart}
-        template={tpl}
-        challenges={simCh}
-        canSubmit={canSubmit}
-        onTitleChange={setTitle}
-        onClassChange={selectClass}
-        onSubjectChange={(nextSubjectId) => { setSubjectId(nextSubjectId); setChapter(''); }}
-        onChapterChange={setChapter}
-        onSecondsChange={setSeconds}
-        onDurationChange={setDurationSec}
-        onDifficultyChange={setDifficulty}
-        onPointsChange={setPointsPerCorrect}
-        onLockChange={setLockOnStart}
-        onOpenTemplate={() => setTplOpen(true)}
-        onClearTemplate={() => setTpl(null)}
-        onChallengesChange={setSimCh}
-        onEditChallenge={(index) => { setSimEditIdx(index); setTplOpen(true); }}
-        onSave={() => void savePrepared()}
-        onCreate={() => void create()}
-      />
-
-      <CircuitTemplateModal
-        mode={mode}
-        open={tplOpen}
-        editingTitle={editingSimulation?.title}
-        editingIndex={simEditIdx}
-        data={canvasData}
-        onChange={updateCanvasData}
-        onClose={closeTemplateEditor}
-      />
-    </div>
-  );
+function CreateGameWorkspace({ mode, questions, selectedIds, loading, puzzleKeyword, puzzleRows, onToggleQuestion, onPuzzleKeywordChange, onPuzzleRowChange, onAddPuzzleRow, onRemovePuzzleRow, settings, templateEditor }: {
+  mode: GameMode;
+  questions: Question[];
+  selectedIds: Set<string>;
+  loading: boolean;
+  puzzleKeyword: string;
+  puzzleRows: PuzzleRowDraft[];
+  onToggleQuestion: (questionId: string, checked: boolean) => void;
+  onPuzzleKeywordChange: (keyword: string) => void;
+  onPuzzleRowChange: (index: number, patch: Partial<PuzzleRowDraft>) => void;
+  onAddPuzzleRow: () => void;
+  onRemovePuzzleRow: () => void;
+  settings: GameSettingsCardProps;
+  templateEditor: {
+    open: boolean;
+    editingTitle?: string;
+    editingIndex: number | null;
+    data: CircuitData | null;
+    onChange: (data: CircuitData) => void;
+    onClose: () => void;
+  };
+}) {
+  return <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+    {NEEDS_QUESTIONS.has(mode) && <QuestionSelectionCard questions={questions} selectedIds={selectedIds} loading={loading} onToggle={onToggleQuestion} />}
+    {mode === 'crossword' && <CrosswordBuilder keyword={puzzleKeyword} rows={puzzleRows} onKeywordChange={onPuzzleKeywordChange} onRowChange={onPuzzleRowChange} onAddRow={onAddPuzzleRow} onRemoveRow={onRemovePuzzleRow} />}
+    <GameSettingsCard {...settings} />
+    <CircuitTemplateModal mode={mode} open={templateEditor.open} editingTitle={templateEditor.editingTitle} editingIndex={templateEditor.editingIndex} data={templateEditor.data} onChange={templateEditor.onChange} onClose={templateEditor.onClose} />
+  </div>;
 }
 
 function formatFinishedAt(value: string | null): string {

@@ -224,8 +224,20 @@
 | T-6401 | Xuất tổng kết mạch an toàn dạng CSV/XLSX | P64 | done | shared authorized export + formula safety + Browser downloads + parsed CSV/XLSX + full regression |
 | T-6501 | Tách console host theo lifecycle và từng miền game | P65 | done | Doctor 0 issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6601 | Tách monitor hỗ trợ học viên mạch theo từng trách nhiệm | P66 | done | Doctor 0 changed issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
+| T-6701 | Tách orchestration và payload builder của luồng tạo game | P67 | done | Doctor 100/100 + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 
 ## Session log
+### 2026-09-02 (Phase 67 — T-6701 completed)
+- Tạo pure typed serializer dùng chung cho create/save, giữ nguyên field của question, KTTX, crossword, template và per-challenge circuit.
+- Tách question/subject catalogs, circuit draft, controller hook và workspace render; `CreateGameTab` chỉ nối controller với workspace.
+- Doctor changed-scope 100/100; full scan giảm 24 → 23, không còn finding nào trong `GamesPage`.
+- Verify: typecheck/build, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/export parsing đều pass.
+
+### 2026-09-02 (Phase 67 — T-6701 started)
+- Chốt pure typed payload builder dùng chung cho tạo phòng/lưu sẵn, giữ nguyên mọi field theo mode.
+- `CreateGameTab` tiếp tục sở hữu state/effect/request; workspace riêng render question/crossword/settings/template modal.
+- Doc-first gate hoàn tất; start tag `SmartLecture-DH-p67-t6701` trỏ đúng baseline P66 `b00e3aa`.
+
 ### 2026-09-02 (Phase 66 — T-6601 completed)
 - Queue builder giữ nguyên priority/activity/name tie-break, counts và filter; monitor chỉ còn local filter/hint state cùng typed orchestration.
 - Tách queue controls, progress list/row, submission/assistance badge, inspection, diagnostics, topology read-only và hint/retry delivery status.

@@ -160,6 +160,8 @@ Host console P65 giữ `useHostConsoleEffects` là chủ sở hữu duy nhất c
 
 Monitor hỗ trợ mạch P66 dựng queue qua một pure builder từ progress/assistance hiện tại, giữ thứ tự `priority → lastActivityAt → name`. Component điều phối chỉ sở hữu filter và nội dung hint; queue controls, learner rows, submission/assistance badge, inspection diagnostics, topology read-only và private assistance delivery là các view typed riêng. Việc tách này không tạo thêm subscription, không bulk-load topology và không thay đổi selected-only privacy hoặc checkpoint delivery/acknowledgement.
 
+Luồng tạo game P67 dùng một pure serializer duy nhất cho cả `/games` và `/prepared-games`, với helper circuit template dùng chung cho template mặc định/per-challenge. Question/subject catalogs và circuit draft có hook riêng; controller hook sở hữu state/request, còn `CreateGameWorkspace` chỉ compose selector, crossword, settings và modal. Các validation gate và payload theo mode vì vậy có một nguồn sự thật phía client mà không đổi contract server.
+
 ## 6. Luồng RAG pipeline (services/rag.ts)
 
 ```

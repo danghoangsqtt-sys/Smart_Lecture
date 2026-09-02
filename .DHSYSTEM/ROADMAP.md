@@ -118,6 +118,13 @@
 - [x] Remove the monitor complexity diagnostic without suppression.
 - [x] Verify all Browser and backend regressions.
 
+## Phase 67 — Game Creator Orchestration Modularization ✅
+
+- [x] Extract typed pure payload serialization for all game modes.
+- [x] Separate state/request orchestration from form workspace rendering.
+- [x] Preserve validation, API payloads, circuit templates, and room handoff.
+- [x] Remove the `CreateGameTab` complexity diagnostic and verify regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

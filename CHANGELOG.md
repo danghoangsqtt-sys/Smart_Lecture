@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Game creator orchestration modularization
+
+- Thêm pure typed payload serializer dùng chung khi tạo phòng và lưu game, gồm đầy đủ question/KTTX/crossword/circuit fields.
+- Tách catalog câu hỏi/môn học, circuit template draft, controller và workspace render khỏi `CreateGameTab`.
+- Giữ nguyên validation, endpoint, request shape, toast và host-room handoff; Browser tiếp tục tạo phòng mạch mặc định thật.
+- React Doctor changed-scope đạt 100/100 và full scan không còn finding trong `GamesPage`.
+
 ## 2026-09-02 — Circuit support monitor modularization
 
 - Tách queue/filter, danh sách học viên, row/badge, inspection, diagnostics, topology preview và hỗ trợ riêng khỏi monitor mạch.
