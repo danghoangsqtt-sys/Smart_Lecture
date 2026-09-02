@@ -158,6 +158,8 @@ Giới hạn thiết kế: ≤ 60 kết nối/phòng (đủ quy mô lớp).
 
 Host console P65 giữ `useHostConsoleEffects` là chủ sở hữu duy nhất của realtime lifecycle và giữ reducer/callback trong `HostConsole`. Phần render được chia theo lifecycle (header, lobby, giơ tay, ô chữ, kéo co, đua toán, vòng quiz, kết quả) và theo sandbox game (Bingo, Memory Match, Xếp chữ, Quiz Show, Vẽ mạch, Mô phỏng mạch). Các view con chỉ nhận typed props, không đăng ký Socket listener, không gọi API và không tạo nguồn state thứ hai; vì vậy việc mở rộng UI game không làm thay đổi contract server hay persistence.
 
+Monitor hỗ trợ mạch P66 dựng queue qua một pure builder từ progress/assistance hiện tại, giữ thứ tự `priority → lastActivityAt → name`. Component điều phối chỉ sở hữu filter và nội dung hint; queue controls, learner rows, submission/assistance badge, inspection diagnostics, topology read-only và private assistance delivery là các view typed riêng. Việc tách này không tạo thêm subscription, không bulk-load topology và không thay đổi selected-only privacy hoặc checkpoint delivery/acknowledgement.
+
 ## 6. Luồng RAG pipeline (services/rag.ts)
 
 ```

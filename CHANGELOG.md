@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-02 — Circuit support monitor modularization
+
+- Tách queue/filter, danh sách học viên, row/badge, inspection, diagnostics, topology preview và hỗ trợ riêng khỏi monitor mạch.
+- Giữ nguyên thứ tự ưu tiên hỗ trợ, thao tác chọn học viên tiếp theo, nội dung hint/retry và trạng thái queued/delivered/acknowledged.
+- Không thay đổi Socket/API/persistence, privacy topology, timer, scoring hoặc KTTX.
+- Loại finding complexity của `CircuitProgressMonitor` và xác nhận lại toàn bộ Browser/backend/restart regression.
+
 ## 2026-09-02 — Game host console modularization
 
 - Tách console giáo viên thành các view theo lifecycle và từng loại game, giữ `HostConsole` làm ranh giới điều phối reducer/Socket/API.

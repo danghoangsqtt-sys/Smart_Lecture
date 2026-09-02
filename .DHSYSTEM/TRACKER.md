@@ -223,8 +223,20 @@
 | T-6301 | Phục hồi và mở lại tổng kết mạch gần đây từ dữ liệu bền vững | P63 | done | Zod read model + authorized REST + reload/expand UI + Browser 4/4 + full regression |
 | T-6401 | Xuất tổng kết mạch an toàn dạng CSV/XLSX | P64 | done | shared authorized export + formula safety + Browser downloads + parsed CSV/XLSX + full regression |
 | T-6501 | Tách console host theo lifecycle và từng miền game | P65 | done | Doctor 0 issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
+| T-6601 | Tách monitor hỗ trợ học viên mạch theo từng trách nhiệm | P66 | done | Doctor 0 changed issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 
 ## Session log
+### 2026-09-02 (Phase 66 — T-6601 completed)
+- Queue builder giữ nguyên priority/activity/name tie-break, counts và filter; monitor chỉ còn local filter/hint state cùng typed orchestration.
+- Tách queue controls, progress list/row, submission/assistance badge, inspection, diagnostics, topology read-only và hint/retry delivery status.
+- Doctor changed-scope 0 issue, 92/100; full scan giảm 25 → 24 và không còn finding tại `CircuitProgressMonitor`.
+- Verify: typecheck/build, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/export parsing đều pass.
+
+### 2026-09-02 (Phase 66 — T-6601 started)
+- Chốt refactor thuần frontend cho queue, filter, learner row, inspection, diagnostics và hỗ trợ riêng của monitor mạch.
+- Giữ nguyên `circuitSupportMeta`, thứ tự ưu tiên/tie-break, selection, hint/retry, privacy và mọi trạng thái khôi phục P56–P61.
+- Doc-first gate hoàn tất; start tag `SmartLecture-DH-p66-t6601` trỏ đúng baseline P65 `5d199e1`.
+
 ### 2026-09-02 (Phase 65 — T-6501 completed)
 - `HostConsole` chỉ còn sở hữu reducer, Socket/API callback và điều phối các view theo lifecycle; không đổi event/payload hay state source.
 - Lobby, giơ tay, ô chữ, kéo co, đua toán, quiz và kết quả cuối đã tách riêng; sandbox tách tiếp Bingo, Memory, Xếp chữ, Quiz Show, Vẽ mạch và Mô phỏng mạch.

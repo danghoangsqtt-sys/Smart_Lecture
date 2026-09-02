@@ -111,6 +111,13 @@
 - [x] Remove all changed-scope React Doctor diagnostics without suppression.
 - [x] Verify all Browser and backend regressions.
 
+## Phase 66 — Circuit Support Monitor Modularization ✅
+
+- [x] Extract circuit queue, progress, inspection, diagnostics, and private-assistance views.
+- [x] Preserve deterministic triage, privacy, accessibility, and recovery contracts.
+- [x] Remove the monitor complexity diagnostic without suppression.
+- [x] Verify all Browser and backend regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold
