@@ -1,11 +1,11 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.9.1-planned",
+  "version": "0.9.2-planned",
   "created": "2026-08-23",
-  "status": "phase-69-completed",
-  "phase_current": "P69-class-detail-workspace-modularization",
-  "workflow_state": "verified",
+  "status": "phase-70-in-progress",
+  "phase_current": "P70-game-engine-modularization",
+  "workflow_state": "implementation-started",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Select and specify the next classroom milestone from the verified P69 class-detail baseline."
+  "next_action": "Implement T-7001: separate Socket.IO game lifecycle, mode handlers, and circuit runtime while retaining established contracts."
 }

@@ -139,6 +139,12 @@
 - [x] Establish typed shared class-detail contracts without duplicating backend response shapes.
 - [x] Verify the class-detail entry surface and full Browser/backend regressions.
 
+## Phase 70 — Game Engine Modularization 🚧
+
+- [ ] Extract Socket.IO lifecycle, shared room utilities, conventional game-mode handlers, and circuit runtime handlers from `gameRoom.ts`.
+- [ ] Preserve every realtime event, authorization gate, persistence/recovery, timing, grading, and privacy contract.
+- [ ] Verify full REST/Socket/Browser/restart regression coverage without a schema or endpoint change.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

@@ -227,6 +227,7 @@
 | T-6701 | Tách orchestration và payload builder của luồng tạo game | P67 | done | Doctor 100/100 + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6801 | Ổn định lifecycle nguồn, annotation và render của Presentation Canvas | P68 | done | Doctor 100/100 + Browser annotation flow + full regression/restart PASS |
 | T-6901 | Tách Class Detail theo miền lớp học, giữ nguyên hợp đồng | P69 | done | typecheck/build + Browser 4/4 + REST 86/86 + Socket 10/10 + security/data 22/22 + restore/circuit restart PASS |
+| T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | doing | typecheck + build + Socket/Browser/REST/restart regression |
 
 ## Session log
 ### 2026-09-03 (Phase 69 — T-6901 completed)

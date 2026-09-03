@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Game engine modularization
+
+- Bắt đầu tách Socket.IO game engine theo lifecycle, game mode và circuit runtime; giữ nguyên hợp đồng realtime/persistence.
+
 ## 2026-09-03 — Class Detail workspace modularization
 
 - Tách workspace chi tiết lớp theo từng miền nghiệp vụ, giữ nguyên hợp đồng giao diện và dữ liệu.
