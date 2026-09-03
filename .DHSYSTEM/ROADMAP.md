@@ -132,6 +132,13 @@
 - [x] Harden async page rendering and remove render-local pure work.
 - [x] Preserve all presentation tools and verify Browser/backend regressions.
 
+## Phase 69 — Class Detail Workspace Modularization ✅
+
+- [x] Separate the class overview, students, attendance, gradebook, groups, settings, curriculum, and teaching-workspace UI into focused feature modules.
+- [x] Keep route parameters, URL-tab behavior, existing API calls, authorization, export behavior, visible text, and Tailwind/a11y contracts unchanged.
+- [x] Establish typed shared class-detail contracts without duplicating backend response shapes.
+- [x] Verify the class-detail entry surface and full Browser/backend regressions.
+
 ## Phase 1 — Nền tảng + Trái tim sản phẩm (MVP giảng dạy)
 
 ### P1.1 Hạ tầng & Auth ✅ scaffold

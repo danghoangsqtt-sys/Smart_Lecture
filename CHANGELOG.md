@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-03 — Class Detail workspace modularization
+
+- Tách workspace chi tiết lớp theo từng miền nghiệp vụ, giữ nguyên hợp đồng giao diện và dữ liệu.
+
 ## 2026-09-02 — Presentation canvas lifecycle hardening
 
 - Cô lập lifecycle PDF/PPTX theo source identity để page, canvas, annotation và settings không rò giữa hai tài liệu.

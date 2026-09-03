@@ -226,8 +226,19 @@
 | T-6601 | Tách monitor hỗ trợ học viên mạch theo từng trách nhiệm | P66 | done | Doctor 0 changed issue + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6701 | Tách orchestration và payload builder của luồng tạo game | P67 | done | Doctor 100/100 + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6801 | Ổn định lifecycle nguồn, annotation và render của Presentation Canvas | P68 | done | Doctor 100/100 + Browser annotation flow + full regression/restart PASS |
+| T-6901 | Tách Class Detail theo miền lớp học, giữ nguyên hợp đồng | P69 | done | typecheck/build + Browser 4/4 + REST 86/86 + Socket 10/10 + security/data 22/22 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-03 (Phase 69 — T-6901 completed)
+- Tách Class Detail thành các feature overview, students, attendance, gradebook, groups, settings, curriculum và teaching workspace; route entry còn 97 dòng.
+- Giữ nguyên URL tab, API/payload, phân quyền, import/export Excel, AI nhận xét, curriculum và luồng vào Teaching Mode.
+- Verify: typecheck/build, Browser 4/4, REST 86/86, Socket 10/10, security/data 22/22, restore và circuit restart/export đều pass.
+
+### 2026-09-03 (Phase 69 — T-6901 started)
+- Chốt refactor Class Detail theo miền overview, students, attendance, gradebook, groups, settings, curriculum và teaching workspace; không thay đổi API, schema, quyền hay URL tab.
+- Baseline: P68 `8d77c59`, cây sạch; ClassDetailPage 2.4k dòng với 19 view/modal là bề mặt frontend lớn nhất còn lại.
+- Doc-first gate hoàn tất; version refactor `0.9.0` → `0.9.1`.
+
 ### 2026-09-02 (Phase 68 — T-6801 completed)
 - Document surface remount theo source identity; annotation/settings init lazy từ material-scoped storage và migrate legacy URL key an toàn.
 - Loại ready-state/effect hydration; async page render kiểm tra cancellation trước view update/error; pointer/stroke render chuyển ra module scope và render một lượt.
