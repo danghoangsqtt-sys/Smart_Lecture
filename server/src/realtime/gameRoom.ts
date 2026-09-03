@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
 import { generateMathProblem } from './gameUtils.js';
 import { createClassicGameModes } from './classicGameModes.js';
+import { buildCircuitLearningDebrief, circuitValidationResult, circuitsMatch } from './circuitTopology.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
 import { zAnswer, zBingoMark, zCircuitDraw, zCircuitDrawVerify, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCompletedChallenges, zCwTry, zMathAnswer, zMeasurements, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
-import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, CircuitLearningDebrief, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
+import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
 import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js';
@@ -321,101 +322,6 @@ function submitAllCircuits(room: RoomState): void {
   // Teacher will verify manually via verdict
 }
 
-/* ---------- Auto-verify: so khớp netlist theo CẤP LOẠI LINH KIỆN ----------
-   Không so vị trí/xoay — chỉ so:
-   1) Đúng số lượng từng loại linh kiện
-   2) Đúng số dây nối
-   3) Tập "chữ ký kết nối" (loại:chân ~ loại:chân) giống hệt nhau          */
-interface TypeLevelNetlist {
-  types: Map<string, number>;
-  sigs: Map<string, number>;
-  wireCount: number;
-}
-
-function extractNetlist(circuit: unknown): TypeLevelNetlist | null {
-  const obj = circuit as { components?: any[]; wires?: any[] } | null | undefined;
-  if (!obj || !Array.isArray(obj.components) || !Array.isArray(obj.wires)) return null;
-
-  const idType = new Map<string, string>();
-  const types = new Map<string, number>();
-  for (const comp of obj.components) {
-    if (!comp || typeof comp.id !== 'string' || typeof comp.type !== 'string') return null;
-    idType.set(comp.id, comp.type);
-    types.set(comp.type, (types.get(comp.type) ?? 0) + 1);
-  }
-
-  const sigs = new Map<string, number>();
-  let wireCount = 0;
-  const epOf = (raw: unknown, explicitPort: unknown): string | null => {
-    if (typeof raw !== 'string') return null;
-    const sep = raw.lastIndexOf('::');
-    const cid = sep >= 0 ? raw.slice(0, sep) : raw;
-    const embeddedPort = sep >= 0 ? raw.slice(sep + 2) : '';
-    const pid = embeddedPort || (typeof explicitPort === 'string' ? explicitPort : '');
-    const t = idType.get(cid);
-    if (!t) return null;
-    return `${t}:${pid || '?'}`;
-  };
-
-  for (const w of obj.wires) {
-    if (!w || typeof w.from !== 'string' || typeof w.to !== 'string') continue;
-    const a = epOf(w.from, w.fromPort);
-    const b = epOf(w.to, w.toPort);
-    if (!a || !b || a === b) continue;
-    wireCount++;
-    const [x, y] = a < b ? [a, b] : [b, a];
-    const key = `${x}~${y}`;
-    sigs.set(key, (sigs.get(key) ?? 0) + 1);
-  }
-
-  return { types, sigs, wireCount };
-}
-
-function circuitsMatch(student: unknown, reference: unknown): boolean {
-  const s = extractNetlist(student);
-  const r = extractNetlist(reference);
-  if (!s || !r) return false;
-  if (s.wireCount !== r.wireCount) return false;
-  if (s.types.size !== r.types.size) return false;
-  for (const [t, n] of r.types) {
-    if (s.types.get(t) !== n) return false;
-  }
-  if (s.sigs.size !== r.sigs.size) return false;
-  for (const [k, n] of r.sigs) {
-    if (s.sigs.get(k) !== n) return false;
-  }
-  return true;
-}
-
-function buildCircuitLearningDebrief(room: RoomState): CircuitLearningDebrief {
-  const totalChallenges = room.circuitSimulateChallenges.length;
-  const learners = [...room.circuitSimulatePlayers.values()]
-    .map((player): CircuitDebriefRow => ({
-      userId: player.userId,
-      name: player.displayName,
-      completedCount: player.completedChallenges.length,
-      totalChallenges,
-      totalSubmissionAttempts: player.totalSubmissionAttempts,
-      incorrectSubmissionAttempts: player.incorrectSubmissionAttempts,
-      score: player.score,
-    }))
-    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
-  const totalCompletions = learners.reduce((sum, learner) => sum + learner.completedCount, 0);
-  const totalPossible = learners.length * totalChallenges;
-  return {
-    summary: {
-      learnerCount: learners.length,
-      completedAllCount: learners.filter((learner) => totalChallenges > 0 && learner.completedCount === totalChallenges).length,
-      totalCompletions,
-      totalPossible,
-      totalSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.totalSubmissionAttempts, 0),
-      incorrectSubmissionAttempts: learners.reduce((sum, learner) => sum + learner.incorrectSubmissionAttempts, 0),
-      completionRate: totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0,
-    },
-    learners,
-  };
-}
-
 function circuitHostRoom(room: RoomState): string {
   return `game-host:${room.sessionId}`;
 }
@@ -629,26 +535,6 @@ function circuitSimulateHostSnapshot(room: RoomState) {
     progress: circuitSimulateProgressSnapshot(room),
     assistance: circuitAssistanceSnapshot(room),
   };
-}
-
-function circuitValidationResult(student: unknown, reference: unknown): {
-  correct: boolean;
-  code: CircuitValidationCode;
-  feedback: string;
-} {
-  const s = extractNetlist(student);
-  const r = extractNetlist(reference);
-  if (!s || !r) return { correct: false, code: 'invalid_data', feedback: 'Dữ liệu mạch không hợp lệ. Hãy thử nộp lại.' };
-  if (circuitsMatch(student, reference)) return { correct: true, code: 'correct', feedback: 'Mạch đúng — kết quả đã được ghi nhận.' };
-  if (s.wireCount !== r.wireCount) {
-    return { correct: false, code: 'wire_count', feedback: `Cần kiểm tra số dây nối (${s.wireCount}/${r.wireCount}).` };
-  }
-  for (const [type, count] of r.types) {
-    if (s.types.get(type) !== count) {
-      return { correct: false, code: 'component_count', feedback: 'Cần kiểm tra lại loại và số lượng linh kiện.' };
-    }
-  }
-  return { correct: false, code: 'connection', feedback: 'Các chân nối chưa đúng. Hãy kiểm tra chiều OUT → IN.' };
 }
 
 interface CircuitRuntimeRow {
