@@ -1,19 +1,14 @@
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import { JWT_SECRET } from '../config.js';
 import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
+import { authenticateSocket } from './socketAuth.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, CircuitLearningDebrief, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
-interface SocketPayload {
-  userId: string;
-  role: string;
-}
 import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js';
 
 const zRoom = z.object({ roomCode: z.string().length(6) });
@@ -72,19 +67,6 @@ const rooms = new Map<string, RoomState>();
 const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userId: string }>();
 let ioRef: IOServer | null = null;
 
-
-function authenticate(socket: Socket): SocketPayload | null {
-  const token = socket.handshake.auth?.token as string | undefined;
-  if (!token) return null;
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
-    const user = getUserById(payload.sub);
-    if (!user || user.status === 'locked' || user.must_change_password === 1) return null;
-    return { userId: user.id, role: user.role };
-  } catch {
-    return null;
-  }
-}
 
 function isRoomHost(room: RoomState | undefined, socket: Socket): room is RoomState {
   return !!room && socket.data.role !== 'student' && room.hostId === String(socket.data.userId);
@@ -2004,7 +1986,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
   restoreActiveCircuitRooms();
 
   io.use((socket, next) => {
-    const payload = authenticate(socket);
+    const payload = authenticateSocket(socket);
     if (!payload) {
       next(new Error('unauthorized'));
       return;
