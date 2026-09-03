@@ -1,65 +1,20 @@
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
-import { z } from 'zod';
 import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
+import { zAnswer, zBingoMark, zCircuitDraw, zCircuitDrawVerify, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCompletedChallenges, zCwTry, zMathAnswer, zMeasurements, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
+import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, CircuitLearningDebrief, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
 import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js';
 
-const zRoom = z.object({ roomCode: z.string().length(6) });
-const zAnswer = z.object({ choiceIdx: z.number().int().min(-1).max(9).default(-1), text: z.string().max(500).optional() });
-const zMathAnswer = z.object({ answer: z.union([z.string().max(50), z.number()]) });
-const zVerdict = z.object({ userId: z.string(), correct: z.boolean() });
-const zCwTry = z.object({ rowIndex: z.number().int().min(0).max(9), word: z.string().min(1).max(60) });
-const zBingoMark = z.object({ number: z.number().int().min(1).max(75) });
-const zMemoryFlip = z.object({ cardIndex: z.number().int().min(0).max(23) });
-const zWordScrambleGuess = z.object({ word: z.string().min(1).max(60) });
-const zQuizShowAnswer = z.object({ choiceIdx: z.number().int().min(-1).max(3).default(-1), lifeline: z.enum(['fiftyFifty', 'askAudience', 'phoneFriend']).optional() });
-const zCircuitDraw = z.object({
-  components: z.array(z.object({
-    id: z.string(),
-    type: z.string(),
-    x: z.number(),
-    y: z.number(),
-    rotation: z.number().default(0),
-    properties: z.record(z.string(), z.unknown()).default({})
-  })),
-  wires: z.array(z.object({
-    id: z.string(),
-    from: z.string(),
-    to: z.string(),
-    fromPort: z.string().optional(),
-    toPort: z.string().optional()
-  })),
-  submitted: z.boolean().default(false),
-});
-const zCircuitSimulate = z.object({
-  action: z.enum(['start', 'stop', 'step', 'reset']),
-  inputs: z.record(z.string(), z.union([z.number(), z.boolean()])).optional(),
-  timeStep: z.number().optional()
-});
-const zCircuitHostControl = z.object({
-  action: z.enum(['pause', 'resume', 'extend', 'evaluate', 'skip', 'restart']),
-});
 const CIRCUIT_EXTENSION_MS = 30_000;
 const CIRCUIT_MAX_REMAINING_MS = 10 * 60_000;
-const zCircuitInspect = z.object({
-  userId: z.string().min(1).max(120),
-});
-const zCircuitTeacherMessage = z.object({
-  userId: z.string().min(1).max(120),
-  kind: z.enum(['hint', 'retry']),
-  message: z.string().max(300).optional(),
-});
-const zCircuitTeacherMessageAck = z.object({
-  messageId: z.string().uuid(),
-});
 
 
 const MAX_PLAYERS = 60;
@@ -1426,10 +1381,10 @@ function restoreCircuitSimulateRoom(room: RoomState): boolean {
   room.circuitSimulatePlayers = new Map();
   for (const row of rows) {
     const circuitResult = zCircuitDraw.safeParse(parsePersistedJson(row.circuit_json, null));
-    const measurementsResult = z.record(z.string(), z.number()).safeParse(
+    const measurementsResult = zMeasurements.safeParse(
       parsePersistedJson(row.measurements_json, {}),
     );
-    const completedResult = z.array(z.string().max(120)).max(50).safeParse(
+    const completedResult = zCompletedChallenges.safeParse(
       parsePersistedJson(row.completed_challenges_json, []),
     );
     const completedChallenges = completedResult.success
@@ -1600,7 +1555,7 @@ function nextCircuitSimulateChallenge(room: RoomState): void {
 
 function controlCircuitSimulateChallenge(
   room: RoomState,
-  action: z.infer<typeof zCircuitHostControl>['action'],
+  action: CircuitHostControlAction,
 ): void {
   if (action === 'pause') {
     if (!room.circuitSimulatePaused) {
@@ -1976,7 +1931,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
 
   io.on('connection', (socket) => {
     socket.on('game:host-attach', (raw: unknown) => {
-      const parsed = z.object({ sessionId: z.string() }).safeParse(raw);
+      const parsed = zSessionId.safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = findRoomBySession(rooms.values(), parsed.data.sessionId) ?? loadRoomFromDb(parsed.data.sessionId);
       if (!room) {
@@ -2197,7 +2152,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     socket.on('game:host-pick', (raw: unknown) => {
-      const parsed = z.object({ userId: z.string() }).safeParse(raw);
+      const parsed = zUserId.safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!isRoomHost(room, socket) || room.activePick) return;
@@ -2253,7 +2208,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     socket.on('game:host-kick', (raw: unknown) => {
-      const parsed = z.object({ userId: z.string() }).safeParse(raw);
+      const parsed = zUserId.safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!isRoomHost(room, socket)) return;
@@ -2469,7 +2424,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     socket.on('circuit_draw:verify', (raw: unknown) => {
-      const parsed = z.object({ userId: z.string(), correct: z.boolean(), feedback: z.string().optional() }).safeParse(raw);
+      const parsed = zCircuitDrawVerify.safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!isRoomHost(room, socket) || room.gameType !== 'circuit_draw') return;
@@ -2649,7 +2604,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
 
     socket.on('circuit_simulate:measurements', (raw: unknown) => {
-      const parsed = z.object({ measurements: z.record(z.string(), z.number()) }).safeParse(raw);
+      const parsed = zCircuitMeasurements.safeParse(raw);
       if (!parsed.success || socket.data.role !== 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
