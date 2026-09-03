@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
 import { generateMathProblem } from './gameUtils.js';
 import { createClassicGameModes } from './classicGameModes.js';
-import { buildCircuitLearningDebrief, circuitValidationResult, circuitsMatch } from './circuitTopology.js';
+import { createGameLifecycle } from './gameLifecycle.js';
+import { circuitValidationResult, circuitsMatch } from './circuitTopology.js';
 import { configureCircuitSimulateChallenges } from './circuitChallenges.js';
 import { parsePersistedJson, persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import type { CircuitPlayerStateRow, CircuitRuntimeRow } from './circuitPersistence.js';
@@ -13,7 +14,7 @@ import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
 import { zAnswer, zBingoMark, zCircuitDraw, zCircuitDrawVerify, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCompletedChallenges, zCwTry, zMathAnswer, zMeasurements, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
-import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
+import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
 import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js';
@@ -27,6 +28,15 @@ const MAX_PLAYERS = 60;
 const rooms = new Map<string, RoomState>();
 const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userId: string }>();
 let ioRef: IOServer | null = null;
+const gameLifecycle = createGameLifecycle({
+  getIo: () => ioRef,
+  broadcastLeaderboard,
+  broadcastRope,
+  broadcastHands,
+  circuitHostRoom,
+  removeRoom: (roomCode) => rooms.delete(roomCode),
+});
+const { finishGame, revealAnswer, startQuestion, nextStep } = gameLifecycle;
 const classicGameModes = createClassicGameModes({
   getIo: () => ioRef,
   finishGame,
@@ -82,209 +92,6 @@ function emitCrosswordState(room: RoomState, target?: Socket): void {
   };
   if (target) target.emit('cw:state', payload);
   else ioRef?.to(`game:${room.roomCode}`).emit('cw:state', payload);
-}
-
-function startQuestion(room: RoomState): void {
-  if (room.currentIndex >= room.questions.length) {
-    finishGame(room);
-    return;
-  }
-  room.phase = 'question';
-  room.questionStartAt = Date.now();
-  room.questionEndsAt = Date.now() + room.secondsPerQuestion * 1000;
-  const q = room.questions[room.currentIndex];
-  if (!q) return;
-  ioRef?.to(`game:${room.roomCode}`).emit('question:show', {
-    index: room.currentIndex,
-    total: room.questions.length,
-    question: { id: q.id, type: q.type, content: q.content, options: q.options ?? [] },
-    endsAt: room.questionEndsAt,
-    durationSec: room.secondsPerQuestion,
-  });
-  if (room.gameType === 'hand_raise') {
-    room.hands.clear();
-    room.activePick = null;
-    broadcastHands(room);
-    return;
-  }
-  if (room.timer) clearTimeout(room.timer);
-  room.timer = setTimeout(() => revealAnswer(room), room.secondsPerQuestion * 1000 + 400);
-}
-
-function isAnswerCorrect(q: GameQuestion, choiceIdx: number, text: string | undefined): boolean {
-  if (q.type === 'mcq') return choiceIdx === q.correctIdx;
-  const normalized = (text ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-  return normalized.length > 0 && normalized === (q.correctText ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-function revealAnswer(room: RoomState): void {
-  if (!room || room.phase !== 'question') return;
-  room.phase = 'leaderboard';
-  const q = room.questions[room.currentIndex];
-  if (!q) return;
-  const totalMs = room.secondsPerQuestion * 1000;
-  const optionCount = q.options?.length ?? 0;
-  const counts = new Array(Math.max(optionCount, 1)).fill(0);
-  let correctCount = 0;
-  let answeredCount = 0;
-
-  for (const player of room.players.values()) {
-    const ans = player.answers.get(room.currentIndex);
-    if (!ans) continue;
-    answeredCount++;
-    ans.correct = isAnswerCorrect(q, ans.choiceIdx, ans.text);
-    if (q.type === 'mcq') counts[ans.choiceIdx] = (counts[ans.choiceIdx] ?? 0) + 1;
-    if (ans.correct && !ans.earned) {
-      const remainingRatio = Math.max(0, (room.questionEndsAt - (room.questionStartAt + ans.msTaken)) / totalMs);
-      ans.earned = Math.round(60 + 40 * remainingRatio);
-      player.score += ans.earned;
-      if (ans.correct) correctCount++;
-    } else if (ans.correct) {
-      correctCount++;
-    }
-  }
-
-  ioRef?.to(`game:${room.roomCode}`).emit('answer:reveal', {
-    index: room.currentIndex,
-    correctIdx: q.type === 'mcq' ? q.correctIdx : -1,
-    correctText: q.type === 'fill' ? q.correctText : undefined,
-    counts,
-    correctCount,
-    playerCount: answeredCount,
-  });
-
-  if (room.gameType === 'tug_of_war') {
-    const teamStats = { A: { correct: 0, answered: 0 }, B: { correct: 0, answered: 0 } };
-    for (const player of room.players.values()) {
-      const ans = player.answers.get(room.currentIndex);
-      if (!player.team || !ans) continue;
-      const stat = teamStats[player.team];
-      if (stat) {
-        stat.answered += 1;
-        if (ans.correct) stat.correct += 1;
-      }
-    }
-    const ratioA = teamStats.A!.answered > 0 ? teamStats.A!.correct / teamStats.A!.answered : 0;
-    const ratioB = teamStats.B!.answered > 0 ? teamStats.B!.correct / teamStats.B!.answered : 0;
-    const delta = Math.max(-35, Math.min(35, Math.round((ratioA - ratioB) * 45)));
-    room.ropePos = Math.max(-100, Math.min(100, room.ropePos + delta));
-    broadcastRope(room);
-  }
-
-  broadcastLeaderboard(room);
-  db.prepare('UPDATE game_sessions SET current_question_index = ? WHERE id = ?').run(room.currentIndex, room.sessionId);
-}
-
-function nextStep(room: RoomState): void {
-  room.currentIndex++;
-  if (room.gameType === 'tug_of_war' && Math.abs(room.ropePos) >= 100) {
-    finishGame(room);
-    return;
-  }
-  if (room.currentIndex >= room.questions.length) {
-    finishGame(room);
-  } else {
-    startQuestion(room);
-  }
-}
-
-function finishGame(room: RoomState): void {
-  room.phase = 'finished';
-  if (room.timer) clearTimeout(room.timer);
-  room.timer = null;
-
-  let podium: { rank: number; name: string; score: number }[] = [];
-  const circuitDebrief = room.gameType === 'circuit_simulate' ? buildCircuitLearningDebrief(room) : null;
-  if (room.gameType === 'math_race') {
-    podium = [...room.racePlayers.values()]
-      .sort((a, b) => b.solved - a.solved || a.startedAt - b.startedAt)
-      .slice(0, 20)
-      .map((r, i) => ({ rank: i + 1, name: r.displayName, score: r.solved }));
-  } else if (room.gameType === 'tug_of_war') {
-    const teamScore = (team: 'A' | 'B') =>
-      [...room.players.values()].filter((p) => p.team === team).reduce((s, p) => s + p.score, 0);
-    const winnerTeam: 'A' | 'B' =
-      Math.abs(room.ropePos) >= 100 ? (room.ropePos > 0 ? 'A' : 'B') : teamScore('A') >= teamScore('B') ? 'A' : 'B';
-    ioRef?.to(`game:${room.roomCode}`).emit('tug:result', {
-      winnerTeam,
-      ropePos: Math.round(room.ropePos),
-      teamA: teamScore('A'),
-      teamB: teamScore('B'),
-    });
-    podium = [...room.players.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else if (room.gameType === 'bingo') {
-    podium = [...room.bingoPlayers.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else if (room.gameType === 'memory_match') {
-    podium = [...room.memoryPlayers.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else if (room.gameType === 'word_scramble') {
-    podium = [...room.wordScramblePlayers.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else if (room.gameType === 'quiz_show') {
-    podium = [...room.quizShowPlayers.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else if (room.gameType === 'circuit_simulate') {
-    podium = [...room.circuitSimulatePlayers.values()]
-      .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  } else {
-    podium = [...room.players.values()]
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => ({ rank: i + 1, name: p.displayName, score: p.score }));
-  }
-
-  if (circuitDebrief) {
-    ioRef?.to(circuitHostRoom(room)).emit('circuit_simulate:learning_debrief', circuitDebrief);
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('game:finished', { podium });
-
-  try {
-    const insertResult = db.prepare(
-      `INSERT INTO game_results (game_session_id, student_id, score, rank, detail_json)
-       VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(game_session_id, student_id) DO UPDATE SET
-         score = excluded.score, rank = excluded.rank, detail_json = excluded.detail_json`
-    );
-    const nameToPlayer = new Map<string, string>();
-    for (const p of room.players.values()) nameToPlayer.set(p.displayName, p.userId);
-    for (const r of room.racePlayers.values()) nameToPlayer.set(r.displayName, r.userId);
-    for (const b of room.bingoPlayers.values()) nameToPlayer.set(b.displayName, b.userId);
-    for (const m of room.memoryPlayers.values()) nameToPlayer.set(m.displayName, m.userId);
-    for (const w of room.wordScramblePlayers.values()) nameToPlayer.set(w.displayName, w.userId);
-    for (const q of room.quizShowPlayers.values()) nameToPlayer.set(q.displayName, q.userId);
-    const circuitResultDetail = (learner: CircuitDebriefRow) => JSON.stringify({
-      type: 'circuit_learning_debrief',
-      version: 1,
-      completedCount: learner.completedCount,
-      totalChallenges: learner.totalChallenges,
-      totalSubmissionAttempts: learner.totalSubmissionAttempts,
-      incorrectSubmissionAttempts: learner.incorrectSubmissionAttempts,
-    });
-
-    tx(() => {
-      if (circuitDebrief) {
-        for (const [index, learner] of circuitDebrief.learners.entries()) {
-          insertResult.run(room.sessionId, learner.userId, learner.score, index + 1, circuitResultDetail(learner));
-        }
-      } else {
-        for (const entry of podium) {
-          const userId = nameToPlayer.get(entry.name);
-          if (userId) insertResult.run(room.sessionId, userId, entry.score, entry.rank, '{}');
-        }
-      }
-      db.prepare("UPDATE game_sessions SET status = 'finished', finished_at = datetime('now') WHERE id = ?").run(room.sessionId);
-    });
-  } catch (err) {
-    console.error('[game] persist results failed', err);
-  }
-  setTimeout(() => rooms.delete(room.roomCode), 10 * 60_000);
 }
 
 // ============ CIRCUIT DRAW ============
