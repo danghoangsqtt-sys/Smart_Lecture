@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { JWT_SECRET } from '../config.js';
 import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
+import { findRoomBySession } from './roomLookup.js';
 
 interface SocketPayload {
   userId: string;
@@ -2222,7 +2223,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     socket.on('game:host-attach', (raw: unknown) => {
       const parsed = z.object({ sessionId: z.string() }).safeParse(raw);
       if (!parsed.success || socket.data.role === 'student') return;
-      const room = findRoomBySession(parsed.data.sessionId) ?? loadRoomFromDb(parsed.data.sessionId);
+      const room = findRoomBySession(rooms.values(), parsed.data.sessionId) ?? loadRoomFromDb(parsed.data.sessionId);
       if (!room) {
         socket.emit('game:error', { message: 'Phiên game không tồn tại hoặc đã kết thúc' });
         return;
@@ -2959,9 +2960,3 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
   return io;
 }
 
-function findRoomBySession(sessionId: string): RoomState | null {
-  for (const room of rooms.values()) {
-    if (room.sessionId === sessionId) return room;
-  }
-  return null;
-}
