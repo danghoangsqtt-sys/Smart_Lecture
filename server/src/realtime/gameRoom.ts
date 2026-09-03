@@ -165,7 +165,6 @@ interface CircuitSimulatePlayer {
   totalSubmissionAttempts: number;
   incorrectSubmissionAttempts: number;
 }
-
 interface CircuitDebriefRow {
   userId: string;
   name: string;
