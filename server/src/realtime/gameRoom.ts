@@ -1,7 +1,8 @@
 import type { Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
-import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
+import { generateMathProblem } from './gameUtils.js';
+import { createClassicGameModes } from './classicGameModes.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
@@ -22,6 +23,12 @@ const MAX_PLAYERS = 60;
 const rooms = new Map<string, RoomState>();
 const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userId: string }>();
 let ioRef: IOServer | null = null;
+const classicGameModes = createClassicGameModes({
+  getIo: () => ioRef,
+  finishGame,
+  applyCorrectPoints,
+  broadcastLeaderboard,
+});
 
 
 function broadcastLeaderboard(room: RoomState): void {
@@ -274,273 +281,6 @@ function finishGame(room: RoomState): void {
     console.error('[game] persist results failed', err);
   }
   setTimeout(() => rooms.delete(room.roomCode), 10 * 60_000);
-}
-
-// ============ BINGO ============
-
-
-function initBingo(room: RoomState): void {
-  room.phase = 'bingo';
-  room.bingoNumbers = Array.from({ length: 75 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
-  room.bingoCalled = [];
-  room.bingoPlayers = new Map();
-  for (const player of room.players.values()) {
-    const bingoPlayer = {
-      userId: player.userId,
-      displayName: player.displayName,
-      card: generateBingoCard(),
-      marked: Array(5).fill(null).map(() => Array(5).fill(false)),
-      lines: 0,
-      score: 0,
-      bingo: false,
-    };
-    // Mark free space
-    bingoPlayer.marked[2]![2] = true;
-    room.bingoPlayers.set(player.userId, bingoPlayer);
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('bingo:init', {
-    players: [...room.bingoPlayers.values()].map((p) => ({
-      userId: p.userId,
-      name: p.displayName,
-      card: p.card,
-    })),
-  });
-  callNextBingoNumber(room);
-}
-
-function callNextBingoNumber(room: RoomState): void {
-  if (room.bingoNumbers.length === 0) {
-    finishGame(room);
-    return;
-  }
-  const num = room.bingoNumbers.shift()!;
-  room.bingoCalled.push(num);
-  ioRef?.to(`game:${room.roomCode}`).emit('bingo:call', { number: num, called: room.bingoCalled });
-  // Auto-check for bingo after delay
-  room.timer = setTimeout(() => checkBingoLinesForPlayers(room), 3000);
-}
-
-function checkBingoLinesForPlayers(room: RoomState): void {
-  for (const [userId, player] of room.bingoPlayers) {
-    if (player.bingo) continue;
-    const oldLines = player.lines;
-    player.lines = checkBingoLines(player.marked);
-    if (player.lines >= 5 && !player.bingo) {
-      player.bingo = true;
-      player.score += 1000;
-      const newKttx = applyCorrectPoints(room, userId, player.displayName);
-      ioRef?.to(`game:${room.roomCode}`).emit('bingo:win', {
-        userId,
-        name: player.displayName,
-        lines: player.lines,
-        newKttx,
-      });
-      broadcastLeaderboard(room);
-      finishGame(room);
-      return;
-    } else if (player.lines > oldLines) {
-      player.score += (player.lines - oldLines) * 100;
-      ioRef?.to(`game:${room.roomCode}`).emit('bingo:lines', {
-        userId,
-        name: player.displayName,
-        lines: player.lines,
-      });
-    }
-  }
-  callNextBingoNumber(room);
-}
-
-// ============ MEMORY MATCH ============
-
-function initMemoryMatch(room: RoomState): void {
-  room.phase = 'memory_match';
-  room.memoryCards = generateMemoryCards(12);
-  room.memoryPlayers = new Map();
-  room.memoryFlipped = [];
-  for (const player of room.players.values()) {
-    room.memoryPlayers.set(player.userId, {
-      userId: player.userId,
-      displayName: player.displayName,
-      score: 0,
-      matches: 0,
-      currentFlipped: [],
-      lastFlipTime: 0,
-    });
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('memory:init', {
-    cards: room.memoryCards.map((c) => ({ id: c.id, value: c.matched ? c.value : '?', matched: c.matched })),
-    players: [...room.memoryPlayers.values()].map((p) => ({
-      userId: p.userId,
-      name: p.displayName,
-      score: p.score,
-      matches: p.matches,
-    })),
-  });
-}
-
-function checkMemoryMatch(room: RoomState, userId: string, cardIndex: number): void {
-  const player = room.memoryPlayers.get(userId);
-  if (!player || player.currentFlipped.length >= 2) return;
-  const card = room.memoryCards[cardIndex];
-  if (!card || card.matched || player.currentFlipped.includes(cardIndex)) return;
-
-  player.currentFlipped.push(cardIndex);
-  player.lastFlipTime = Date.now();
-
-  ioRef?.to(`game:${room.roomCode}`).emit('memory:flip', {
-    userId,
-    name: player.displayName,
-    cardIndex,
-    value: card.value,
-  });
-
-  if (player.currentFlipped.length === 2) {
-    const [idx1, idx2] = player.currentFlipped as [number, number];
-    const card1 = room.memoryCards[idx1]!;
-    const card2 = room.memoryCards[idx2]!;
-    if (card1.value === card2.value) {
-      card1.matched = true;
-      card2.matched = true;
-      player.matches++;
-      player.score += 100;
-      player.currentFlipped = [];
-      ioRef?.to(`game:${room.roomCode}`).emit('memory:match', {
-        userId,
-        name: player.displayName,
-        cardIndices: [idx1, idx2],
-        value: card1.value,
-      });
-      checkMemoryWin(room);
-    } else {
-      ioRef?.to(`game:${room.roomCode}`).emit('memory:mismatch', {
-        userId,
-        name: player.displayName,
-        cardIndices: [idx1, idx2],
-      });
-      room.timer = setTimeout(() => {
-        const p = room.memoryPlayers.get(userId);
-        if (p) p.currentFlipped = [];
-        ioRef?.to(`game:${room.roomCode}`).emit('memory:hide', { cardIndices: [idx1, idx2] });
-      }, 1500);
-    }
-  }
-}
-
-function checkMemoryWin(room: RoomState): void {
-  const allMatched = room.memoryCards.every((c) => c.matched);
-  if (allMatched) {
-    finishGame(room);
-  }
-}
-
-// ============ WORD SCRAMBLE ============
-
-function initWordScramble(room: RoomState): void {
-  room.phase = 'word_scramble';
-  room.wordScrambleWords = room.questions.map((q) => ({
-    original: q.correctText || q.content,
-    scrambled: scrambleWord(q.correctText || q.content),
-  }));
-  room.wordScramblePlayers = new Map();
-  for (const player of room.players.values()) {
-    room.wordScramblePlayers.set(player.userId, {
-      userId: player.userId,
-      displayName: player.displayName,
-      score: 0,
-      solved: 0,
-      currentWord: null,
-      currentScrambled: null,
-      attempts: 0,
-    });
-  }
-  sendNextWordScramble(room);
-}
-
-function sendNextWordScramble(room: RoomState): void {
-  for (const [userId, player] of room.wordScramblePlayers) {
-    if (player.solved >= room.wordScrambleWords.length) continue;
-    const wordData = room.wordScrambleWords[player.solved]!;
-    player.currentWord = wordData.original;
-    player.currentScrambled = wordData.scrambled;
-    player.attempts = 0;
-    const socket = [...ioRef?.sockets.sockets.values() ?? []].find(
-      (s) => s.data.userId === userId && s.data.role === 'student'
-    );
-    if (socket) {
-      socket.emit('word_scramble:next', {
-        word: wordData.scrambled,
-        index: player.solved,
-        total: room.wordScrambleWords.length,
-      });
-    }
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:update', {
-    players: [...room.wordScramblePlayers.values()].map((p) => ({
-      userId: p.userId,
-      name: p.displayName,
-      score: p.score,
-      solved: p.solved,
-    })),
-  });
-}
-
-function checkWordScramble(room: RoomState, userId: string, guess: string): void {
-  const player = room.wordScramblePlayers.get(userId);
-  if (!player || !player.currentWord) return;
-  player.attempts++;
-  const normalizedGuess = guess.trim().toLowerCase();
-  const normalizedAnswer = player.currentWord.trim().toLowerCase();
-  if (normalizedGuess === normalizedAnswer) {
-    const points = Math.max(100, 500 - player.attempts * 50);
-    player.score += points;
-    player.solved++;
-    player.currentWord = null;
-    player.currentScrambled = null;
-    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:correct', {
-      userId,
-      name: player.displayName,
-      points,
-      word: player.currentWord,
-    });
-    const newKttx = applyCorrectPoints(room, userId, player.displayName);
-    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:kttx', { userId, name: player.displayName, newKttx });
-    broadcastLeaderboard(room);
-    sendNextWordScramble(room);
-  } else {
-    ioRef?.to(`game:${room.roomCode}`).emit('word_scramble:wrong', {
-      userId,
-      name: player.displayName,
-      attempts: player.attempts,
-    });
-  }
-  checkWordScrambleWin(room);
-}
-
-function checkWordScrambleWin(room: RoomState): void {
-  const allDone = [...room.wordScramblePlayers.values()].every(
-    (p) => p.solved >= room.wordScrambleWords.length
-  );
-  if (allDone) finishGame(room);
-}
-
-// ============ QUIZ SHOW ============
-function initQuizShow(room: RoomState): void {
-  room.phase = 'quiz_show';
-  room.quizShowQuestions = room.questions;
-  room.quizShowPlayers = new Map();
-  room.quizShowCurrentQuestion = 0;
-  for (const player of room.players.values()) {
-    room.quizShowPlayers.set(player.userId, {
-      userId: player.userId,
-      displayName: player.displayName,
-      score: 0,
-      streak: 0,
-      lifelines: { fiftyFifty: true, askAudience: true, phoneFriend: true },
-      currentQuestion: 0,
-      answers: new Map(),
-    });
-  }
-  sendQuizShowQuestion(room);
 }
 
 // ============ CIRCUIT DRAW ============
@@ -1614,93 +1354,6 @@ function controlCircuitSimulateChallenge(
   );
 }
 
-function sendQuizShowQuestion(room: RoomState): void {
-  if (room.quizShowCurrentQuestion >= room.quizShowQuestions.length) {
-    finishGame(room);
-    return;
-  }
-  const q = room.quizShowQuestions[room.quizShowCurrentQuestion]!;
-  ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:question', {
-    index: room.quizShowCurrentQuestion,
-    total: room.quizShowQuestions.length,
-    question: { id: q.id, type: q.type, content: q.content, options: q.options ?? [] },
-    durationSec: room.secondsPerQuestion,
-  });
-  room.timer = setTimeout(() => revealQuizShowAnswer(room), room.secondsPerQuestion * 1000 + 400);
-}
-
-function revealQuizShowAnswer(room: RoomState): void {
-  if (room.phase !== 'quiz_show') return;
-  const q = room.quizShowQuestions[room.quizShowCurrentQuestion];
-  if (!q) return;
-  let correctCount = 0;
-  for (const player of room.quizShowPlayers.values()) {
-    if (player.currentQuestion !== room.quizShowCurrentQuestion) continue;
-    const ans = player.answers?.get(room.quizShowCurrentQuestion);
-    if (!ans) continue;
-    const correct = ans.choiceIdx === (q.type === 'mcq' ? q.correctIdx : -1);
-    if (correct) {
-      player.score += room.pointsPerCorrect;
-      player.streak++;
-      correctCount++;
-    } else {
-      player.streak = 0;
-    }
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:reveal', {
-    index: room.quizShowCurrentQuestion,
-    correctIdx: q.type === 'mcq' ? q.correctIdx : -1,
-    correctText: q.type === 'fill' ? q.correctText : undefined,
-    scores: [...room.quizShowPlayers.values()].map((p) => ({
-      userId: p.userId,
-      name: p.displayName,
-      score: p.score,
-      streak: p.streak,
-    })),
-  });
-  broadcastLeaderboard(room);
-}
-
-function useQuizShowLifeline(room: RoomState, userId: string, lifeline: 'fiftyFifty' | 'askAudience' | 'phoneFriend'): void {
-  const player = room.quizShowPlayers.get(userId);
-  if (!player || !player.lifelines[lifeline]) return;
-  player.lifelines[lifeline] = false;
-  const q = room.quizShowQuestions[room.quizShowCurrentQuestion];
-  if (!q) return;
-  if (lifeline === 'fiftyFifty' && q.type === 'mcq' && q.options) {
-    const correctIdx = q.correctIdx ?? 0;
-    const wrongIndices = q.options.map((_, i) => i).filter((i) => i !== correctIdx);
-    const toRemove = wrongIndices.slice(0, 2);
-    const remaining = q.options.map((opt, i) => (toRemove.includes(i) ? '' : opt));
-    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:fifty_fifty', { userId, remaining });
-  } else if (lifeline === 'askAudience') {
-    const votes: number[] = q.options?.map(() => Math.floor(Math.random() * 100)) ?? [];
-    const total = votes.reduce((a, b) => a + b, 0);
-    const percentages = votes.map((v) => Math.round((v / (total || 1)) * 100));
-    if (q.correctIdx !== undefined && percentages.length > q.correctIdx) {
-      percentages[q.correctIdx]! += 20;
-    }
-    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:ask_audience', { userId, percentages });
-  } else if (lifeline === 'phoneFriend') {
-    const hint = q.type === 'mcq' && q.correctIdx !== undefined
-      ? `Tôi nghĩ đáp án ${String.fromCharCode(65 + q.correctIdx)} có khả năng cao`
-      : 'Tôi không chắc lắm, nhưng bạn nên suy nghĩ kỹ hơn';
-    ioRef?.to(`game:${room.roomCode}`).emit('quiz_show:phone_friend', { userId, hint });
-  }
-}
-
-function nextQuizShowQuestion(room: RoomState): void {
-  room.quizShowCurrentQuestion++;
-  if (room.quizShowCurrentQuestion >= room.quizShowQuestions.length) {
-    finishGame(room);
-    return;
-  }
-  for (const player of room.quizShowPlayers.values()) {
-    player.currentQuestion = room.quizShowCurrentQuestion;
-  }
-  sendQuizShowQuestion(room);
-}
-
 function startRace(room: RoomState): void {
   room.phase = 'race';
   room.raceEndsAt = Date.now() + room.raceDurationSec * 1000;
@@ -2081,19 +1734,19 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         return;
       }
       if (room.gameType === 'bingo') {
-        initBingo(room);
+        classicGameModes.initBingo(room);
         return;
       }
       if (room.gameType === 'memory_match') {
-        initMemoryMatch(room);
+        classicGameModes.initMemoryMatch(room);
         return;
       }
       if (room.gameType === 'word_scramble') {
-        initWordScramble(room);
+        classicGameModes.initWordScramble(room);
         return;
       }
       if (room.gameType === 'quiz_show') {
-        initQuizShow(room);
+        classicGameModes.initQuizShow(room);
         return;
       }
       if (room.gameType === 'circuit_draw') {
@@ -2341,7 +1994,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!parsed.success || socket.data.role !== 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!room || room.gameType !== 'memory_match' || room.phase !== 'memory_match') return;
-      checkMemoryMatch(room, String(socket.data.userId), parsed.data.cardIndex);
+      classicGameModes.checkMemoryMatch(room, String(socket.data.userId), parsed.data.cardIndex);
     });
 
     // ============ WORD SCRAMBLE ============
@@ -2350,7 +2003,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (!parsed.success || socket.data.role !== 'student') return;
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!room || room.gameType !== 'word_scramble' || room.phase !== 'word_scramble') return;
-      checkWordScramble(room, String(socket.data.userId), parsed.data.word);
+      classicGameModes.checkWordScramble(room, String(socket.data.userId), parsed.data.word);
     });
 
     // ============ QUIZ SHOW ============
@@ -2368,7 +2021,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         lifeline: parsed.data.lifeline,
       });
       if (parsed.data.lifeline) {
-        useQuizShowLifeline(room, player.userId, parsed.data.lifeline);
+        classicGameModes.useQuizShowLifeline(room, player.userId, parsed.data.lifeline);
       }
     });
 
@@ -2376,7 +2029,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       const room = rooms.get(String(socket.data.roomCode ?? ''));
       if (!isRoomHost(room, socket) || room.gameType !== 'quiz_show') return;
       if (room.phase !== 'quiz_show') return;
-      nextQuizShowQuestion(room);
+      classicGameModes.nextQuizShowQuestion(room);
     });
 
     // ============ CIRCUIT DRAW ============
