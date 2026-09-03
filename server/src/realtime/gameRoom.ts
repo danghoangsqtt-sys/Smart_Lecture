@@ -7,6 +7,8 @@ import { JWT_SECRET } from '../config.js';
 import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
+import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, CircuitLearningDebrief, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
+import { buildLeaderboard } from './leaderboard.js';
 
 interface SocketPayload {
   userId: string;
@@ -63,199 +65,6 @@ const zCircuitTeacherMessageAck = z.object({
   messageId: z.string().uuid(),
 });
 
-interface PuzzleDef {
-  keyword: string;
-  rows: { clue: string; word: string }[];
-}
-
-type GameType = 'quick_quiz' | 'tug_of_war' | 'math_race' | 'hand_raise' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate';
-
-interface GameQuestion {
-  id: string;
-  type: 'mcq' | 'fill';
-  content: string;
-  options?: string[];
-  correctIdx?: number;
-  correctText?: string;
-}
-
-interface PlayerInfo {
-  userId: string;
-  displayName: string;
-  score: number;
-  team?: 'A' | 'B';
-  answers: Map<number, { choiceIdx: number; text?: string; msTaken: number; correct: boolean; earned: number }>;
-  online: boolean;
-}
-
-interface RacePlayer {
-  userId: string;
-  displayName: string;
-  solved: number;
-  wrongStreak: number;
-  current: { text: string; answer: string } | null;
-  startedAt: number;
-}
-
-interface BingoPlayer {
-  userId: string;
-  displayName: string;
-  card: number[][]; // 5x5 card with numbers
-  marked: boolean[][]; // 5x5 marked cells
-  lines: number; // completed lines (row, col, diag)
-  score: number;
-  bingo: boolean;
-}
-
-interface MemoryMatchPlayer {
-  userId: string;
-  displayName: string;
-  score: number;
-  matches: number;
-  currentFlipped: number[]; // indices of currently flipped cards
-  lastFlipTime: number;
-}
-
-interface WordScramblePlayer {
-  userId: string;
-  displayName: string;
-  score: number;
-  solved: number;
-  currentWord: string | null;
-  currentScrambled: string | null;
-  attempts: number;
-}
-
-interface QuizShowPlayer {
-  userId: string;
-  displayName: string;
-  score: number;
-  streak: number;
-  lifelines: { fiftyFifty: boolean; askAudience: boolean; phoneFriend: boolean };
-  currentQuestion: number;
-  answers: Map<number, { choiceIdx: number; lifeline?: string }>;
-}
-
-interface CircuitDrawPlayer {
-  userId: string;
-  displayName: string;
-  score: number;
-  circuit: { components: any[]; wires: any[] } | null;
-  submitted: boolean;
-  verified: boolean;
-  feedback: string;
-}
-
-type CircuitValidationCode = 'correct' | 'invalid_data' | 'wire_count' | 'component_count' | 'connection';
-
-interface CircuitSimulatePlayer {
-  userId: string;
-  displayName: string;
-  score: number;
-  circuit: { components: any[]; wires: any[] } | null;
-  circuitChallengeId: string | null;
-  simulationState: 'idle' | 'running' | 'paused' | 'completed' | 'start' | 'stop' | 'step' | 'reset';
-  measurements: Record<string, number>;
-  completedChallenges: string[];
-  lastActivityAt: number;
-  submissionAttempts: number;
-  lastSubmissionAt: number | null;
-  lastValidationCode: CircuitValidationCode | null;
-  lastValidationFeedback: string | null;
-  totalSubmissionAttempts: number;
-  incorrectSubmissionAttempts: number;
-}
-interface CircuitDebriefRow {
-  userId: string;
-  name: string;
-  completedCount: number;
-  totalChallenges: number;
-  totalSubmissionAttempts: number;
-  incorrectSubmissionAttempts: number;
-  score: number;
-}
-
-interface CircuitLearningDebrief {
-  summary: {
-    learnerCount: number;
-    completedAllCount: number;
-    totalCompletions: number;
-    totalPossible: number;
-    totalSubmissionAttempts: number;
-    incorrectSubmissionAttempts: number;
-    completionRate: number;
-  };
-  learners: CircuitDebriefRow[];
-}
-
-type Phase = 'lobby' | 'question' | 'leaderboard' | 'race' | 'crossword' | 'bingo' | 'memory_match' | 'word_scramble' | 'quiz_show' | 'circuit_draw' | 'circuit_simulate' | 'finished';
-
-interface RoomState {
-  sessionId: string;
-  hostId: string;
-  roomCode: string;
-  gameType: GameType;
-  questions: GameQuestion[];
-  secondsPerQuestion: number;
-  raceDurationSec: number;
-  raceDifficulty: number;
-  pointsPerCorrect: number;
-  classId: string | null;
-  puzzle: PuzzleDef | null;
-  solvedRows: Set<number>;
-  hands: Map<string, string>;
-  activePick: { userId: string; name: string } | null;
-  locked: boolean;
-  lockOnStart: boolean;
-  blacklist: Set<string>;
-  phase: Phase;
-  currentIndex: number;
-  questionEndsAt: number;
-  questionStartAt: number;
-  players: Map<string, PlayerInfo>;
-  racePlayers: Map<string, RacePlayer>;
-  ropePos: number;
-  raceEndsAt: number;
-  timer: NodeJS.Timeout | null;
-  // Bingo
-  bingoNumbers: number[];
-  bingoCalled: number[];
-  bingoPlayers: Map<string, BingoPlayer>;
-  // Memory Match
-  memoryCards: { id: number; value: string; matched: boolean }[];
-  memoryPlayers: Map<string, MemoryMatchPlayer>;
-  memoryFlipped: number[];
-  // Word Scramble
-  wordScrambleWords: { original: string; scrambled: string }[];
-  wordScramblePlayers: Map<string, WordScramblePlayer>;
-  // Quiz Show
-  quizShowQuestions: GameQuestion[];
-  quizShowPlayers: Map<string, QuizShowPlayer>;
-  quizShowCurrentQuestion: number;
-  // Circuit Draw
-  circuitDrawPlayers: Map<string, CircuitDrawPlayer>;
-  circuitDrawReference: { components: any[]; wires: any[] } | null;
-  circuitTemplate: { components: unknown[]; wires: unknown[] } | null;
-  // Circuit Simulate
-  circuitSimulatePlayers: Map<string, CircuitSimulatePlayer>;
-  circuitSimulateChallenges: CircuitChallenge[];
-  circuitSimulateCurrentChallenge: number;
-  circuitSimulateChallengeEndsAt: number;
-  circuitSimulatePaused: boolean;
-  circuitSimulateRemainingMs: number;
-  simulateChallenges: CircuitChallenge[] | null;
-}
-
-interface CircuitChallenge {
-  id: string;
-  title: string;
-  description: string;
-  starterCircuit: { components: any[]; wires: any[] } | null;
-  referenceCircuit?: unknown;
-  targetBehavior: string; // e.g., "LED blinks at 1Hz", "Output HIGH when A=1 AND B=1"
-  testCases: { inputs: Record<string, number>; expectedOutputs: Record<string, number> }[];
-  points: number;
-}
 
 const MAX_PLAYERS = 60;
 
@@ -286,21 +95,8 @@ function isEnrolled(classId: string | null, userId: string): boolean {
   return !!db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(classId, userId);
 }
 
-function leaderboard(room: RoomState): { name: string; score: number; team?: string }[] {
-  if (room.gameType === 'circuit_simulate') {
-    return [...room.circuitSimulatePlayers.values()]
-      .sort((a, b) => b.score - a.score || a.displayName.localeCompare(b.displayName))
-      .slice(0, 15)
-      .map((player) => ({ name: player.displayName, score: player.score }));
-  }
-  return [...room.players.values()]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 15)
-    .map((p) => ({ name: p.displayName, score: p.score, team: p.team }));
-}
-
 function broadcastLeaderboard(room: RoomState): void {
-  ioRef?.to(`game:${room.roomCode}`).emit('leaderboard:update', { rows: leaderboard(room), phase: room.phase });
+  ioRef?.to(`game:${room.roomCode}`).emit('leaderboard:update', { rows: buildLeaderboard(room), phase: room.phase });
 }
 
 function broadcastRope(room: RoomState): void {
@@ -2241,7 +2037,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         totalQuestions: room.questions.length,
         ropePos: Math.round(room.ropePos),
         players: [...room.players.values()].map((p) => ({ name: p.displayName, score: p.score, userId: p.userId })),
-        leaderboard: leaderboard(room),
+        leaderboard: buildLeaderboard(room),
         raceRows: [...room.racePlayers.values()].map((r) => ({ name: r.displayName, solved: r.solved })),
         circuitSimulate: circuitSimulateHostSnapshot(room),
       });
