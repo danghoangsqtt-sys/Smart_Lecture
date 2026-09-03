@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { JWT_SECRET } from '../config.js';
 import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemoryCards, scrambleWord, sleep } from './gameUtils.js';
+import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 
 interface SocketPayload {
   userId: string;
@@ -2296,7 +2297,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         }
         void socket.join(`game:${room.roomCode}`);
         socket.data.roomCode = room.roomCode;
-        trackSocketRoom(socket, room.roomCode);
+        trackSocketRoom(socketRoomsIndex, socket.id, room.roomCode);
         socket.emit('game:joined', { gameType: room.gameType, phase: room.phase, endsAt: room.raceEndsAt });
         broadcastRace(room);
         if (room.phase === 'race') sendRaceProblem(room, socket);
@@ -2323,7 +2324,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       }
       void socket.join(`game:${room.roomCode}`);
       socket.data.roomCode = room.roomCode;
-      trackSocketRoom(socket, room.roomCode);
+      trackSocketRoom(socketRoomsIndex, socket.id, room.roomCode);
 
       socket.emit('game:joined', { gameType: room.gameType, phase: room.phase, team: player.team });
       io.to(`game:${room.roomCode}`).emit('lobby:update', {
@@ -2929,7 +2930,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       circuitInspectionSubscriptions.delete(socket.id);
       const code = socket.data.roomCode as string | undefined;
       if (!code) return;
-      untrackSocketRoom(socket.id, code);
+      untrackSocketRoom(socketRoomsIndex, socket.id, code);
       const room = rooms.get(code);
       if (room) {
         const player = room.players.get(String(socket.data.userId));
@@ -2956,17 +2957,6 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
   }, 60_000);
 
   return io;
-}
-
-function trackSocketRoom(socket: Socket, roomCode: string): void {
-  const set = socketRoomsIndex.get(roomCode) ?? new Set<string>();
-  set.add(socket.id);
-  socketRoomsIndex.set(roomCode, set);
-}
-
-function untrackSocketRoom(socketId: string, roomCode: string): void {
-  const set = socketRoomsIndex.get(roomCode);
-  if (set) set.delete(socketId);
 }
 
 function findRoomBySession(sessionId: string): RoomState | null {
