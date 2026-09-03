@@ -6,6 +6,7 @@ import { checkBingoLines, generateBingoCard, generateMathProblem, generateMemory
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
+import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, CircuitDebriefRow, CircuitLearningDebrief, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
@@ -68,15 +69,6 @@ const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userI
 let ioRef: IOServer | null = null;
 
 
-function isRoomHost(room: RoomState | undefined, socket: Socket): room is RoomState {
-  return !!room && socket.data.role !== 'student' && room.hostId === String(socket.data.userId);
-}
-
-function isEnrolled(classId: string | null, userId: string): boolean {
-  if (!classId) return false;
-  return !!db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(classId, userId);
-}
-
 function broadcastLeaderboard(room: RoomState): void {
   ioRef?.to(`game:${room.roomCode}`).emit('leaderboard:update', { rows: buildLeaderboard(room), phase: room.phase });
 }
@@ -99,20 +91,6 @@ function broadcastRace(room: RoomState): void {
   ioRef?.to(`game:${room.roomCode}`).emit('race:update', { rows });
 }
 
-
-function addKttx(classId: string | null, userId: string, delta: number): number {
-  if (!classId || delta === 0 || !isEnrolled(classId, userId)) return 0;
-  const row = db.prepare('SELECT kttx FROM grades WHERE class_id = ? AND student_id = ?').get(classId, userId) as
-    | { kttx: number | null }
-    | undefined;
-  const current = row?.kttx ?? 0;
-  const next = Math.min(10, Math.round((current + delta) * 100) / 100);
-  db.prepare(
-    `INSERT INTO grades (class_id, student_id, kttx, updated_at) VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT(class_id, student_id) DO UPDATE SET kttx = excluded.kttx, updated_at = excluded.updated_at`
-  ).run(classId, userId, next);
-  return next;
-}
 
 function broadcastHands(room: RoomState): void {
   ioRef?.to(`game:${room.roomCode}`).emit('hr:hands-update', {
