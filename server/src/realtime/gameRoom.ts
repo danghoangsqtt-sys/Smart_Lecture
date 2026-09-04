@@ -13,12 +13,13 @@ import { createCircuitRecovery } from './circuitRecovery.js';
 import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
 import { registerClassicGameHandlers } from './classicGameHandlers.js';
 import { registerRoomInteractionHandlers } from './roomInteractionHandlers.js';
+import { registerAnswerHandlers } from './answerHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zAnswer, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zMathAnswer, zRoom, zSessionId, zUserId } from './gameSchemas.js';
+import { zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zRoom, zSessionId, zUserId } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
@@ -951,46 +952,9 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       finishGame,
     });
 
-    socket.on('game:answer', (raw: unknown) => {
-      const parsed = zAnswer.safeParse(raw ?? {});
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.phase !== 'question') return;
-      if (room.gameType === 'hand_raise' || room.gameType === 'crossword') return;
-      const player = room.players.get(String(socket.data.userId));
-      if (!player) return;
-      if (player.answers.has(room.currentIndex)) return;
-      const msTaken = Math.max(0, Date.now() - room.questionStartAt);
-      if (msTaken > room.secondsPerQuestion * 1000 + 600) return;
-      const q = room.questions[room.currentIndex];
-      const choiceIdx = q?.type === 'fill' ? -1 : parsed.data.choiceIdx;
-      player.answers.set(room.currentIndex, {
-        choiceIdx,
-        text: parsed.data.text,
-        msTaken,
-        correct: false,
-        earned: 0,
-      });
-    });
-
-    socket.on('math:answer', (raw: unknown) => {
-      const parsed = zMathAnswer.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'math_race' || room.phase !== 'race') return;
-      const rp = room.racePlayers.get(String(socket.data.userId));
-      if (!rp || !rp.current) return;
-      const given = String(parsed.data.answer).trim();
-      if (given === rp.current.answer) {
-        rp.solved += 1;
-        rp.wrongStreak = 0;
-        rp.current = generateMathProblem(room.raceDifficulty);
-        socket.emit('math:problem', { text: rp.current.text, endsAt: room.raceEndsAt });
-        broadcastRace(room);
-      } else {
-        rp.wrongStreak += 1;
-        socket.emit('math:wrong', { streak: rp.wrongStreak });
-      }
+    registerAnswerHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      broadcastRace,
     });
 
     registerClassicGameHandlers(socket, {
