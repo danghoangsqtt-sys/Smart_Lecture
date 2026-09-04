@@ -7,6 +7,7 @@ import { createGameLifecycle } from './gameLifecycle.js';
 import { circuitValidationResult, circuitsMatch } from './circuitTopology.js';
 import { configureCircuitSimulateChallenges } from './circuitChallenges.js';
 import { circuitHostRoom, circuitSimulateInspection, circuitSimulateProgressRow, circuitSimulateProgressSnapshot } from './circuitMonitoring.js';
+import { createCircuitAssistance } from './circuitAssistance.js';
 import { parsePersistedJson, persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import type { CircuitPlayerStateRow, CircuitRuntimeRow } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
@@ -38,6 +39,15 @@ const gameLifecycle = createGameLifecycle({
   removeRoom: (roomCode) => rooms.delete(roomCode),
 });
 const { finishGame, revealAnswer, startQuestion, nextStep } = gameLifecycle;
+const circuitAssistance = createCircuitAssistance({ getIo: () => ioRef, circuitHostRoom });
+const {
+  circuitAssistanceStatus,
+  circuitAssistanceSnapshot,
+  getCircuitAssistance,
+  markCircuitAssistanceDelivered,
+  emitCircuitAssistanceStatus,
+  deliverPendingCircuitAssistance,
+} = circuitAssistance;
 const classicGameModes = createClassicGameModes({
   getIo: () => ioRef,
   finishGame,
@@ -154,97 +164,6 @@ function emitCircuitSimulateInspectionUpdate(room: RoomState, player: CircuitSim
     if (subscription.roomCode !== room.roomCode || subscription.userId !== player.userId) continue;
     ioRef.sockets.sockets.get(socketId)?.emit('circuit_simulate:inspection_update', payload);
   }
-}
-
-interface CircuitAssistanceRow {
-  game_session_id: string;
-  student_id: string;
-  message_id: string;
-  kind: 'hint' | 'retry';
-  message: string;
-  teacher_name: string;
-  sent_at: number;
-  delivered_at: number | null;
-  acknowledged_at: number | null;
-}
-
-type CircuitAssistanceStatus = 'queued' | 'delivered' | 'acknowledged';
-
-function circuitAssistanceStatus(row: CircuitAssistanceRow): CircuitAssistanceStatus {
-  if (row.acknowledged_at !== null) return 'acknowledged';
-  if (row.delivered_at !== null) return 'delivered';
-  return 'queued';
-}
-
-function circuitAssistancePayload(row: CircuitAssistanceRow) {
-  return {
-    messageId: row.message_id,
-    kind: row.kind,
-    message: row.message,
-    teacherName: row.teacher_name,
-    sentAt: row.sent_at,
-  };
-}
-
-function circuitAssistanceStatusPayload(room: RoomState, row: CircuitAssistanceRow) {
-  const player = room.circuitSimulatePlayers.get(row.student_id);
-  return {
-    userId: row.student_id,
-    name: player?.displayName ?? 'Học viên',
-    messageId: row.message_id,
-    kind: row.kind,
-    message: row.message,
-    sentAt: row.sent_at,
-    deliveredAt: row.delivered_at,
-    acknowledgedAt: row.acknowledged_at,
-    status: circuitAssistanceStatus(row),
-  };
-}
-
-function getCircuitAssistance(sessionId: string, userId: string): CircuitAssistanceRow | undefined {
-  return db.prepare(`
-    SELECT game_session_id, student_id, message_id, kind, message, teacher_name,
-           sent_at, delivered_at, acknowledged_at
-    FROM game_circuit_assistance
-    WHERE game_session_id = ? AND student_id = ?
-  `).get(sessionId, userId) as CircuitAssistanceRow | undefined;
-}
-
-function circuitAssistanceSnapshot(room: RoomState) {
-  const rows = db.prepare(`
-    SELECT game_session_id, student_id, message_id, kind, message, teacher_name,
-           sent_at, delivered_at, acknowledged_at
-    FROM game_circuit_assistance
-    WHERE game_session_id = ?
-    ORDER BY sent_at DESC, student_id
-  `).all(room.sessionId) as unknown as CircuitAssistanceRow[];
-  return rows.map((row) => circuitAssistanceStatusPayload(room, row));
-}
-
-function markCircuitAssistanceDelivered(room: RoomState, row: CircuitAssistanceRow, deliveredAt: number): CircuitAssistanceRow {
-  db.prepare(`
-    UPDATE game_circuit_assistance
-    SET delivered_at = COALESCE(delivered_at, ?), updated_at = datetime('now')
-    WHERE game_session_id = ? AND student_id = ? AND message_id = ? AND acknowledged_at IS NULL
-  `).run(deliveredAt, room.sessionId, row.student_id, row.message_id);
-  return getCircuitAssistance(room.sessionId, row.student_id) ?? row;
-}
-
-function emitCircuitAssistanceStatus(room: RoomState, row: CircuitAssistanceRow): void {
-  ioRef?.to(circuitHostRoom(room)).emit(
-    'circuit_simulate:teacher-message-status',
-    circuitAssistanceStatusPayload(room, row),
-  );
-}
-
-function deliverPendingCircuitAssistance(room: RoomState, socket: Socket, userId: string): void {
-  const row = getCircuitAssistance(room.sessionId, userId);
-  if (!row || row.acknowledged_at !== null) return;
-  if (socket.data.circuitAssistanceMessageId === row.message_id) return;
-  socket.data.circuitAssistanceMessageId = row.message_id;
-  socket.emit('circuit_simulate:teacher-message', circuitAssistancePayload(row));
-  const delivered = markCircuitAssistanceDelivered(room, row, Date.now());
-  emitCircuitAssistanceStatus(room, delivered);
 }
 
 function circuitSimulateHostSnapshot(room: RoomState) {
