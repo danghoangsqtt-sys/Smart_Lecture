@@ -12,12 +12,13 @@ import { createCircuitScoring } from './circuitScoring.js';
 import { createCircuitRecovery } from './circuitRecovery.js';
 import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
 import { registerClassicGameHandlers } from './classicGameHandlers.js';
+import { registerRoomInteractionHandlers } from './roomInteractionHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zAnswer, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCwTry, zMathAnswer, zRoom, zSessionId, zUserId, zVerdict } from './gameSchemas.js';
+import { zAnswer, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zMathAnswer, zRoom, zSessionId, zUserId } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
@@ -933,136 +934,21 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (room.phase === 'leaderboard') nextStep(room);
     });
 
-    socket.on('hr:hand', () => {
-      if (socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || !('hands' in room)) return;
-      if (room.gameType !== 'hand_raise' && room.gameType !== 'crossword') return;
-      if (room.phase !== 'question' && room.phase !== 'crossword') return;
-      if (room.activePick) return;
-      const userId = String(socket.data.userId);
-      const user = getUserById(userId);
-      const name = user ? toPublicUser(user).displayName : 'Học viên';
-      if (room.hands.has(userId)) room.hands.delete(userId);
-      else room.hands.set(userId, name);
-      broadcastHands(room);
-    });
-
-    socket.on('game:host-pick', (raw: unknown) => {
-      const parsed = zUserId.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.activePick) return;
-      const target = room.players.get(parsed.data.userId);
-      const raceTarget = room.racePlayers.get(parsed.data.userId);
-      const name = target?.displayName ?? raceTarget?.displayName ?? room.hands.get(parsed.data.userId) ?? 'Học viên';
-      room.activePick = { userId: parsed.data.userId, name };
-      ioRef?.to(`game:${room.roomCode}`).emit('hr:selected', { userId: parsed.data.userId, name });
-      const pickedSocket = connectedSocketsIn(room.roomCode)
-        .map((id) => ioRef?.sockets.sockets.get(id))
-        .find((s) => s && s.data.role === 'student' && s.data.userId === parsed.data.userId);
-      pickedSocket?.emit('hr:you-picked', { gameType: room.gameType });
-    });
-
-    socket.on('game:host-release', () => {
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket)) return;
-      room.activePick = null;
-      ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
-    });
-
-    socket.on('game:host-verdict', (raw: unknown) => {
-      const parsed = zVerdict.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || !room.activePick) return;
-      const { userId, correct } = parsed.data;
-      const player = room.players.get(userId);
-      const racePlayer = room.racePlayers.get(userId);
-      const name = player?.displayName ?? racePlayer?.displayName ?? room.activePick.name;
-
-      let newTotal: number | null = null;
-      if (correct) {
-        newTotal = applyCorrectPoints(room, userId, name);
-      }
-
-      ioRef?.to(`game:${room.roomCode}`).emit('hr:result', {
-        name,
-        correct,
-        delta: correct ? room.pointsPerCorrect : 0,
-        newKttx: newTotal,
-      });
-      broadcastLeaderboard(room);
-
-      room.activePick = null;
-      room.hands.delete(userId);
-      ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
-      broadcastHands(room);
-
-      if (room.gameType === 'crossword' && room.solvedRows.size >= (room.puzzle?.rows.length ?? Infinity)) {
-        finishGame(room);
-      }
-    });
-
-    socket.on('game:host-kick', (raw: unknown) => {
-      const parsed = zUserId.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket)) return;
-      const targetId = parsed.data.userId;
-      room.blacklist.add(targetId);
-      room.players.delete(targetId);
-      room.racePlayers.delete(targetId);
-      room.hands.delete(targetId);
-      if (room.activePick?.userId === targetId) {
-        room.activePick = null;
-        ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
-      }
-      for (const sid of connectedSocketsIn(room.roomCode)) {
-        const s = ioRef?.sockets.sockets.get(sid);
-        if (s && s.data.role === 'student' && s.data.userId === targetId) {
-          s.emit('you-kicked', { message: 'Bạn đã bị giáo viên loại khỏi trò chơi.' });
-          s.leave(`game:${room.roomCode}`);
-          s.disconnect(true);
-        }
-      }
-      broadcastHands(room);
-      broadcastLeaderboard(room);
-      broadcastRace(room);
-      ioRef?.to(`game:${room.roomCode}`).emit('lobby:update', {
-        count: [...room.players.values()].filter((p) => p.online).length,
-        players: [...room.players.values()].map((p) => ({ name: p.displayName, team: p.team, userId: p.userId })),
-      });
-    });
-    socket.on('cw:try', (raw: unknown) => {
-      const parsed = zCwTry.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'crossword' || !room.puzzle) return;
-      if (!room.activePick || room.activePick.userId !== String(socket.data.userId)) return;
-      const { rowIndex, word } = parsed.data;
-      const rowDef = room.puzzle.rows[rowIndex];
-      if (!rowDef || room.solvedRows.has(rowIndex)) return;
-
-      const normalizedGiven = word.trim().toUpperCase().replace(/\s+/g, '');
-      const normalizedExpected = rowDef.word.toUpperCase().replace(/\s+/g, '');
-      if (normalizedGiven === normalizedExpected) {
-        room.solvedRows.add(rowIndex);
-        const newKttx = applyCorrectPoints(room, String(socket.data.userId), room.activePick.name);
-        ioRef?.to(`game:${room.roomCode}`).emit('cw:solved', {
-          rowIndex,
-          name: room.activePick.name,
-          delta: room.pointsPerCorrect,
-          newKttx,
-        });
-        emitCrosswordState(room);
-        broadcastLeaderboard(room);
-        room.activePick = null;
-        ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
-        if (room.solvedRows.size >= room.puzzle.rows.length) finishGame(room);
-      } else {
-        socket.emit('cw:wrong', { rowIndex });
-      }
+    registerRoomInteractionHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      getIo: () => ioRef,
+      getSocketIds: connectedSocketsIn,
+      getDisplayName: (userId) => {
+        const user = getUserById(userId);
+        return user ? toPublicUser(user).displayName : 'Học viên';
+      },
+      isRoomHost,
+      applyCorrectPoints,
+      broadcastLeaderboard,
+      broadcastRace,
+      broadcastHands,
+      emitCrosswordState,
+      finishGame,
     });
 
     socket.on('game:answer', (raw: unknown) => {
