@@ -1,10 +1,9 @@
 import type { Server as HttpServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
 import { Server as IOServer, type Socket } from 'socket.io';
 import { generateMathProblem } from './gameUtils.js';
 import { createClassicGameModes } from './classicGameModes.js';
 import { createGameLifecycle } from './gameLifecycle.js';
-import { circuitValidationResult, circuitsMatch } from './circuitTopology.js';
+import { circuitsMatch } from './circuitTopology.js';
 import { configureCircuitSimulateChallenges } from './circuitChallenges.js';
 import { circuitHostRoom, circuitSimulateInspection, circuitSimulateProgressRow, circuitSimulateProgressSnapshot } from './circuitMonitoring.js';
 import { createCircuitAssistance } from './circuitAssistance.js';
@@ -14,12 +13,13 @@ import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
 import { registerClassicGameHandlers } from './classicGameHandlers.js';
 import { registerRoomInteractionHandlers } from './roomInteractionHandlers.js';
 import { registerAnswerHandlers } from './answerHandlers.js';
+import { registerCircuitSimulateHandlers } from './circuitSimulateHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zRoom, zSessionId, zUserId } from './gameSchemas.js';
+import { zRoom, zSessionId, zUserId } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
@@ -973,188 +973,25 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       broadcastLeaderboard,
     });
 
-    // ============ CIRCUIT SIMULATE ============
-    socket.on('circuit_simulate:host-control', (raw: unknown) => {
-      const parsed = zCircuitHostControl.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      controlCircuitSimulateChallenge(room, parsed.data.action);
-    });
-
-    socket.on('circuit_simulate:inspect', (raw: unknown) => {
-      const parsed = zCircuitInspect.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const player = room.circuitSimulatePlayers.get(parsed.data.userId);
-      if (!player) {
-        socket.emit('game:error', { message: 'Không tìm thấy trạng thái mạch của học viên.' });
-        return;
-      }
-      circuitInspectionSubscriptions.set(socket.id, { roomCode: room.roomCode, userId: player.userId });
-      socket.emit('circuit_simulate:inspection', circuitSimulateInspection(room, player));
-    });
-
-    socket.on('circuit_simulate:teacher-message', (raw: unknown) => {
-      const parsed = zCircuitTeacherMessage.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const player = room.circuitSimulatePlayers.get(parsed.data.userId);
-      if (!player) {
-        socket.emit('game:error', { message: 'Kh\u00f4ng t\u00ecm th\u1ea5y h\u1ecdc vi\u00ean \u0111\u1ec3 h\u1ed7 tr\u1ee3.' });
-        return;
-      }
-      const message = parsed.data.kind === 'hint'
-        ? (parsed.data.message ?? '').trim()
-        : (parsed.data.message ?? '').trim() || 'Gi\u00e1o vi\u00ean \u0111\u1ec1 ngh\u1ecb b\u1ea1n ki\u1ec3m tra l\u1ea1i m\u1ea1ch v\u00e0 n\u1ed9p l\u1ea1i khi s\u1eb5n s\u00e0ng.';
-      if (!message) {
-        socket.emit('game:error', { message: 'Vui l\u00f2ng nh\u1eadp n\u1ed9i dung g\u1ee3i \u00fd.' });
-        return;
-      }
-      const teacher = getUserById(String(socket.data.userId));
-      const teacherName = teacher ? toPublicUser(teacher).displayName : 'Gi\u00e1o vi\u00ean';
-      const sentAt = Date.now();
-      const messageId = randomUUID();
-      db.prepare(`
-        INSERT INTO game_circuit_assistance (
-          game_session_id, student_id, message_id, kind, message, teacher_name,
-          sent_at, delivered_at, acknowledged_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, datetime('now'))
-        ON CONFLICT(game_session_id, student_id) DO UPDATE SET
-          message_id = excluded.message_id,
-          kind = excluded.kind,
-          message = excluded.message,
-          teacher_name = excluded.teacher_name,
-          sent_at = excluded.sent_at,
-          delivered_at = NULL,
-          acknowledged_at = NULL,
-          updated_at = datetime('now')
-      `).run(room.sessionId, player.userId, messageId, parsed.data.kind, message, teacherName, sentAt);
-      const payload = { messageId, kind: parsed.data.kind, message, teacherName, sentAt };
-      const learnerSockets = connectedSocketsIn(room.roomCode)
-        .map((socketId) => ioRef?.sockets.sockets.get(socketId))
-        .filter((candidate): candidate is Socket => (
-          candidate?.data.role === 'student' && String(candidate.data.userId) === player.userId
-        ));
-      for (const learnerSocket of learnerSockets) {
-        learnerSocket.data.circuitAssistanceMessageId = messageId;
-        learnerSocket.emit('circuit_simulate:teacher-message', payload);
-      }
-      let assistance = getCircuitAssistance(room.sessionId, player.userId);
-      if (!assistance) return;
-      if (learnerSockets.length > 0) {
-        assistance = markCircuitAssistanceDelivered(room, assistance, Date.now());
-      }
-      emitCircuitAssistanceStatus(room, assistance);
-      socket.emit('circuit_simulate:teacher-message-sent', {
-        userId: player.userId,
-        name: player.displayName,
-        messageId,
-        kind: parsed.data.kind,
-        delivered: learnerSockets.length > 0,
-        status: circuitAssistanceStatus(assistance),
-      });
-    });
-
-    socket.on('circuit_simulate:teacher-message-ack', (raw: unknown) => {
-      const parsed = zCircuitTeacherMessageAck.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const userId = String(socket.data.userId);
-      const row = getCircuitAssistance(room.sessionId, userId);
-      if (!row || row.message_id !== parsed.data.messageId) return;
-      const acknowledgedAt = Date.now();
-      db.prepare(`
-        UPDATE game_circuit_assistance
-        SET delivered_at = COALESCE(delivered_at, ?),
-            acknowledged_at = COALESCE(acknowledged_at, ?),
-            updated_at = datetime('now')
-        WHERE game_session_id = ? AND student_id = ? AND message_id = ?
-      `).run(acknowledgedAt, acknowledgedAt, room.sessionId, userId, row.message_id);
-      const acknowledged = getCircuitAssistance(room.sessionId, userId);
-      if (!acknowledged) return;
-      socket.emit('circuit_simulate:teacher-message-acknowledged', { messageId: acknowledged.message_id });
-      emitCircuitAssistanceStatus(room, acknowledged);
-    });
-
-    socket.on('circuit_simulate:circuit', (raw: unknown) => {
-      const parsed = zCircuitDraw.safeParse(raw); // Reuse same schema for circuit data
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
-      if (!player) return;
-      const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-      if (!challenge) return;
-      player.circuit = parsed.data;
-      player.circuitChallengeId = challenge.id;
-      player.lastActivityAt = Date.now();
-
-      const validation = circuitValidationResult(player.circuit, challenge.referenceCircuit);
-      if (parsed.data.submitted) {
-        player.submissionAttempts += 1;
-        player.totalSubmissionAttempts += 1;
-        if (!validation.correct) player.incorrectSubmissionAttempts += 1;
-        player.lastSubmissionAt = player.lastActivityAt;
-        player.lastValidationCode = validation.code;
-        player.lastValidationFeedback = validation.feedback;
-        socket.emit('circuit_simulate:validation', {
-          ...validation,
-          attempts: player.submissionAttempts,
-          submittedAt: player.lastSubmissionAt,
-        });
-      }
-      if (parsed.data.submitted && challenge.referenceCircuit && !player.completedChallenges.includes(challenge.id) && validation.correct) {
-        const newKttx = completeCircuitChallenge(room, player, challenge);
-        ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
-          userId: player.userId,
-          name: player.displayName,
-          challengeId: challenge.id,
-          points: challenge.points,
-          newKttx: newKttx ?? 0,
-        });
-        broadcastLeaderboard(room);
-      }
-      persistCircuitPlayer(room, player);
-      emitCircuitSimulateProgress(room, player);
-      emitCircuitSimulateInspectionUpdate(room, player);
-    });
-
-    socket.on('circuit_simulate:measurements', (raw: unknown) => {
-      const parsed = zCircuitMeasurements.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
-      if (!player) return;
-      player.measurements = parsed.data.measurements;
-      player.lastActivityAt = Date.now();
-      persistCircuitPlayer(room, player);
-      emitCircuitSimulateProgress(room, player);
-      emitCircuitSimulateInspectionUpdate(room, player);
-    });
-
-    socket.on('circuit_simulate:simulate', (raw: unknown) => {
-      const parsed = zCircuitSimulate.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-      const player = room.circuitSimulatePlayers.get(String(socket.data.userId));
-      if (!player) return;
-      player.simulationState = parsed.data.action;
-      player.lastActivityAt = Date.now();
-      persistCircuitPlayer(room, player);
-      emitCircuitSimulateProgress(room, player);
-      emitCircuitSimulateInspectionUpdate(room, player);
-      // In a real implementation, this would run a SPICE simulation
-      // For now, we just acknowledge the action
-      socket.emit('circuit_simulate:simulation_state', {
-        state: parsed.data.action,
-        timeStep: parsed.data.timeStep ?? 0.001,
-      });
+    registerCircuitSimulateHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      getIo: () => ioRef,
+      getSocketIds: connectedSocketsIn,
+      subscribeInspection: (socketId, roomCode, userId) => {
+        circuitInspectionSubscriptions.set(socketId, { roomCode, userId });
+      },
+      isRoomHost,
+      controlChallenge: controlCircuitSimulateChallenge,
+      getCircuitAssistance,
+      markCircuitAssistanceDelivered,
+      emitCircuitAssistanceStatus,
+      circuitAssistanceStatus,
+      completeCircuitChallenge,
+      persistCircuitPlayer,
+      emitProgress: emitCircuitSimulateProgress,
+      emitInspectionUpdate: emitCircuitSimulateInspectionUpdate,
+      broadcastLeaderboard,
+      circuitSimulateInspection,
     });
 
     socket.on('disconnecting', () => {
