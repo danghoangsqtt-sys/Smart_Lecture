@@ -10,12 +10,13 @@ import { circuitHostRoom, circuitSimulateInspection, circuitSimulateProgressRow,
 import { createCircuitAssistance } from './circuitAssistance.js';
 import { createCircuitScoring } from './circuitScoring.js';
 import { createCircuitRecovery } from './circuitRecovery.js';
+import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zAnswer, zBingoMark, zCircuitDraw, zCircuitDrawVerify, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCwTry, zMathAnswer, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
+import { zAnswer, zBingoMark, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCwTry, zMathAnswer, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
@@ -1174,78 +1175,13 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       classicGameModes.nextQuizShowQuestion(room);
     });
 
-    // ============ CIRCUIT DRAW ============
-    socket.on('circuit_draw:submit', (raw: unknown) => {
-      const parsed = zCircuitDraw.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'circuit_draw' || room.phase !== 'circuit_draw') return;
-      const player = room.circuitDrawPlayers.get(String(socket.data.userId));
-      if (!player || player.submitted) return;
-      player.circuit = parsed.data;
-      player.submitted = true;
-
-      ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:submitted', {
-        userId: player.userId,
-        name: player.displayName,
-        circuit: parsed.data,
-      });
-
-      /* Auto-grade khi GV có mạch mẫu */
-      const reference = room.circuitTemplate;
-      if (reference) {
-        const ok = circuitsMatch(parsed.data, reference);
-        player.verified = ok;
-        player.feedback = ok
-          ? 'Mạch khớp với mạch mẫu của giáo viên'
-          : 'Mạch chưa khớp — kiểm tra lại loại linh kiện và cách nối dây';
-        let newKttx: number | null = null;
-        if (ok) {
-          player.score += room.pointsPerCorrect;
-          newKttx = applyCorrectPoints(room, player.userId, player.displayName);
-        }
-        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
-          userId: player.userId,
-          name: player.displayName,
-          correct: ok,
-          feedback: player.feedback,
-          newKttx,
-          auto: true,
-        });
-        broadcastLeaderboard(room);
-        /* Chưa khớp → cho nộp lại */
-        if (!ok) player.submitted = false;
-      }
-    });
-
-    socket.on('circuit_draw:verify', (raw: unknown) => {
-      const parsed = zCircuitDrawVerify.safeParse(raw);
-      if (!parsed.success || socket.data.role === 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.gameType !== 'circuit_draw') return;
-      const player = room.circuitDrawPlayers.get(parsed.data.userId);
-      if (!player) return;
-      player.verified = parsed.data.correct;
-      player.feedback = parsed.data.feedback ?? '';
-      if (parsed.data.correct) {
-        player.score += room.pointsPerCorrect;
-        const newKttx = applyCorrectPoints(room, player.userId, player.displayName);
-        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
-          userId: player.userId,
-          name: player.displayName,
-          correct: true,
-          feedback: player.feedback,
-          newKttx,
-        });
-      } else {
-        ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
-          userId: player.userId,
-          name: player.displayName,
-          correct: false,
-          feedback: player.feedback,
-        });
-      }
-      broadcastLeaderboard(room);
+    registerCircuitDrawHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      getIo: () => ioRef,
+      isRoomHost,
+      circuitsMatch,
+      applyCorrectPoints,
+      broadcastLeaderboard,
     });
 
     // ============ CIRCUIT SIMULATE ============
