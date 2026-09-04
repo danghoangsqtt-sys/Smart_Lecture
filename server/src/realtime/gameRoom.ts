@@ -11,12 +11,13 @@ import { createCircuitAssistance } from './circuitAssistance.js';
 import { createCircuitScoring } from './circuitScoring.js';
 import { createCircuitRecovery } from './circuitRecovery.js';
 import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
+import { registerClassicGameHandlers } from './classicGameHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zAnswer, zBingoMark, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCwTry, zMathAnswer, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
+import { zAnswer, zCircuitDraw, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCwTry, zMathAnswer, zRoom, zSessionId, zUserId, zVerdict } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
 import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
@@ -1106,73 +1107,11 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       }
     });
 
-    // ============ BINGO ============
-    socket.on('bingo:mark', (raw: unknown) => {
-      const parsed = zBingoMark.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'bingo' || room.phase !== 'bingo') return;
-      const player = room.bingoPlayers.get(String(socket.data.userId));
-      if (!player || player.bingo) return;
-      const num = parsed.data.number;
-      for (let r = 0; r < 5; r++) {
-        for (let c = 0; c < 5; c++) {
-          if (player.card[r]![c] === num) {
-            player.marked[r]![c] = true;
-            ioRef?.to(`game:${room.roomCode}`).emit('bingo:marked', {
-              userId: player.userId,
-              name: player.displayName,
-              row: r,
-              col: c,
-            });
-            return;
-          }
-        }
-      }
-    });
-
-    // ============ MEMORY MATCH ============
-    socket.on('memory:flip', (raw: unknown) => {
-      const parsed = zMemoryFlip.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'memory_match' || room.phase !== 'memory_match') return;
-      classicGameModes.checkMemoryMatch(room, String(socket.data.userId), parsed.data.cardIndex);
-    });
-
-    // ============ WORD SCRAMBLE ============
-    socket.on('word_scramble:guess', (raw: unknown) => {
-      const parsed = zWordScrambleGuess.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'word_scramble' || room.phase !== 'word_scramble') return;
-      classicGameModes.checkWordScramble(room, String(socket.data.userId), parsed.data.word);
-    });
-
-    // ============ QUIZ SHOW ============
-    socket.on('quiz_show:answer', (raw: unknown) => {
-      const parsed = zQuizShowAnswer.safeParse(raw);
-      if (!parsed.success || socket.data.role !== 'student') return;
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!room || room.gameType !== 'quiz_show' || room.phase !== 'quiz_show') return;
-      const player = room.quizShowPlayers.get(String(socket.data.userId));
-      if (!player) return;
-      if (player.answers?.has(room.quizShowCurrentQuestion)) return;
-      if (!player.answers) player.answers = new Map();
-      player.answers.set(room.quizShowCurrentQuestion, {
-        choiceIdx: parsed.data.choiceIdx,
-        lifeline: parsed.data.lifeline,
-      });
-      if (parsed.data.lifeline) {
-        classicGameModes.useQuizShowLifeline(room, player.userId, parsed.data.lifeline);
-      }
-    });
-
-    socket.on('quiz_show:next', () => {
-      const room = rooms.get(String(socket.data.roomCode ?? ''));
-      if (!isRoomHost(room, socket) || room.gameType !== 'quiz_show') return;
-      if (room.phase !== 'quiz_show') return;
-      classicGameModes.nextQuizShowQuestion(room);
+    registerClassicGameHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      getIo: () => ioRef,
+      isRoomHost,
+      classicGameModes,
     });
 
     registerCircuitDrawHandlers(socket, {
