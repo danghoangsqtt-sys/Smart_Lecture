@@ -8,6 +8,7 @@ import { circuitValidationResult, circuitsMatch } from './circuitTopology.js';
 import { configureCircuitSimulateChallenges } from './circuitChallenges.js';
 import { circuitHostRoom, circuitSimulateInspection, circuitSimulateProgressRow, circuitSimulateProgressSnapshot } from './circuitMonitoring.js';
 import { createCircuitAssistance } from './circuitAssistance.js';
+import { createCircuitScoring } from './circuitScoring.js';
 import { parsePersistedJson, persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import type { CircuitPlayerStateRow, CircuitRuntimeRow } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
@@ -16,10 +17,10 @@ import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
 import { zAnswer, zBingoMark, zCircuitDraw, zCircuitDrawVerify, zCircuitHostControl, zCircuitInspect, zCircuitMeasurements, zCircuitSimulate, zCircuitTeacherMessage, zCircuitTeacherMessageAck, zCompletedChallenges, zCwTry, zMathAnswer, zMeasurements, zMemoryFlip, zQuizShowAnswer, zRoom, zSessionId, zUserId, zVerdict, zWordScrambleGuess } from './gameSchemas.js';
 import type { CircuitHostControlAction } from './gameSchemas.js';
-import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState, CircuitChallenge } from './gameTypes.js';
+import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
-import { db, queryAll, tx, getUserById, toPublicUser } from '../db/connection.js';
+import { db, queryAll, getUserById, toPublicUser } from '../db/connection.js';
 
 const CIRCUIT_EXTENSION_MS = 30_000;
 const CIRCUIT_MAX_REMAINING_MS = 10 * 60_000;
@@ -54,6 +55,7 @@ const classicGameModes = createClassicGameModes({
   applyCorrectPoints,
   broadcastLeaderboard,
 });
+const { completeCircuitChallenge } = createCircuitScoring({ applyCorrectPoints, persistCircuitPlayer });
 
 
 function broadcastLeaderboard(room: RoomState): void {
@@ -210,32 +212,6 @@ function circuitSimulateHostSnapshot(room: RoomState) {
     progress: circuitSimulateProgressSnapshot(room),
     assistance: circuitAssistanceSnapshot(room),
   };
-}
-
-function completeCircuitChallenge(
-  room: RoomState,
-  player: CircuitSimulatePlayer,
-  challenge: CircuitChallenge,
-): number | null {
-  if (player.completedChallenges.includes(challenge.id)) return null;
-  const genericPlayer = room.players.get(player.userId);
-  const previousCircuitScore = player.score;
-  const previousGenericScore = genericPlayer?.score ?? 0;
-  player.completedChallenges.push(challenge.id);
-  player.score += challenge.points;
-  try {
-    let newKttx = 0;
-    tx(() => {
-      newKttx = applyCorrectPoints(room, player.userId, player.displayName);
-      persistCircuitPlayer(room, player);
-    });
-    return newKttx;
-  } catch (error) {
-    player.completedChallenges = player.completedChallenges.filter((challengeId) => challengeId !== challenge.id);
-    player.score = previousCircuitScore;
-    if (genericPlayer) genericPlayer.score = previousGenericScore;
-    throw error;
-  }
 }
 
 // ============ CIRCUIT SIMULATE ============
