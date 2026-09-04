@@ -14,6 +14,7 @@ import { registerClassicGameHandlers } from './classicGameHandlers.js';
 import { registerRoomInteractionHandlers } from './roomInteractionHandlers.js';
 import { registerAnswerHandlers } from './answerHandlers.js';
 import { registerCircuitSimulateHandlers } from './circuitSimulateHandlers.js';
+import { registerGameControlHandlers } from './gameControlHandlers.js';
 import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
@@ -862,77 +863,21 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       }
     });
 
-    socket.on('game:host-start', () => {
-      const room = rooms.get(String(socket.data.roomCode));
-      if (!isRoomHost(room, socket)) return;
-      if (room.phase !== 'lobby') return;
-      if (room.lockOnStart) room.locked = true;
-      db.prepare("UPDATE game_sessions SET status = 'running', started_at = datetime('now') WHERE id = ?").run(room.sessionId);
-      if (room.gameType === 'math_race') {
-        startRace(room);
-        return;
-      }
-      if (room.gameType === 'crossword' && room.puzzle) {
-        room.phase = 'crossword';
-        room.solvedRows.clear();
-        emitCrosswordState(room);
-        broadcastHands(room);
-        return;
-      }
-      if (room.gameType === 'bingo') {
-        classicGameModes.initBingo(room);
-        return;
-      }
-      if (room.gameType === 'memory_match') {
-        classicGameModes.initMemoryMatch(room);
-        return;
-      }
-      if (room.gameType === 'word_scramble') {
-        classicGameModes.initWordScramble(room);
-        return;
-      }
-      if (room.gameType === 'quiz_show') {
-        classicGameModes.initQuizShow(room);
-        return;
-      }
-      if (room.gameType === 'circuit_draw') {
-        initCircuitDraw(room);
-        return;
-      }
-      if (room.gameType === 'circuit_simulate') {
-        initCircuitSimulate(room);
-        return;
-      }
-      if (room.gameType === 'tug_of_war') broadcastRope(room);
-      if (room.gameType === 'crossword') emitCrosswordState(room, socket);
-      room.currentIndex = 0;
-      startQuestion(room);
-    });
-
-    socket.on('game:host-next', () => {
-      const room = rooms.get(String(socket.data.roomCode));
-      if (!isRoomHost(room, socket)) return;
-      if (room.gameType === 'math_race') {
-        if (room.timer) clearTimeout(room.timer);
-        finishGame(room);
-        return;
-      }
-      if (room.gameType === 'hand_raise') {
-        if (room.activePick) {
-          ioRef?.to(`game:${room.roomCode}`).emit('hr:released');
-          room.activePick = null;
-        }
-        room.currentIndex += 1;
-        if (room.currentIndex >= room.questions.length) finishGame(room);
-        else startQuestion(room);
-        return;
-      }
-      if (room.phase === 'question' && room.timer) {
-        clearTimeout(room.timer);
-        revealAnswer(room);
-        return;
-      }
-      if (room.phase === 'leaderboard') nextStep(room);
+    registerGameControlHandlers(socket, {
+      getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
+      getIo: () => ioRef,
+      isRoomHost,
+      startRace,
+      initCircuitDraw,
+      initCircuitSimulate,
+      emitCrosswordState,
+      broadcastHands,
+      broadcastRope,
+      startQuestion,
+      finishGame,
+      revealAnswer,
+      nextStep,
+      classicGameModes,
     });
 
     registerRoomInteractionHandlers(socket, {
