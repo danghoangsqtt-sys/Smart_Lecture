@@ -230,6 +230,14 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-06 (post-P70 hardening pass — no open TRACKER task)
+- `npm audit`: 0 high/critical (đạt release gate); bump `qs` 6.15.3 → 6.16.0 (bản vá tương thích semver với Express) xử lý 2/3 advisory moderate. Advisory còn lại (`uuid` qua `exceljs`) đã được chấp nhận từ trước ở ADR-001 — nâng cấp sẽ hạ cấp ExcelJS nên không ép `--force`.
+- Xoá toàn bộ 12 chỗ dùng `any` tường minh còn sót (8 file, server + web) — vi phạm SYSTEM-RULES §2 chưa từng bị ESLint bắt vì repo không có cấu hình ESLint. Thêm type `CircuitBlob` dùng chung trong `gameTypes.ts` thay vì lặp lại `{ components: any[]; wires: any[] }` bốn lần; các chỗ còn lại tightening sang `unknown`/type cụ thể đã có sẵn trong file. Xác nhận zero cascading error và zero thay đổi hành vi.
+- Bổ sung 35 section Phase 14–48 còn thiếu trong ROADMAP.md (nguồn TRACKER task titles) và đồng bộ trạng thái lỗi thời trong docs/PLAN.md, docs/SPEC.md, README.md, PROJECT-META.md.
+- Verify sau mỗi thay đổi: typecheck 2 workspace, production build, REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, Browser E2E 4/4, `react-doctor --scope changed` 0 issue mới.
+- ESLint chưa từng được cấu hình trong repo dù SYSTEM-RULES §2 yêu cầu `@typescript-eslint/no-explicit-any: error` — không tự thêm vì đây là quyết định tooling phạm vi rộng hơn phần việc đã giao; đã báo lại cho người dùng.
+- React Doctor full-scan hiện tại: 68/100, 15 issue tiền tồn tại (không nằm trong file đã sửa) — không thuộc phạm vi phiên này.
+
 ### 2026-09-06 (Phase 70 — T-7001 completed)
 - Tách toàn bộ circuit_simulate challenge runtime (init/send/evaluate/next/control/sync/timer/progress/inspection/host-snapshot) khỏi `gameRoom.ts` vào `circuitSimulateRuntime.ts`; module sở hữu luôn Map subscription inspection trước đây là state module-level rời rạc.
 - Tách `loadRoomFromDb`/`loadCircuitRoomByCodeFromDb`/`restoreActiveCircuitRooms` vào `roomStore.ts`; tách `initCircuitDraw`/auto-submit vào `circuitDrawHandlers.ts` cạnh các handler circuit_draw đã có.
