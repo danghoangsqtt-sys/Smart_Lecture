@@ -135,7 +135,7 @@ export function createRoomStore({ rooms, initCircuitSimulate, restoreCircuitSimu
             title: entry.title,
             description: entry.description ?? '',
             targetBehavior: entry.targetBehavior ?? '',
-            starterCircuit: (entry.circuit as { components: any[]; wires: any[] } | null | undefined) ?? null,
+            starterCircuit: entry.circuit ?? null,
             referenceCircuit: entry.circuit ?? null,
             testCases: [],
             points: entry.points,

@@ -71,11 +71,16 @@ export interface QuizShowPlayer {
   answers: Map<number, { choiceIdx: number; lifeline?: string }>;
 }
 
+export interface CircuitBlob {
+  components: unknown[];
+  wires: unknown[];
+}
+
 export interface CircuitDrawPlayer {
   userId: string;
   displayName: string;
   score: number;
-  circuit: { components: any[]; wires: any[] } | null;
+  circuit: CircuitBlob | null;
   submitted: boolean;
   verified: boolean;
   feedback: string;
@@ -87,7 +92,7 @@ export interface CircuitSimulatePlayer {
   userId: string;
   displayName: string;
   score: number;
-  circuit: { components: any[]; wires: any[] } | null;
+  circuit: CircuitBlob | null;
   circuitChallengeId: string | null;
   simulationState: 'idle' | 'running' | 'paused' | 'completed' | 'start' | 'stop' | 'step' | 'reset';
   measurements: Record<string, number>;
@@ -169,8 +174,8 @@ export interface RoomState {
   quizShowCurrentQuestion: number;
   // Circuit Draw
   circuitDrawPlayers: Map<string, CircuitDrawPlayer>;
-  circuitDrawReference: { components: any[]; wires: any[] } | null;
-  circuitTemplate: { components: unknown[]; wires: unknown[] } | null;
+  circuitDrawReference: CircuitBlob | null;
+  circuitTemplate: CircuitBlob | null;
   // Circuit Simulate
   circuitSimulatePlayers: Map<string, CircuitSimulatePlayer>;
   circuitSimulateChallenges: CircuitChallenge[];
@@ -185,7 +190,7 @@ export interface CircuitChallenge {
   id: string;
   title: string;
   description: string;
-  starterCircuit: { components: any[]; wires: any[] } | null;
+  starterCircuit: CircuitBlob | null;
   referenceCircuit?: unknown;
   targetBehavior: string; // e.g., "LED blinks at 1Hz", "Output HIGH when A=1 AND B=1"
   testCases: { inputs: Record<string, number>; expectedOutputs: Record<string, number> }[];

@@ -72,29 +72,28 @@ router.get(
     const cls = getClassOrThrow(String(req.params.classId));
     if (!canViewClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem lớp');
     const plans = db.prepare('SELECT * FROM teaching_plans WHERE class_id = ? ORDER BY created_at DESC').all(cls.id) as unknown as TeachingPlanRow[];
-    for (const plan of plans) {
-      const items = db.prepare('SELECT * FROM curriculum_items WHERE teaching_plan_id = ? ORDER BY sort_order').all(plan.id) as unknown as CurriculumItemRow[];
-      (plan as any).items = items.map((it) => ({
-        id: it.id,
-        week: it.week,
-        chapter: it.chapter,
-        topic: it.topic,
-        plannedPeriods: it.planned_periods,
-        completedPeriods: it.completed_periods,
-        status: it.status,
-        sortOrder: it.sort_order,
-        lectureId: it.lecture_id,
-      }));
-    }
-    res.json({ plans: plans.map((p) => ({
-      id: p.id,
-      classId: p.class_id,
-      subjectId: p.subject_id,
-      name: p.name,
-      description: p.description,
-      totalPeriods: p.total_periods,
-      items: (p as any).items,
-    })) });
+    res.json({ plans: plans.map((p) => {
+      const items = db.prepare('SELECT * FROM curriculum_items WHERE teaching_plan_id = ? ORDER BY sort_order').all(p.id) as unknown as CurriculumItemRow[];
+      return {
+        id: p.id,
+        classId: p.class_id,
+        subjectId: p.subject_id,
+        name: p.name,
+        description: p.description,
+        totalPeriods: p.total_periods,
+        items: items.map((it) => ({
+          id: it.id,
+          week: it.week,
+          chapter: it.chapter,
+          topic: it.topic,
+          plannedPeriods: it.planned_periods,
+          completedPeriods: it.completed_periods,
+          status: it.status,
+          sortOrder: it.sort_order,
+          lectureId: it.lecture_id,
+        })),
+      };
+    }) });
   })
 );
 

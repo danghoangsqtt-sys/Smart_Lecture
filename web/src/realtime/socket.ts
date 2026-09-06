@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 
 type SocketEventHandler<TArgs extends unknown[]> = (...args: TArgs) => void;
-type RegisteredSocketHandler = (...args: any[]) => void;
+type RegisteredSocketHandler = (...args: unknown[]) => void;
 
 export interface SocketEventScope {
   on<TArgs extends unknown[]>(event: string, handler: SocketEventHandler<TArgs>): void;

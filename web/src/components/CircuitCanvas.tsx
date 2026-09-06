@@ -38,7 +38,7 @@ interface Comp {
   x: number;
   y: number;
   rot: number;
-  props: Record<string, any>;
+  props: Record<string, unknown>;
 }
 
 interface Wire {
@@ -1184,8 +1184,8 @@ function CircuitWorkspace(props: CircuitWorkspaceProps) {
 /* ============================================================
    PROPERTY EDITOR
 ============================================================ */
-function PropEditor({ comp, onChange }: { comp: Comp; onChange: (props: Record<string, any>) => void }) {
-  const set = (k: string, v: any) => onChange({ ...comp.props, [k]: v });
+function PropEditor({ comp, onChange }: { comp: Comp; onChange: (props: Record<string, unknown>) => void }) {
+  const set = (k: string, v: unknown) => onChange({ ...comp.props, [k]: v });
 
   if (comp.type === 'resistor' || comp.type === 'capacitor' || comp.type === 'inductor') {
     return (

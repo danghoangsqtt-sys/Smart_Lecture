@@ -7,7 +7,7 @@ export function createCircuitDrawLifecycle({ getIo }: { getIo: () => IOServer | 
   const initCircuitDraw = (room: RoomState): void => {
     room.phase = 'circuit_draw';
     room.circuitDrawPlayers = new Map();
-    room.circuitDrawReference = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
+    room.circuitDrawReference = room.circuitTemplate ?? null;
     for (const player of room.players.values()) {
       room.circuitDrawPlayers.set(player.userId, {
         userId: player.userId,

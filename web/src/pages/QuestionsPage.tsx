@@ -487,7 +487,7 @@ function ImportTab() {
   const [file, setFile] = useState<File | null>(null);
   const [text, setText] = useState('');
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [preview, setPreview] = useState<{ questions: any[]; warnings: string[] } | null>(null);
+  const [preview, setPreview] = useState<{ questions: unknown[]; warnings: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [folderId, setFolderId] = useState('');
   const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);

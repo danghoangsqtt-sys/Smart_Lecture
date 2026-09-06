@@ -490,7 +490,7 @@ function EditItemModal({ item, onClose, onSaved }: { item: CurriculumItem; onClo
         <div><Label>Chương/Phần</Label><Input value={chapter} onChange={(e) => setChapter(e.target.value)} /></div>
         <div><Label>Chủ đề/Nội dung *</Label><Input value={topic} onChange={(e) => setTopic(e.target.value)} /></div>
         <div><Label>Số tiết dự kiến</Label><Input type="number" min={1} max={50} value={periods} onChange={(e) => setPeriods(Number(e.target.value))} /></div>
-        <div><Label>Trạng thái</Label><Select value={status} onChange={(e) => setStatus(e.target.value as any)}>
+        <div><Label>Trạng thái</Label><Select value={status} onChange={(e) => setStatus(e.target.value as CurriculumItem['status'])}>
           <option value="pending">Chờ</option>
           <option value="in_progress">Đang dạy</option>
           <option value="completed">Hoàn thành</option>
