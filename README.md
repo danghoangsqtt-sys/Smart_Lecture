@@ -24,7 +24,7 @@
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
-> Development target: **v0.9.0**. Functional baseline P11 (v0.8.0) đã được xác minh bằng E2E REST, Socket và restore/restart; P12 đang đóng quality gates trước release.
+> Phiên bản hiện tại: **v0.9.2**. P1–P70 đã hoàn thành và được xác minh bằng E2E REST/Socket/Browser và restore/restart; phase kế tiếp chờ quyết định sản phẩm (RFC theo `docs/PLAN.md`).
 
 ## Chạy
 

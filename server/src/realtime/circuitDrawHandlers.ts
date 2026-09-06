@@ -3,6 +3,47 @@ import type { Server as IOServer, Socket } from 'socket.io';
 import { zCircuitDraw, zCircuitDrawVerify } from './gameSchemas.js';
 import type { RoomState } from './gameTypes.js';
 
+export function createCircuitDrawLifecycle({ getIo }: { getIo: () => IOServer | null }) {
+  const initCircuitDraw = (room: RoomState): void => {
+    room.phase = 'circuit_draw';
+    room.circuitDrawPlayers = new Map();
+    room.circuitDrawReference = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
+    for (const player of room.players.values()) {
+      room.circuitDrawPlayers.set(player.userId, {
+        userId: player.userId,
+        displayName: player.displayName,
+        score: 0,
+        circuit: null,
+        submitted: false,
+        verified: false,
+        feedback: '',
+      });
+    }
+    getIo()?.to(`game:${room.roomCode}`).emit('circuit_draw:init', {
+      referenceCircuit: room.circuitDrawReference,
+      durationSec: room.secondsPerQuestion,
+    });
+    // Auto-submit after time
+    room.timer = setTimeout(() => {
+      submitAllCircuits(room);
+    }, room.secondsPerQuestion * 1000);
+  };
+
+  const submitAllCircuits = (room: RoomState): void => {
+    let submitted = 0;
+    for (const [userId, player] of room.circuitDrawPlayers) {
+      if (!player.submitted && player.circuit) {
+        player.submitted = true;
+        submitted++;
+      }
+    }
+    getIo()?.to(`game:${room.roomCode}`).emit('circuit_draw:auto_submitted', { submitted });
+    // Teacher will verify manually via verdict
+  };
+
+  return { initCircuitDraw };
+}
+
 export function registerCircuitDrawHandlers(socket: Socket, {
   getRoom,
   getIo,

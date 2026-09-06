@@ -20,5 +20,10 @@
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.2"
+  },
+  "allowScripts": {
+    "@google/genai@1.52.0": true,
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.5": true
   }
 }

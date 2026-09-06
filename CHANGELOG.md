@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased — Game engine modularization
+## 2026-09-06 — Game engine modularization
 
-- Bắt đầu tách Socket.IO game engine theo lifecycle, game mode và circuit runtime; giữ nguyên hợp đồng realtime/persistence.
+- Tách toàn bộ circuit_simulate challenge runtime (init/send/evaluate/next/control/sync/timer/progress/inspection/host-snapshot) khỏi `gameRoom.ts` vào `circuitSimulateRuntime.ts`.
+- Tách room loading/restore (`loadRoomFromDb`, `loadCircuitRoomByCodeFromDb`, `restoreActiveCircuitRooms`) vào `roomStore.ts`; tách lifecycle circuit_draw (init + auto-submit) vào `circuitDrawHandlers.ts`.
+- `gameRoom.ts` giảm 974 → 430 dòng; `initGameEngine` chỉ còn construction, auth middleware, event binding và composition.
+- Giữ nguyên toàn bộ event Socket.IO, payload, phân quyền, timer, chấm điểm và durable recovery; typecheck, build, REST 86/86, Socket 10/10, regression 22/22, restore/circuit-restart và Browser E2E 4/4 đều pass.
 
 ## 2026-09-03 — Class Detail workspace modularization
 

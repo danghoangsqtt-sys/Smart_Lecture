@@ -30,5 +30,6 @@ Separate the Socket.IO game engine into focused runtime modules without changing
 
 ## Status
 
-- `in-progress`
+- `done`
 - 2026-09-03 checkpoint: moved the default circuit challenge catalog out of `gameRoom.ts`; typecheck and diff check pass. Browser E2E could not start because Windows repeatedly locks `test-results/.last-run.json` with `EPERM` before any test case executes. The task remains in progress and is not marked PASS.
+- 2026-09-06 completion: extracted the circuit_simulate runtime (`circuitSimulateRuntime.ts`), room loading/restore (`roomStore.ts`), and circuit_draw init/auto-submit (`circuitDrawHandlers.ts`) from `gameRoom.ts`, which is now 430 lines and limited to shared room utilities, connection lifecycle, and `initGameEngine` composition. The 2026-09-03 EPERM report turned out to be a fresh-environment issue (Playwright browsers were never downloaded on that machine), not a real file lock — installing them (`npx playwright install chromium`) resolved it and the full Browser E2E suite now runs clean. Full verification contract passed: `npm run typecheck`, `npm run build`, `npm run test:e2e` (REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart prepare+verify), `npm run test:browser` (4/4), `git diff --check`.

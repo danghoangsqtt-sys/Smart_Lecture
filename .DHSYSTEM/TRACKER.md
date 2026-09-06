@@ -227,9 +227,17 @@
 | T-6701 | Tách orchestration và payload builder của luồng tạo game | P67 | done | Doctor 100/100 + Browser 4/4 + REST 86/86 + Socket 10/10 + regression/restart PASS |
 | T-6801 | Ổn định lifecycle nguồn, annotation và render của Presentation Canvas | P68 | done | Doctor 100/100 + Browser annotation flow + full regression/restart PASS |
 | T-6901 | Tách Class Detail theo miền lớp học, giữ nguyên hợp đồng | P69 | done | typecheck/build + Browser 4/4 + REST 86/86 + Socket 10/10 + security/data 22/22 + restore/circuit restart PASS |
-| T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | doing | typecheck + build + Socket/Browser/REST/restart regression |
+| T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-06 (Phase 70 — T-7001 completed)
+- Tách toàn bộ circuit_simulate challenge runtime (init/send/evaluate/next/control/sync/timer/progress/inspection/host-snapshot) khỏi `gameRoom.ts` vào `circuitSimulateRuntime.ts`; module sở hữu luôn Map subscription inspection trước đây là state module-level rời rạc.
+- Tách `loadRoomFromDb`/`loadCircuitRoomByCodeFromDb`/`restoreActiveCircuitRooms` vào `roomStore.ts`; tách `initCircuitDraw`/auto-submit vào `circuitDrawHandlers.ts` cạnh các handler circuit_draw đã có.
+- `gameRoom.ts` giảm 974 → 430 dòng; `initGameEngine` giờ chỉ còn construction, auth middleware, event binding và composition như mục tiêu task.
+- Không đổi event name, payload, authorization, timer, scoring hay durable recovery; các factory mới giữ đúng pattern dependency-injection đã dùng cho circuitAssistance/circuitRecovery/circuitScoring.
+- Môi trường làm việc mới cần `npm install` (node_modules gitignored) + approve 3 postinstall script (`@google/genai`, `esbuild`, `protobufjs`) + `npx playwright install chromium`; ghi `allowScripts` vào package.json để lần sau không cần approve lại. "EPERM khóa test-results" ghi ở checkpoint 2026-09-03 thực chất là browser Playwright chưa từng được cài trong máy đó — không phải lỗi khóa file thật.
+- Verify: `npm run typecheck` (2 workspace) PASS, `npm run build` PASS, `npm run test:e2e` (REST 86/86, Socket 10/10, security/data regression 22/22, Excel, restore restart, circuit restart prepare+verify toàn bộ) PASS, `npm run test:browser` (Browser E2E 4/4 gồm circuit room restore/no-duplicate-grading) PASS, `git diff --check` sạch.
+
 ### 2026-09-03 (Phase 69 — T-6901 completed)
 - Tách Class Detail thành các feature overview, students, attendance, gradebook, groups, settings, curriculum và teaching workspace; route entry còn 97 dòng.
 - Giữ nguyên URL tab, API/payload, phân quyền, import/export Excel, AI nhận xét, curriculum và luồng vào Teaching Mode.

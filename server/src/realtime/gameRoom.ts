@@ -4,37 +4,32 @@ import { generateMathProblem } from './gameUtils.js';
 import { createClassicGameModes } from './classicGameModes.js';
 import { createGameLifecycle } from './gameLifecycle.js';
 import { circuitsMatch } from './circuitTopology.js';
-import { configureCircuitSimulateChallenges } from './circuitChallenges.js';
-import { circuitHostRoom, circuitSimulateInspection, circuitSimulateProgressRow, circuitSimulateProgressSnapshot } from './circuitMonitoring.js';
+import { circuitHostRoom, circuitSimulateInspection } from './circuitMonitoring.js';
 import { createCircuitAssistance } from './circuitAssistance.js';
 import { createCircuitScoring } from './circuitScoring.js';
 import { createCircuitRecovery } from './circuitRecovery.js';
-import { registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
+import { createCircuitSimulateRuntime } from './circuitSimulateRuntime.js';
+import { createRoomStore } from './roomStore.js';
+import { createCircuitDrawLifecycle, registerCircuitDrawHandlers } from './circuitDrawHandlers.js';
 import { registerClassicGameHandlers } from './classicGameHandlers.js';
 import { registerRoomInteractionHandlers } from './roomInteractionHandlers.js';
 import { registerAnswerHandlers } from './answerHandlers.js';
 import { registerCircuitSimulateHandlers } from './circuitSimulateHandlers.js';
 import { registerGameControlHandlers } from './gameControlHandlers.js';
-import { persistCircuitPlayer, persistCircuitRoom, persistCircuitRuntime } from './circuitPersistence.js';
+import { persistCircuitPlayer } from './circuitPersistence.js';
 import { trackSocketRoom, untrackSocketRoom } from './socketRoomIndex.js';
 import { findRoomBySession } from './roomLookup.js';
 import { authenticateSocket } from './socketAuth.js';
 import { addKttx, isEnrolled, isRoomHost } from './roomAccess.js';
-import { zRoom, zSessionId, zUserId } from './gameSchemas.js';
-import type { CircuitHostControlAction } from './gameSchemas.js';
-import type { PuzzleDef, GameType, GameQuestion, PlayerInfo, RacePlayer, BingoPlayer, MemoryMatchPlayer, WordScramblePlayer, QuizShowPlayer, CircuitDrawPlayer, CircuitValidationCode, CircuitSimulatePlayer, Phase, RoomState } from './gameTypes.js';
+import { zRoom, zSessionId } from './gameSchemas.js';
+import type { RoomState } from './gameTypes.js';
 import { buildLeaderboard } from './leaderboard.js';
 
-import { db, queryAll, getUserById, toPublicUser } from '../db/connection.js';
-
-const CIRCUIT_EXTENSION_MS = 30_000;
-const CIRCUIT_MAX_REMAINING_MS = 10 * 60_000;
-
+import { getUserById, toPublicUser } from '../db/connection.js';
 
 const MAX_PLAYERS = 60;
 
 const rooms = new Map<string, RoomState>();
-const circuitInspectionSubscriptions = new Map<string, { roomCode: string; userId: string }>();
 let ioRef: IOServer | null = null;
 const gameLifecycle = createGameLifecycle({
   getIo: () => ioRef,
@@ -47,11 +42,11 @@ const gameLifecycle = createGameLifecycle({
 const { finishGame, revealAnswer, startQuestion, nextStep } = gameLifecycle;
 const circuitAssistance = createCircuitAssistance({ getIo: () => ioRef, circuitHostRoom });
 const {
-  circuitAssistanceStatus,
   circuitAssistanceSnapshot,
   getCircuitAssistance,
   markCircuitAssistanceDelivered,
   emitCircuitAssistanceStatus,
+  circuitAssistanceStatus,
   deliverPendingCircuitAssistance,
 } = circuitAssistance;
 const classicGameModes = createClassicGameModes({
@@ -61,9 +56,23 @@ const classicGameModes = createClassicGameModes({
   broadcastLeaderboard,
 });
 const { completeCircuitChallenge } = createCircuitScoring({ applyCorrectPoints, persistCircuitPlayer });
+const circuitSimulateRuntime = createCircuitSimulateRuntime({
+  getIo: () => ioRef,
+  finishGame,
+  completeCircuitChallenge,
+  broadcastLeaderboard,
+  circuitAssistanceSnapshot,
+  deliverPendingCircuitAssistance,
+});
 const { restoreCircuitSimulateRoom } = createCircuitRecovery({
-  clearTimer: clearCircuitSimulateTimer,
-  scheduleTimer: scheduleCircuitSimulateTimer,
+  clearTimer: circuitSimulateRuntime.clearTimer,
+  scheduleTimer: circuitSimulateRuntime.scheduleTimer,
+});
+const { initCircuitDraw } = createCircuitDrawLifecycle({ getIo: () => ioRef });
+const { loadRoomFromDb, loadCircuitRoomByCodeFromDb, restoreActiveCircuitRooms } = createRoomStore({
+  rooms,
+  initCircuitSimulate: circuitSimulateRuntime.init,
+  restoreCircuitSimulateRoom,
 });
 
 
@@ -116,391 +125,6 @@ function emitCrosswordState(room: RoomState, target?: Socket): void {
   else ioRef?.to(`game:${room.roomCode}`).emit('cw:state', payload);
 }
 
-// ============ CIRCUIT DRAW ============
-function initCircuitDraw(room: RoomState): void {
-  room.phase = 'circuit_draw';
-  room.circuitDrawPlayers = new Map();
-  room.circuitDrawReference = (room.circuitTemplate as { components: any[]; wires: any[] } | null) ?? null;
-  for (const player of room.players.values()) {
-    room.circuitDrawPlayers.set(player.userId, {
-      userId: player.userId,
-      displayName: player.displayName,
-      score: 0,
-      circuit: null,
-      submitted: false,
-      verified: false,
-      feedback: '',
-    });
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:init', {
-    referenceCircuit: room.circuitDrawReference,
-    durationSec: room.secondsPerQuestion,
-  });
-  // Auto-submit after time
-  room.timer = setTimeout(() => {
-    submitAllCircuits(room);
-  }, room.secondsPerQuestion * 1000);
-}
-
-function submitAllCircuits(room: RoomState): void {
-  let submitted = 0;
-  for (const [userId, player] of room.circuitDrawPlayers) {
-    if (!player.submitted && player.circuit) {
-      player.submitted = true;
-      submitted++;
-    }
-  }
-  ioRef?.to(`game:${room.roomCode}`).emit('circuit_draw:auto_submitted', { submitted });
-  // Teacher will verify manually via verdict
-}
-
-function emitCircuitSimulateProgress(room: RoomState, player: CircuitSimulatePlayer): void {
-  ioRef?.to(circuitHostRoom(room)).emit(
-    'circuit_simulate:progress',
-    circuitSimulateProgressRow(room, player),
-  );
-}
-
-function emitCircuitSimulateProgressSnapshot(room: RoomState): void {
-  ioRef?.to(circuitHostRoom(room)).emit(
-    'circuit_simulate:progress_snapshot',
-    { rows: circuitSimulateProgressSnapshot(room) },
-  );
-}
-
-function emitCircuitSimulateInspectionUpdate(room: RoomState, player: CircuitSimulatePlayer): void {
-  if (!ioRef) return;
-  const payload = circuitSimulateInspection(room, player);
-  for (const [socketId, subscription] of circuitInspectionSubscriptions) {
-    if (subscription.roomCode !== room.roomCode || subscription.userId !== player.userId) continue;
-    ioRef.sockets.sockets.get(socketId)?.emit('circuit_simulate:inspection_update', payload);
-  }
-}
-
-function circuitSimulateHostSnapshot(room: RoomState) {
-  if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return null;
-  const activeChallenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-  if (!activeChallenge) return null;
-  const challengeById = new Map(
-    room.circuitSimulateChallenges.map((challenge, index) => [challenge.id, { challenge, index }] as const),
-  );
-  const passes = [...room.circuitSimulatePlayers.values()]
-    .flatMap((player) => player.completedChallenges.flatMap((challengeId) => {
-      const matched = challengeById.get(challengeId);
-      return matched ? [{
-        userId: player.userId,
-        name: player.displayName,
-        challengeId,
-        points: matched.challenge.points,
-        challengeIndex: matched.index,
-      }] : [];
-    }))
-    .sort((a, b) => b.challengeIndex - a.challengeIndex || a.name.localeCompare(b.name))
-    .slice(0, 8)
-    .map((pass) => ({
-      userId: pass.userId,
-      name: pass.name,
-      challengeId: pass.challengeId,
-      points: pass.points,
-    }));
-
-  return {
-    challenge: {
-      index: room.circuitSimulateCurrentChallenge,
-      total: room.circuitSimulateChallenges.length,
-      endsAt: room.circuitSimulateChallengeEndsAt,
-      paused: room.circuitSimulatePaused,
-      remainingMs: room.circuitSimulatePaused
-        ? room.circuitSimulateRemainingMs
-        : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
-      title: activeChallenge.title,
-      description: activeChallenge.description,
-      targetBehavior: activeChallenge.targetBehavior,
-    },
-    passes,
-    progress: circuitSimulateProgressSnapshot(room),
-    assistance: circuitAssistanceSnapshot(room),
-  };
-}
-
-// ============ CIRCUIT SIMULATE ============
-function initCircuitSimulate(room: RoomState): void {
-  room.phase = 'circuit_simulate';
-  room.circuitSimulatePlayers = new Map();
-  configureCircuitSimulateChallenges(room);
-  room.circuitSimulateCurrentChallenge = 0;
-  room.circuitSimulatePaused = false;
-  room.circuitSimulateRemainingMs = 0;
-  for (const player of room.players.values()) {
-    room.circuitSimulatePlayers.set(player.userId, {
-      userId: player.userId,
-      displayName: player.displayName,
-      score: 0,
-      circuit: null,
-      circuitChallengeId: room.circuitSimulateChallenges[0]?.id ?? null,
-      simulationState: 'idle',
-      measurements: {},
-      completedChallenges: [],
-      lastActivityAt: Date.now(),
-      submissionAttempts: 0,
-      lastSubmissionAt: null,
-      lastValidationCode: null,
-      lastValidationFeedback: null,
-      totalSubmissionAttempts: 0,
-      incorrectSubmissionAttempts: 0,
-    });
-  }
-  sendCircuitSimulateChallenge(room);
-}
-
-function clearCircuitSimulateTimer(room: RoomState): void {
-  if (room.timer) clearTimeout(room.timer);
-  room.timer = null;
-}
-
-function circuitSimulateChallengePayload(room: RoomState) {
-  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-  if (!challenge) return null;
-  return {
-    index: room.circuitSimulateCurrentChallenge,
-    total: room.circuitSimulateChallenges.length,
-    endsAt: room.circuitSimulateChallengeEndsAt,
-    paused: room.circuitSimulatePaused,
-    remainingMs: room.circuitSimulatePaused
-      ? room.circuitSimulateRemainingMs
-      : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
-    challenge: {
-      id: challenge.id,
-      title: challenge.title,
-      description: challenge.description,
-      starterCircuit: challenge.starterCircuit,
-      targetBehavior: challenge.targetBehavior,
-    },
-  };
-}
-
-function emitCircuitSimulateControlState(room: RoomState): void {
-  ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:control_state', {
-    index: room.circuitSimulateCurrentChallenge,
-    paused: room.circuitSimulatePaused,
-    remainingMs: room.circuitSimulatePaused
-      ? room.circuitSimulateRemainingMs
-      : Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()),
-    endsAt: room.circuitSimulateChallengeEndsAt,
-  });
-}
-
-function scheduleCircuitSimulateTimer(room: RoomState): void {
-  clearCircuitSimulateTimer(room);
-  if (room.circuitSimulatePaused) return;
-  room.timer = setTimeout(() => {
-    room.timer = null;
-    if (room.circuitSimulatePaused || room.phase !== 'circuit_simulate') return;
-    evaluateCircuitSimulateChallenge(room);
-  }, Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now()));
-}
-
-function sendCircuitSimulateChallenge(
-  room: RoomState,
-  challengeEndsAt = Date.now() + room.secondsPerQuestion * 1000,
-  resetCurrentChallenge = false,
-): void {
-  if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
-    finishGame(room);
-    return;
-  }
-  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-  if (!challenge) return;
-  const resetAt = Date.now();
-  for (const player of room.circuitSimulatePlayers.values()) {
-    if (!resetCurrentChallenge && player.circuitChallengeId === challenge.id) continue;
-    player.circuit = null;
-    player.circuitChallengeId = challenge.id;
-    player.measurements = {};
-    player.simulationState = 'idle';
-    player.lastActivityAt = resetAt;
-    player.submissionAttempts = 0;
-    player.lastSubmissionAt = null;
-    player.lastValidationCode = null;
-    player.lastValidationFeedback = null;
-  }
-  room.circuitSimulatePaused = false;
-  room.circuitSimulateRemainingMs = 0;
-  room.circuitSimulateChallengeEndsAt = challengeEndsAt;
-  persistCircuitRoom(room);
-  const payload = circuitSimulateChallengePayload(room);
-  if (payload) ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge', payload);
-  emitCircuitSimulateProgressSnapshot(room);
-  for (const player of room.circuitSimulatePlayers.values()) {
-    emitCircuitSimulateInspectionUpdate(room, player);
-  }
-  scheduleCircuitSimulateTimer(room);
-}
-
-function syncCircuitSimulateLearner(room: RoomState, socket: Socket, userId: string, displayName: string): void {
-  if (room.gameType !== 'circuit_simulate' || room.phase !== 'circuit_simulate') return;
-  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-  if (!challenge) return;
-  let player = room.circuitSimulatePlayers.get(userId);
-  if (!player) {
-    player = {
-      userId,
-      displayName,
-      score: 0,
-      circuit: null,
-      circuitChallengeId: challenge.id,
-      simulationState: 'idle',
-      measurements: {},
-      completedChallenges: [],
-      lastActivityAt: Date.now(),
-      submissionAttempts: 0,
-      lastSubmissionAt: null,
-      lastValidationCode: null,
-      lastValidationFeedback: null,
-      totalSubmissionAttempts: 0,
-      incorrectSubmissionAttempts: 0,
-    };
-    room.circuitSimulatePlayers.set(userId, player);
-    persistCircuitPlayer(room, player);
-  }
-  const circuit = player.circuitChallengeId === challenge.id ? player.circuit : null;
-  const payload = circuitSimulateChallengePayload(room);
-  if (payload) socket.emit('circuit_simulate:challenge', payload);
-  socket.emit('circuit_simulate:restored', {
-    circuit,
-    completed: player.completedChallenges.includes(challenge.id),
-    simulationState: player.simulationState,
-    validation: player.lastValidationCode && player.lastValidationFeedback && player.lastSubmissionAt !== null
-      ? {
-          correct: player.lastValidationCode === 'correct',
-          code: player.lastValidationCode,
-          feedback: player.lastValidationFeedback,
-          attempts: player.submissionAttempts,
-          submittedAt: player.lastSubmissionAt,
-        }
-      : null,
-  });
-  deliverPendingCircuitAssistance(room, socket, userId);
-}
-
-function evaluateCircuitSimulateChallenge(room: RoomState): void {
-  const challenge = room.circuitSimulateChallenges[room.circuitSimulateCurrentChallenge];
-  if (!challenge) return;
-  const c = challenge; // TypeScript narrowing workaround
-  let completed = 0;
-  for (const [userId, player] of room.circuitSimulatePlayers) {
-    if (player.completedChallenges.includes(c.id)) continue;
-
-    let passed = false;
-    if (c.referenceCircuit) {
-      /* Chấm tự động theo topology — giống circuit_draw */
-      passed = !!player.circuit && circuitsMatch(player.circuit, c.referenceCircuit);
-    } else if (player.circuit && player.measurements) {
-      /* Fallback legacy: đo lường từ client */
-      passed = true;
-      for (const testCase of c.testCases) {
-        for (const [output, expected] of Object.entries(testCase.expectedOutputs)) {
-          const measured = player.measurements[output];
-          if (measured === undefined || Math.abs(measured - expected) > 0.1) {
-            passed = false;
-            break;
-          }
-        }
-        if (!passed) break;
-      }
-    }
-
-    if (passed) {
-        const newKttx = completeCircuitChallenge(room, player, c);
-        if (newKttx === null) continue;
-        completed++;
-        ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:challenge_passed', {
-          userId,
-          name: player.displayName,
-          challengeId: c.id,
-          points: c.points,
-          newKttx,
-        });
-      }
-  }
-  broadcastLeaderboard(room);
-  if (completed > 0) {
-    ioRef?.to(`game:${room.roomCode}`).emit('circuit_simulate:results', { completed });
-  }
-  persistCircuitRoom(room);
-  nextCircuitSimulateChallenge(room);
-}
-
-function nextCircuitSimulateChallenge(room: RoomState): void {
-  room.circuitSimulateCurrentChallenge++;
-  if (room.circuitSimulateCurrentChallenge >= room.circuitSimulateChallenges.length) {
-    finishGame(room);
-    return;
-  }
-  sendCircuitSimulateChallenge(room);
-}
-
-function controlCircuitSimulateChallenge(
-  room: RoomState,
-  action: CircuitHostControlAction,
-): void {
-  if (action === 'pause') {
-    if (!room.circuitSimulatePaused) {
-      room.circuitSimulateRemainingMs = Math.max(0, room.circuitSimulateChallengeEndsAt - Date.now());
-      room.circuitSimulatePaused = true;
-      clearCircuitSimulateTimer(room);
-      persistCircuitRuntime(room);
-    }
-    emitCircuitSimulateControlState(room);
-    return;
-  }
-  if (action === 'resume') {
-    if (room.circuitSimulatePaused) {
-      room.circuitSimulateChallengeEndsAt = Date.now() + room.circuitSimulateRemainingMs;
-      room.circuitSimulatePaused = false;
-      room.circuitSimulateRemainingMs = 0;
-      persistCircuitRuntime(room);
-      scheduleCircuitSimulateTimer(room);
-    }
-    emitCircuitSimulateControlState(room);
-    return;
-  }
-  if (action === 'extend') {
-    const now = Date.now();
-    if (room.circuitSimulatePaused) {
-      room.circuitSimulateRemainingMs = Math.min(
-        CIRCUIT_MAX_REMAINING_MS,
-        Math.max(0, room.circuitSimulateRemainingMs) + CIRCUIT_EXTENSION_MS,
-      );
-    } else {
-      const extendedRemaining = Math.min(
-        CIRCUIT_MAX_REMAINING_MS,
-        Math.max(0, room.circuitSimulateChallengeEndsAt - now) + CIRCUIT_EXTENSION_MS,
-      );
-      room.circuitSimulateChallengeEndsAt = now + extendedRemaining;
-      scheduleCircuitSimulateTimer(room);
-    }
-    persistCircuitRuntime(room);
-    emitCircuitSimulateControlState(room);
-    return;
-  }
-  if (action === 'evaluate') {
-    clearCircuitSimulateTimer(room);
-    evaluateCircuitSimulateChallenge(room);
-    return;
-  }
-  if (action === 'skip') {
-    clearCircuitSimulateTimer(room);
-    nextCircuitSimulateChallenge(room);
-    return;
-  }
-  sendCircuitSimulateChallenge(
-    room,
-    Date.now() + room.secondsPerQuestion * 1000,
-    true,
-  );
-}
-
 function startRace(room: RoomState): void {
   room.phase = 'race';
   room.raceEndsAt = Date.now() + room.raceDurationSec * 1000;
@@ -543,171 +167,6 @@ function sendRaceProblem(room: RoomState, socket: Socket): void {
   }
   rp.current = generateMathProblem(room.raceDifficulty);
   socket.emit('math:problem', { text: rp.current.text, endsAt: room.raceEndsAt });
-}
-
-function loadRoomFromDb(sessionId: string): RoomState | null {
-  const row = db.prepare('SELECT * FROM game_sessions WHERE id = ?').get(sessionId) as
-    | {
-        id: string;
-        host_teacher_id: string;
-        room_code: string;
-        status: string;
-        game_type: string;
-        question_ids_json: string;
-        config_json: string;
-        current_question_index: number;
-        class_id: string | null;
-      }
-    | undefined;
-  if (!row || row.status === 'finished') return null;
-
-  const cfg = JSON.parse(row.config_json) as {
-    secondsPerQuestion?: number;
-    durationSec?: number;
-    difficulty?: number;
-    pointsPerCorrect?: number;
-    classId?: string | null;
-    puzzle?: PuzzleDef | null;
-    circuitTemplate?: { components: unknown[]; wires: unknown[] } | null;
-    simulateChallenges?: {
-      title: string;
-      description?: string;
-      targetBehavior?: string;
-      points: number;
-      circuit?: { components: unknown[]; wires: unknown[] } | null;
-    }[] | null;
-    lockOnStart?: boolean;
-  };
-  const gameType = (['quick_quiz', 'tug_of_war', 'math_race', 'hand_raise', 'crossword', 'bingo', 'memory_match', 'word_scramble', 'quiz_show', 'circuit_draw', 'circuit_simulate'] as const).includes(
-    row.game_type as never
-  )
-    ? (row.game_type as GameType)
-    : 'quick_quiz';
-
-  let questions: GameQuestion[] = [];
-  const ids = JSON.parse(row.question_ids_json) as string[];
-  if (ids.length > 0 && gameType !== 'math_race') {
-    const placeholders = ids.map(() => '?').join(',');
-    const bankRows = queryAll<{ id: string; type: string; content: string; options_json: string; correct_answer: string }>(
-      `SELECT id, type, content, options_json, correct_answer FROM questions WHERE id IN (${placeholders})`,
-      ...ids
-    );
-    const orderMap = new Map(ids.map((qid, i) => [qid, i]));
-    const sorted = [...bankRows].sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-    questions = sorted.map((q) => {
-      if (q.type === 'fill') {
-        return { id: q.id, type: 'fill' as const, content: q.content, correctText: q.correct_answer };
-      }
-      const rawOptions = (JSON.parse(q.options_json) as string[]).map((o) => o.replace(/^([A-D])[\.\:\)]\s+/, ''));
-      let correctIdx = /^[A-D]$/.test(q.correct_answer) ? q.correct_answer.charCodeAt(0) - 65 : 0;
-      if (correctIdx < 0 || correctIdx >= rawOptions.length) correctIdx = 0;
-      return { id: q.id, type: 'mcq' as const, content: q.content, options: rawOptions, correctIdx };
-    });
-  }
-
-  const existing = rooms.get(row.room_code);
-  if (existing) return existing;
-  const room: RoomState = {
-    sessionId: row.id,
-    hostId: row.host_teacher_id,
-    roomCode: row.room_code,
-    gameType,
-    questions,
-    secondsPerQuestion: Math.min(Math.max(cfg.secondsPerQuestion ?? 20, 5), 120),
-    raceDurationSec: Math.min(Math.max(cfg.durationSec ?? 120, 30), 600),
-    raceDifficulty: Math.min(Math.max(cfg.difficulty ?? 1, 1), 3),
-    pointsPerCorrect: cfg.pointsPerCorrect ?? 0.5,
-    classId: row.class_id ?? cfg.classId ?? null,
-    puzzle: cfg.puzzle ?? null,
-    solvedRows: new Set<number>(),
-    hands: new Map<string, string>(),
-    activePick: null,
-    locked: row.status === 'running' && cfg.lockOnStart === true,
-    lockOnStart: cfg.lockOnStart === true,
-    blacklist: new Set<string>(),
-    phase: row.status === 'running'
-      ? gameType === 'math_race'
-        ? 'race'
-        : gameType === 'circuit_simulate'
-          ? 'circuit_simulate'
-          : 'question'
-      : 'lobby',
-    currentIndex: row.current_question_index,
-    questionEndsAt: 0,
-    questionStartAt: 0,
-    players: new Map(),
-    racePlayers: new Map(),
-    ropePos: 0,
-    raceEndsAt: 0,
-    timer: null,
-    // Bingo
-    bingoNumbers: [],
-    bingoCalled: [],
-    bingoPlayers: new Map(),
-    // Memory Match
-    memoryCards: [],
-    memoryPlayers: new Map(),
-    memoryFlipped: [],
-    // Word Scramble
-    wordScrambleWords: [],
-    wordScramblePlayers: new Map(),
-    // Quiz Show
-    quizShowQuestions: [],
-    quizShowPlayers: new Map(),
-    quizShowCurrentQuestion: 0,
-    // Circuit Draw
-    circuitDrawPlayers: new Map(),
-    circuitDrawReference: null,
-    circuitTemplate: cfg.circuitTemplate ?? null,
-    // Circuit Simulate
-    circuitSimulatePlayers: new Map(),
-    circuitSimulateChallenges: [],
-    circuitSimulateCurrentChallenge: 0,
-    circuitSimulateChallengeEndsAt: 0,
-    circuitSimulatePaused: false,
-    circuitSimulateRemainingMs: 0,
-    simulateChallenges: cfg.simulateChallenges
-      ? cfg.simulateChallenges.map((entry, i) => ({
-          id: `cfg_${i}`,
-          title: entry.title,
-          description: entry.description ?? '',
-          targetBehavior: entry.targetBehavior ?? '',
-          starterCircuit: (entry.circuit as { components: any[]; wires: any[] } | null | undefined) ?? null,
-          referenceCircuit: entry.circuit ?? null,
-          testCases: [],
-          points: entry.points,
-        }))
-      : null,
-  };
-  rooms.set(row.room_code, room);
-  if (row.status === 'running' && gameType === 'circuit_simulate') {
-    if (!restoreCircuitSimulateRoom(room)) initCircuitSimulate(room);
-  }
-  return room;
-}
-
-function loadCircuitRoomByCodeFromDb(roomCode: string): RoomState | null {
-  const row = db.prepare(`
-    SELECT id FROM game_sessions
-    WHERE room_code = ? AND game_type = 'circuit_simulate' AND status IN ('lobby', 'running')
-    LIMIT 1
-  `).get(roomCode) as { id: string } | undefined;
-  return row ? loadRoomFromDb(row.id) : null;
-}
-
-function restoreActiveCircuitRooms(): void {
-  const rows = db.prepare(`
-    SELECT id FROM game_sessions
-    WHERE game_type = 'circuit_simulate' AND status = 'running'
-    ORDER BY created_at
-  `).all() as unknown as { id: string }[];
-  for (const row of rows) {
-    try {
-      loadRoomFromDb(row.id);
-    } catch (error) {
-      console.error(`[game] cannot restore circuit room ${row.id}`, error);
-    }
-  }
 }
 
 export function initGameEngine(httpServer: HttpServer): IOServer {
@@ -754,7 +213,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         players: [...room.players.values()].map((p) => ({ name: p.displayName, score: p.score, userId: p.userId })),
         leaderboard: buildLeaderboard(room),
         raceRows: [...room.racePlayers.values()].map((r) => ({ name: r.displayName, solved: r.solved })),
-        circuitSimulate: circuitSimulateHostSnapshot(room),
+        circuitSimulate: circuitSimulateRuntime.hostSnapshot(room),
       });
     });
 
@@ -845,9 +304,9 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       if (room.gameType === 'tug_of_war') broadcastRope(room);
       if (room.gameType === 'crossword') emitCrosswordState(room, socket);
       if (room.gameType === 'circuit_simulate') {
-        syncCircuitSimulateLearner(room, socket, publicUser.id, publicUser.displayName);
+        circuitSimulateRuntime.syncLearner(room, socket, publicUser.id, publicUser.displayName);
         const circuitPlayer = room.circuitSimulatePlayers.get(publicUser.id);
-        if (circuitPlayer) emitCircuitSimulateProgress(room, circuitPlayer);
+        if (circuitPlayer) circuitSimulateRuntime.emitProgress(room, circuitPlayer);
       }
       if (room.phase === 'question') {
         const q = room.questions[room.currentIndex];
@@ -869,7 +328,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       isRoomHost,
       startRace,
       initCircuitDraw,
-      initCircuitSimulate,
+      initCircuitSimulate: circuitSimulateRuntime.init,
       emitCrosswordState,
       broadcastHands,
       broadcastRope,
@@ -922,25 +381,23 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       getRoom: () => rooms.get(String(socket.data.roomCode ?? '')),
       getIo: () => ioRef,
       getSocketIds: connectedSocketsIn,
-      subscribeInspection: (socketId, roomCode, userId) => {
-        circuitInspectionSubscriptions.set(socketId, { roomCode, userId });
-      },
+      subscribeInspection: circuitSimulateRuntime.subscribeInspection,
       isRoomHost,
-      controlChallenge: controlCircuitSimulateChallenge,
+      controlChallenge: circuitSimulateRuntime.control,
       getCircuitAssistance,
       markCircuitAssistanceDelivered,
       emitCircuitAssistanceStatus,
       circuitAssistanceStatus,
       completeCircuitChallenge,
       persistCircuitPlayer,
-      emitProgress: emitCircuitSimulateProgress,
-      emitInspectionUpdate: emitCircuitSimulateInspectionUpdate,
+      emitProgress: circuitSimulateRuntime.emitProgress,
+      emitInspectionUpdate: circuitSimulateRuntime.emitInspectionUpdate,
       broadcastLeaderboard,
       circuitSimulateInspection,
     });
 
     socket.on('disconnecting', () => {
-      circuitInspectionSubscriptions.delete(socket.id);
+      circuitSimulateRuntime.unsubscribeInspection(socket.id);
       const code = socket.data.roomCode as string | undefined;
       if (!code) return;
       untrackSocketRoom(socketRoomsIndex, socket.id, code);
@@ -950,7 +407,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
         if (player) player.online = false;
         if (room.gameType === 'circuit_simulate') {
           const circuitPlayer = room.circuitSimulatePlayers.get(String(socket.data.userId));
-          if (circuitPlayer) emitCircuitSimulateProgress(room, circuitPlayer);
+          if (circuitPlayer) circuitSimulateRuntime.emitProgress(room, circuitPlayer);
         }
         io.to(`game:${room.roomCode}`).emit('lobby:update', {
           count: [...room.players.values()].filter((p) => p.online).length,
@@ -971,4 +428,3 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
 
   return io;
 }
-
