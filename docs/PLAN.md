@@ -2,6 +2,8 @@
 
 > Functional baseline: v0.8.0 / P11 hoàn thành · Development target: v0.9.0 · Chủ đích: biến nền tảng chức năng hiện có thành bản release nội bộ ổn định, sau đó mới mở rộng giá trị giảng dạy.
 
+> **Ghi chú lịch sử (2026-09-06):** tài liệu này là kế hoạch gốc lập tại P12. Từ P13 trở đi, thực thi thực tế đã tách chi tiết hơn nhiều so với khung P13–P16 dưới đây (ví dụ P15/P16 gốc bị thay bằng chuỗi phase riêng cho PPTX/preflight/presentation polish P15–P39, rồi mô phỏng mạch điện tử P40–P70) — không được lập kế hoạch trước trong tài liệu này. **Nguồn sự thật hiện tại cho trạng thái phase là `.DHSYSTEM/ROADMAP.md` và `.DHSYSTEM/TRACKER.md`**, không phải bảng lộ trình bên dưới. P1–P70 đã hoàn thành; phase tiếp theo là decision gate (xem P16 bên dưới) chờ RFC.
+
 ## Nguyên tắc thực thi
 
 1. Làm theo thứ tự phase; không khởi động phase sau khi quality gate của phase trước còn đỏ.
@@ -82,7 +84,6 @@ P16 là decision gate, không phải cam kết triển khai đồng thời. Self
 
 ## Dashboard tiến độ
 
-- Hoàn thành: P1–P11 (feature baseline).
-- Đang lập kế hoạch: P12.
-- Chưa bắt đầu: P13–P16.
-- Blocker hiện biết: lỗ hổng high của `xlsx`; build mặc định có thể lỗi khi `web/dist` bị Windows khóa.
+- Hoàn thành: P1–P70 theo `.DHSYSTEM/ROADMAP.md`/`TRACKER.md` (feature baseline + release hardening + Teaching Continuity Canvas + presentation/circuit polish + game engine modularization).
+- Đã xử lý: lỗ hổng high của `xlsx` (P12/T-1202, chuyển sang ExcelJS); khóa `web/dist` trên Windows (P12/T-1203, build giữ asset content-hashed thay vì xóa).
+- Chưa bắt đầu / decision gate: P14–P16 theo khung gốc phía trên đã lỗi thời (xem ghi chú lịch sử ở đầu file) — hướng mở rộng tiếp theo cần RFC được duyệt trước khi triển khai.

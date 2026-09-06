@@ -261,9 +261,159 @@
 
 ## Phase 13 — Teaching Continuity Canvas ✅
 
-- [ ] Presentation canvas cho PDF và PPTX đã chuyển đổi: điều hướng trang, zoom, fullscreen và fallback minh bạch.
-- [ ] Pen, highlight, khoanh tròn, gạch chân, laser, tẩy, undo/redo trên lớp overlay không sửa tệp nguồn.
-- [ ] Video dock chạy liên tục, kéo thả/thu nhỏ và Picture-in-Picture có fallback.
-- [ ] Game dock dùng chung activity shell, giữ lớp/môn và không ngắt Teaching Mode.
+- [x] Presentation canvas cho PDF và PPTX đã chuyển đổi: điều hướng trang, zoom, fullscreen và fallback minh bạch.
+- [x] Pen, highlight, khoanh tròn, gạch chân, laser, tẩy, undo/redo trên lớp overlay không sửa tệp nguồn.
+- [x] Video dock chạy liên tục, kéo thả/thu nhỏ và Picture-in-Picture có fallback.
+- [x] Game dock dùng chung activity shell, giữ lớp/môn và không ngắt Teaching Mode.
 
-**Exit criteria P13:** giáo viên có thể hoàn thành chuỗi slide → chú thích → video → game → quay lại slide trong một phiên dạy, không mất state hoặc telemetry trùng.
+**Exit criteria P13:** giáo viên có thể hoàn thành chuỗi slide → chú thích → video → game → quay lại slide trong một phiên dạy, không mất state hoặc telemetry trùng. Đạt (xem `.DHSYSTEM/phases/P13-continuous-teaching-canvas/PHASE-STATE.md`).
+
+## Phase 14 — Post-lesson Reporting ✅
+
+- [x] Chốt hợp đồng dữ liệu báo cáo sau tiết, đối soát chất lượng dữ liệu và phân quyền xem.
+- [x] Báo cáo giáo viên có xuất XLSX/CSV đã xác thực.
+
+## Phase 15 — PPTX Readiness ✅
+
+- [x] Tự phát hiện và chuyển đổi PPTX an toàn, có phân quyền.
+- [x] Khôi phục chuyển đổi PPTX trực tiếp trong Teaching Mode sau gián đoạn.
+
+## Phase 16 — Classroom Preflight ✅
+
+- [x] Kiểm kê mức sẵn sàng theo lớp/môn có phân quyền trước khi vào tiết.
+- [x] Thẻ preflight hiển thị trước khi giáo viên vào Teaching Mode.
+
+## Phase 17 — PowerPoint Converter Preflight ✅
+
+- [x] Hiển thị trạng thái LibreOffice đã cache trong preflight.
+- [x] Chỉ dẫn cài đặt/chuyển đổi trực quan cho giáo viên khi thiếu converter.
+
+## Phase 18 — Teaching Workspace Recovery ✅
+
+- [x] Lưu và khôi phục ngữ cảnh workspace giảng dạy theo phiên trình duyệt.
+- [x] Reload Teaching Mode không làm mất game dock đang mở.
+
+## Phase 19 — Presentation Canvas Validation ✅
+
+- [x] Xác thực canvas với PDF thật trong Browser E2E (render trang, pointer annotation).
+- [x] Hồi quy persistence chú thích sau reload.
+
+## Phase 20 — Presentation Pointer Toolbar ✅
+
+- [x] Thanh công cụ Tia laser/Bút lông/Highlight khi trình chiếu.
+- [x] Công cụ chú thích mở rộng có nhãn truy cập (accessibility).
+
+## Phase 21 — Ink Colors and Per-Stroke Eraser ✅
+
+- [x] Màu bút lông/highlight được lưu theo từng nét vẽ.
+- [x] Tẩy từng nét; preflight PPTX không chặn Teaching Hub.
+
+## Phase 22 — Non-Interrupting Game Dock ✅
+
+- [x] Không tự bật hướng dẫn game che workspace giảng dạy.
+
+## Phase 23 — Background Video Dock ✅
+
+- [x] Video thu nhỏ vẫn tiếp tục phát và được khôi phục đúng theo workspace.
+
+## Phase 24 — Presenter Shortcuts ✅
+
+- [x] Phím tắt L/P/H/E cho công cụ trình chiếu.
+
+## Phase 25 — Persistent Dock Layout ✅
+
+- [x] Lưu vị trí kéo-thả của khung video và game giữa các phiên.
+
+## Phase 26 — Persistent Ink Preferences ✅
+
+- [x] Nhớ riêng màu bút lông và highlight theo từng tài liệu.
+
+## Phase 27 — Annotation Undo/Redo History ✅
+
+- [x] Hoàn tác/làm lại chính xác cho thao tác vẽ và tẩy từng nét.
+
+## Phase 28 — Clear-Page History ✅
+
+- [x] Hoàn tác/làm lại khi xóa toàn bộ nét của một trang.
+
+## Phase 29 — Stable Annotation Storage ✅
+
+- [x] Lưu chú thích theo mã học liệu ổn định, không theo URL token dễ đổi.
+
+## Phase 30 — Annotation Reducer Quality ✅
+
+- [x] Chuyển sang reducer thuần cho chú thích và dọn cleanup kéo-thả.
+
+## Phase 31 — Video Resume Recovery ✅
+
+- [x] Lưu mốc phát video và khôi phục an toàn sau reload.
+
+## Phase 32 — Viewport-Resilient Docks ✅
+
+- [x] Giữ dock video/game trong vùng nhìn thấy khi đổi kích thước viewport.
+
+## Phase 33 — Non-Interrupting Video Reopen ✅
+
+- [x] Mở lại video nổi đang chạy mà không reset mốc phát.
+
+## Phase 34 — Video Picker ✅
+
+- [x] Chọn đúng video khi bài giảng có nhiều video.
+
+## Phase 35 — Fullscreen Presentation Controls ✅
+
+- [x] Giữ thanh công cụ bút/laser hiển thị trong chế độ fullscreen trình chiếu.
+
+## Phase 36 — Advanced Presenter Shortcuts ✅
+
+- [x] Phím tắt cho khoanh tròn, gạch chân và đường thẳng.
+
+## Phase 37 — Fast Ink Input Reliability ✅
+
+- [x] Không mất nét bút khi thao tác pointer/touch nhanh.
+
+## Phase 38 — Slide Telemetry Integrity ✅
+
+- [x] Telemetry slide chỉ ghi nhận PDF/PPTX thật, không ghi nhầm link.
+
+## Phase 39 — Direct Advanced Ink Colors ✅
+
+- [x] Chọn màu trực tiếp cho khoanh tròn/gạch chân/đường thẳng.
+
+## Phase 40 — Native Circuit Library ✅
+
+- [x] Mở rộng thư viện SVG mạch: diode, relay, MOSFET N và MUX 2:1.
+
+## Phase 41 — Circuit Simulation Adapter ✅
+
+- [x] Tách bộ giải logic thành adapter thay thế được, giữ nguyên Canvas và CircuitData.
+
+## Phase 42 — WASM Engine Evaluation ✅
+
+- [x] Đánh giá độc lập engine WASM/giấy phép; chốt không tích hợp Logigator, giữ adapter native.
+
+## Phase 43 — Native Adders ✅
+
+- [x] Thêm Half/Full Adder SVG và mô phỏng nhiều đầu ra trong adapter native.
+
+## Phase 44 — Sequential Logic ✅
+
+- [x] Thêm D Flip-Flop cạnh lên và trạng thái simulation-tick ngoài React render.
+
+## Phase 45 — Sequential Exercise Template ✅
+
+- [x] Thêm bài tập mẫu D Flip-Flop/Clock/Probe vào game mô phỏng mặc định.
+
+## Phase 46 — Binary Adder Exercise Templates ✅
+
+- [x] Thêm bài mẫu Half/Full Adder với LED/Probe vào game mô phỏng mặc định.
+
+## Phase 47 — Default Circuit Teacher Guide ✅
+
+- [x] Thêm hướng dẫn giảng dạy sáu thử thách mạch mặc định cho giáo viên.
+
+## Phase 48 — Circuit Game Browser Coverage ✅
+
+- [x] Thêm Browser E2E trực tiếp cho setup/hướng dẫn sáu bài mạch mặc định.
+
+Phase 49 trở đi (mô phỏng mạch realtime, modularization) được liệt kê ở đầu tài liệu này.

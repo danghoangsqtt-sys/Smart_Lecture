@@ -1,6 +1,6 @@
 # SmartLecture — Đặc tả hệ thống
 
-> Functional baseline: **P11 / v0.8.0** · Development target: **v0.9.0** · Cập nhật: **2026-08-28** · Trạng thái: P12 release hardening đang thực thi.
+> Functional baseline: **P11 / v0.8.0** · Phiên bản hiện tại: **v0.9.2** · Cập nhật: **2026-09-06** · Trạng thái: P1–P70 đã hoàn thành (xem `.DHSYSTEM/ROADMAP.md`); phase tiếp theo là decision gate chờ RFC.
 
 ## 1. Mục tiêu và phạm vi
 
@@ -71,3 +71,5 @@ Một release chỉ đạt khi mọi điều kiện sau đều đúng:
 ## 7. Truy vết hiện trạng
 
 Baseline P11 đã xác minh: 86 REST checks, 10 Socket checks, 16 regression checks và restore/restart. Các khoảng trống trước release được theo dõi trong `docs/PLAN.md`, bắt đầu tại P12.
+
+**Cập nhật 2026-09-06:** P1–P70 đã hoàn thành và được xác minh lại đầy đủ (typecheck 2 workspace, production build, REST 86/86, Socket 10/10, security/data regression 22/22, Excel route regression, restore/restart, toàn bộ circuit-restart suite, Browser E2E 4/4). Không còn dependency high/critical chưa triage (`xlsx` đã loại bỏ ở P12/T-1202). Chi tiết theo phase nằm ở `.DHSYSTEM/ROADMAP.md` và `.DHSYSTEM/TRACKER.md`; `docs/PLAN.md` P14–P16 là khung gốc đã lỗi thời, không phản ánh thực thi thực tế P14–P70.
