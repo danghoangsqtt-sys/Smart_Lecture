@@ -51,7 +51,7 @@ app.use(
 );
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, name: 'SmartLecture', time: new Date().toISOString(), interfaces: NETWORK_INTERFACES });
+  res.json({ ok: true, name: 'SmartLecture', time: new Date().toISOString(), interfaces: NETWORK_INTERFACES, port: PORT });
 });
 
 app.use('/api/auth', authRoutes);

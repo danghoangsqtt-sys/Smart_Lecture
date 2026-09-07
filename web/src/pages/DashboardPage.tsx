@@ -8,6 +8,7 @@ import { Card, PageHeader } from '../components/ui';
 interface HealthInfo {
   ok: boolean;
   interfaces: { name: string; address: string }[];
+  port: number;
 }
 
 export default function DashboardPage() {
@@ -23,7 +24,7 @@ export default function DashboardPage() {
     const ip = health?.interfaces[0]?.address;
     if (!ip) return;
     try {
-      const url = await QRCode.toDataURL(`http://${ip}:4000`, { width: 320, margin: 1 });
+      const url = await QRCode.toDataURL(`http://${ip}:${health?.port}`, { width: 320, margin: 1 });
       setQrDataUrl(url);
     } catch {
       setQrDataUrl(null);
@@ -71,7 +72,7 @@ export default function DashboardPage() {
                 {health.interfaces.map((i) => (
                   <li key={i.address} className="flex items-center gap-2 text-sm">
                     <span className="text-slate-500">{i.name}</span>
-                    <code className="rounded-sm border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-base text-blue-900">http://{i.address}:4000</code>
+                    <code className="rounded-sm border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-base text-blue-900">http://{i.address}:{health.port}</code>
                   </li>
                 ))}
               </ul>
