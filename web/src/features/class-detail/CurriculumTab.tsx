@@ -3,7 +3,8 @@ import { Button, Card, EmptyState, Input, Label, Modal, Select, Spinner, Textare
 import { api } from '../../lib/api';
 import toast from '../../stores/toastStore';
 import { useAuthStore } from '../../stores/authStore';
-import { downloadExcelWorkbook, RemarkModal } from './GradebookTab';
+import { RemarkModal } from './GradebookTab';
+import { downloadExcelWorkbook } from './excelExport';
 import type { Lecture, Subject } from './types';
 
 export function CurriculumTab({ classId, canManage }: { classId: string; canManage: boolean }) {
