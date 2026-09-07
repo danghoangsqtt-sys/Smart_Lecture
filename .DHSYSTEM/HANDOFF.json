@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P1-P70 all done. No open TRACKER task. Next phase (post-lesson reporting / classroom usability / selective expansion per docs/PLAN.md P14-P16) is an explicit decision gate requiring an approved RFC before implementation — do not start without a product decision."
+  "next_action": "P1-P70 all done. No open TRACKER task. ESLint now configured and enforced (eslint.config.mjs, wired into CI). Draft RFC written at docs/rfc/RFC-001-next-milestone.md proposing option B (code-health hardening: react-doctor 68/100, LAN benchmark) as the evidence-backed default over option A (voice oral exam grading, pre-flagged in ROADMAP.md Phase 4 but unconfirmed demand) or new features (no evidence). Waiting on the project owner to pick a direction in the RFC's 'Viec can quyet dinh' section before any further implementation starts."
 }

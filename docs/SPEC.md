@@ -1,6 +1,6 @@
 # SmartLecture — Đặc tả hệ thống
 
-> Functional baseline: **P11 / v0.8.0** · Phiên bản hiện tại: **v0.9.2** · Cập nhật: **2026-09-06** · Trạng thái: P1–P70 đã hoàn thành (xem `.DHSYSTEM/ROADMAP.md`); phase tiếp theo là decision gate chờ RFC.
+> Functional baseline: **P11 / v0.8.0** · Phiên bản hiện tại: **v0.9.2** · Cập nhật: **2026-09-06** · Trạng thái: P1–P70 đã hoàn thành (xem `.DHSYSTEM/ROADMAP.md`); phase tiếp theo là decision gate — xem `docs/rfc/RFC-001-next-milestone.md`.
 
 ## 1. Mục tiêu và phạm vi
 

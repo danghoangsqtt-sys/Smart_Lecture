@@ -230,6 +230,12 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-06 (RFC-001 next milestone — theo yêu cầu người dùng)
+- P1–P70 đã hoàn thành hết; theo đúng quy tắc decision-gate của chính `docs/PLAN.md` ("chỉ chọn một hướng có bằng chứng nhu cầu"), soạn `docs/rfc/RFC-001-next-milestone.md` thay vì tự chọn/triển khai hướng mới.
+- Liệt kê 5 hướng (A: vấn đáp giọng nói — đã được ROADMAP Phase 4 pre-flag từ trước; B: củng cố chất lượng/react-doctor 68-100/benchmark LAN; C: game mới; D: tích hợp; E: giữ nguyên) kèm bằng chứng, rủi ro, chi phí cho từng hướng.
+- Đề xuất B làm mặc định vì có bằng chứng cụ thể đo được ngay trong phiên (react-doctor 68/100, chưa từng benchmark 40-60 kết nối LAN thật) trong khi A/C/D chưa có xác nhận nhu cầu thật từ giáo viên; không tự triển khai bất kỳ hướng nào, chờ chủ dự án trả lời 3 câu hỏi trong mục "Việc cần quyết định".
+- Cập nhật cross-reference tới RFC trong docs/PLAN.md, docs/SPEC.md, HANDOFF.json.
+
 ### 2026-09-06 (ESLint enforcement — no open TRACKER task, theo yêu cầu người dùng)
 - Thêm `eslint.config.mjs` (flat config, ESLint 10 + typescript-eslint 8): `@typescript-eslint/no-explicit-any: error` cho cả server/src và web/src như SYSTEM-RULES §2 yêu cầu; thêm `eslint-plugin-react-hooks` (chỉ `rules-of-hooks` + `exhaustive-deps`, không bật bộ rule React Compiler mới của v7 — phạm vi rộng hơn nhiều, để riêng).
 - Chạy lần đầu phát hiện 24 lỗi dead-code tiền tồn tại (`no-unused-vars`, `prefer-const`) trải trên 13 file — dọn sạch toàn bộ theo đúng SYSTEM-RULES §8 "Cấm dead code": xoá import/biến chết đã xác minh không dùng ở đâu khác, đổi `let` không reassign sang `const`.
