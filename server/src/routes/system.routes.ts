@@ -5,14 +5,14 @@ import { NETWORK_INTERFACES, PORT } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { createBackup, deleteBackup, listBackups, stageRestore } from '../services/backup.js';
-import { detectCloudflared, getTunnelUrl, isTunnelRunning, startTunnel, stopTunnel } from '../services/tunnel.js';
+import { detectCloudflared, getTunnelUrl, startTunnel, stopTunnel } from '../services/tunnel.js';
 import { APP_VERSION } from '../version.js';
 
 const router = Router();
 router.use(requireAuth);
 
 let mdnsAdvertised = false;
-export let mdnsHostname = 'smart-lecture.local';
+export const mdnsHostname = 'smart-lecture.local';
 
 export function advertiseMdns(): void {
   try {

@@ -230,6 +230,14 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-06 (ESLint enforcement — no open TRACKER task, theo yêu cầu người dùng)
+- Thêm `eslint.config.mjs` (flat config, ESLint 10 + typescript-eslint 8): `@typescript-eslint/no-explicit-any: error` cho cả server/src và web/src như SYSTEM-RULES §2 yêu cầu; thêm `eslint-plugin-react-hooks` (chỉ `rules-of-hooks` + `exhaustive-deps`, không bật bộ rule React Compiler mới của v7 — phạm vi rộng hơn nhiều, để riêng).
+- Chạy lần đầu phát hiện 24 lỗi dead-code tiền tồn tại (`no-unused-vars`, `prefer-const`) trải trên 13 file — dọn sạch toàn bộ theo đúng SYSTEM-RULES §8 "Cấm dead code": xoá import/biến chết đã xác minh không dùng ở đâu khác, đổi `let` không reassign sang `const`.
+- Đáng chú ý: `applyCorrectPoints(room, userId, name)` có tham số `name` chết ở CẢ 8 điểm gọi lẫn chữ ký duy nhất — không phải lỗi tôi gây ra khi tách P70, mà là dead code có từ trước; đã xoá tham số khỏi chữ ký + toàn bộ 4 file khai báo type + 8 lời gọi.
+- 2 warning `react-hooks/exhaustive-deps` còn lại (GamePlayPage.tsx:398, GamesPage.tsx:1470) là false-positive đã xác minh: `pendingTimersRef` giữ một `Set` ổn định qua `useRef(new Set())`, không bao giờ reassign — không sửa vì rule chỉ đúng với ref trỏ DOM node.
+- Thêm bước `Lint` vào `.github/workflows/ci.yml` ngay sau Typecheck.
+- Verify sau khi dọn: typecheck 2 workspace, production build, REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, Browser E2E 4/4, `npm run lint` 0 error.
+
 ### 2026-09-06 (post-P70 hardening pass — no open TRACKER task)
 - `npm audit`: 0 high/critical (đạt release gate); bump `qs` 6.15.3 → 6.16.0 (bản vá tương thích semver với Express) xử lý 2/3 advisory moderate. Advisory còn lại (`uuid` qua `exceljs`) đã được chấp nhận từ trước ở ADR-001 — nâng cấp sẽ hạ cấp ExcelJS nên không ép `--force`.
 - Xoá toàn bộ 12 chỗ dùng `any` tường minh còn sót (8 file, server + web) — vi phạm SYSTEM-RULES §2 chưa từng bị ESLint bắt vì repo không có cấu hình ESLint. Thêm type `CircuitBlob` dùng chung trong `gameTypes.ts` thay vì lặp lại `{ components: any[]; wires: any[] }` bốn lần; các chỗ còn lại tightening sang `unknown`/type cụ thể đã có sẵn trong file. Xác nhận zero cascading error và zero thay đổi hành vi.

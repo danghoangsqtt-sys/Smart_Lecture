@@ -138,7 +138,7 @@ function startRace(room: RoomState): void {
   room.timer = setTimeout(() => finishGame(room), room.raceDurationSec * 1000 + 500);
 }
 
-function applyCorrectPoints(room: RoomState, userId: string, name: string): number {
+function applyCorrectPoints(room: RoomState, userId: string): number {
   const player = room.players.get(userId);
   if (player) player.score += room.pointsPerCorrect;
   return addKttx(room.classId, userId, room.pointsPerCorrect);

@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { Type, type Schema } from '@google/genai';
-import { db } from '../db/connection.js';
-import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { generateJSON } from '../services/ai.js';
 import { generateQuestionsByMatrix, type BloomLevel } from '../services/aiQuestions.js';

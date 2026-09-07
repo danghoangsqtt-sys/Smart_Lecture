@@ -5,7 +5,7 @@ export function createCircuitScoring({
   applyCorrectPoints,
   persistCircuitPlayer,
 }: {
-  applyCorrectPoints: (room: RoomState, userId: string, name: string) => number;
+  applyCorrectPoints: (room: RoomState, userId: string) => number;
   persistCircuitPlayer: (room: RoomState, player: CircuitSimulatePlayer) => void;
 }) {
   const completeCircuitChallenge = (
@@ -22,7 +22,7 @@ export function createCircuitScoring({
     try {
       let newKttx = 0;
       tx(() => {
-        newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+        newKttx = applyCorrectPoints(room, player.userId);
         persistCircuitPlayer(room, player);
       });
       return newKttx;

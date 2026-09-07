@@ -46,7 +46,7 @@
 
 ## 8. Quy trình làm việc
 - Task mới → ghi TRACKER.md trước khi code; hoàn thành tick kèm bằng chứng verify.
-- Verify bắt buộc trước khi báo xong: `npm run typecheck` (cả 2 workspace) + build pass + luồng chính chạy thử.
+- Verify bắt buộc trước khi báo xong: `npm run typecheck` (cả 2 workspace) + `npm run lint` (ESLint, cấu hình tại `eslint.config.mjs` — từ 2026-09-06) + build pass + luồng chính chạy thử.
 - Commit nhỏ theo feature; message dạng `P1.3: add bloom matrix question generator`.
 - Cấm dead code: thay thế xong là xóa file/hàm cũ ngay (lỗi tích tụ của cả 4 dự án).
 

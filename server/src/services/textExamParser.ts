@@ -36,7 +36,7 @@ export function parseExamText(input: string): ParseResult {
   const warnings: string[] = [];
   let current: ParsedQuestion | null = null;
   let inEssayPart = false;
-  let answerTable: Record<number, string> = {};
+  const answerTable: Record<number, string> = {};
   let collectingExplanation = false;
 
   const flushCurrent = (): void => {

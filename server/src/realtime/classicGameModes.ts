@@ -6,7 +6,7 @@ import type { RoomState } from './gameTypes.js';
 type ClassicGameModesDeps = {
   getIo: () => IOServer | null;
   finishGame: (room: RoomState) => void;
-  applyCorrectPoints: (room: RoomState, userId: string, name: string) => number;
+  applyCorrectPoints: (room: RoomState, userId: string) => number;
   broadcastLeaderboard: (room: RoomState) => void;
 };
 
@@ -67,7 +67,7 @@ export function createClassicGameModes({
       if (player.lines >= 5 && !player.bingo) {
         player.bingo = true;
         player.score += 1000;
-        const newKttx = applyCorrectPoints(room, userId, player.displayName);
+        const newKttx = applyCorrectPoints(room, userId);
         emitRoom(room, 'bingo:win', { userId, name: player.displayName, lines: player.lines, newKttx });
         broadcastLeaderboard(room);
         finishGame(room);
@@ -197,7 +197,7 @@ export function createClassicGameModes({
       player.currentWord = null;
       player.currentScrambled = null;
       emitRoom(room, 'word_scramble:correct', { userId, name: player.displayName, points, word: player.currentWord });
-      const newKttx = applyCorrectPoints(room, userId, player.displayName);
+      const newKttx = applyCorrectPoints(room, userId);
       emitRoom(room, 'word_scramble:kttx', { userId, name: player.displayName, newKttx });
       broadcastLeaderboard(room);
       sendNextWordScramble(room);

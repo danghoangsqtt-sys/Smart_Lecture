@@ -3,11 +3,6 @@ export function sleep(ms: number): Promise<void> {
 }
 void sleep;
 
-interface SocketPayload {
-  userId: string;
-  role: string;
-}
-
 export function generateMathProblem(difficulty: number): { text: string; answer: string } {
   const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
   let text: string;

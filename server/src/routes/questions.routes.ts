@@ -468,7 +468,7 @@ router.post(
     } finally {
       try { unlinkSync(temporaryPath); } catch { /* already removed */ }
     }
-    let text = parsed.pages.map((p) => p.text).join('\n\n');
+    const text = parsed.pages.map((p) => p.text).join('\n\n');
     if (!text.trim()) throw new HttpError(400, 'BAD_INPUT', 'File không có nội dung text có thể đọc được');
 
     const { questions, warnings } = parseExamText(text.slice(0, 2_000_000));
@@ -543,7 +543,6 @@ router.get(
       }
     }
     const rows = db.prepare(`SELECT * FROM questions WHERE ${where} ORDER BY created_at DESC`).all(...params) as unknown as QuestionRow[];
-    const mammoth = await import('mammoth');
     // We'll generate a simple DOCX using a basic approach - create XML content
     // For simplicity, we'll use a template approach
     const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');

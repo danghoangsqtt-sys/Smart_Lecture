@@ -23,6 +23,9 @@ jobs:
       - name: Typecheck (server + web, TS strict)
         run: npm run typecheck
 
+      - name: Lint (ESLint, no-explicit-any + react-hooks)
+        run: npm run lint
+
       - name: Build production (web + server)
         run: npm run build
 

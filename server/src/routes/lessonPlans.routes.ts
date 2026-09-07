@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { db, tx } from '../db/connection.js';
-import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
+import { db } from '../db/connection.js';
+import { requireAuth, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.js';
 

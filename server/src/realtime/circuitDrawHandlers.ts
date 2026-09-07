@@ -31,7 +31,7 @@ export function createCircuitDrawLifecycle({ getIo }: { getIo: () => IOServer | 
 
   const submitAllCircuits = (room: RoomState): void => {
     let submitted = 0;
-    for (const [userId, player] of room.circuitDrawPlayers) {
+    for (const player of room.circuitDrawPlayers.values()) {
       if (!player.submitted && player.circuit) {
         player.submitted = true;
         submitted++;
@@ -56,7 +56,7 @@ export function registerCircuitDrawHandlers(socket: Socket, {
   getIo: () => IOServer | null;
   isRoomHost: (room: RoomState | undefined, socket: Socket) => boolean;
   circuitsMatch: (student: unknown, reference: unknown) => boolean;
-  applyCorrectPoints: (room: RoomState, userId: string, name: string) => number;
+  applyCorrectPoints: (room: RoomState, userId: string) => number;
   broadcastLeaderboard: (room: RoomState) => void;
 }): void {
   socket.on('circuit_draw:submit', (raw: unknown) => {
@@ -85,7 +85,7 @@ export function registerCircuitDrawHandlers(socket: Socket, {
     let newKttx: number | null = null;
     if (correct) {
       player.score += room.pointsPerCorrect;
-      newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+      newKttx = applyCorrectPoints(room, player.userId);
     }
     getIo()?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
       userId: player.userId,
@@ -110,7 +110,7 @@ export function registerCircuitDrawHandlers(socket: Socket, {
     player.feedback = parsed.data.feedback ?? '';
     if (parsed.data.correct) {
       player.score += room.pointsPerCorrect;
-      const newKttx = applyCorrectPoints(room, player.userId, player.displayName);
+      const newKttx = applyCorrectPoints(room, player.userId);
       getIo()?.to(`game:${room.roomCode}`).emit('circuit_draw:verified', {
         userId: player.userId, name: player.displayName, correct: true, feedback: player.feedback, newKttx,
       });

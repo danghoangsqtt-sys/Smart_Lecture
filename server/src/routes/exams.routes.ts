@@ -335,7 +335,6 @@ router.post(
       throw new HttpError(403, 'WRONG_PASSWORD', cfg.password ? 'Mật khẩu bài thi không đúng' : '');
     }
 
-    const purpose = cfg.purpose ?? 'online_test';
     const maxAttempts = cfg.max_attempts ?? 1;
     const submittedCount = db
       .prepare("SELECT COUNT(*) AS c FROM exam_results WHERE exam_id = ? AND student_id = ? AND status = 'submitted'")

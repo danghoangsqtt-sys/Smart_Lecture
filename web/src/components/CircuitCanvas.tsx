@@ -525,7 +525,6 @@ function ScopeView({ sample, running }: { sample: () => LogicState[]; running: b
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, sample]);
 
   function draw() {
@@ -661,8 +660,11 @@ function useCircuitEditor({
     if (stepped.stateChanged) setSimulationRevision((revision) => revision + 1);
   }, [comps, wires, simTime, isSim]);
 
+  // simulationRevision is intentionally unused in the body below — it only exists to force
+  // recompute when simulationStateRef.current mutates, since refs don't retrigger memos.
   const sim = useMemo(
     () => logicSimulationAdapter.simulate(comps, wires, simTime, simulationStateRef.current ?? createSimulationState()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [comps, wires, simTime, simulationRevision],
   );
   const simRef = useRef(sim);

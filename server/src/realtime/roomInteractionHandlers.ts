@@ -21,7 +21,7 @@ export function registerRoomInteractionHandlers(socket: Socket, {
   getSocketIds: (roomCode: string) => string[];
   getDisplayName: (userId: string) => string;
   isRoomHost: (room: RoomState | undefined, socket: Socket) => room is RoomState;
-  applyCorrectPoints: (room: RoomState, userId: string, name: string) => number;
+  applyCorrectPoints: (room: RoomState, userId: string) => number;
   broadcastLeaderboard: (room: RoomState) => void;
   broadcastRace: (room: RoomState) => void;
   broadcastHands: (room: RoomState) => void;
@@ -76,7 +76,7 @@ export function registerRoomInteractionHandlers(socket: Socket, {
     const name = player?.displayName ?? racePlayer?.displayName ?? room.activePick.name;
 
     let newTotal: number | null = null;
-    if (correct) newTotal = applyCorrectPoints(room, userId, name);
+    if (correct) newTotal = applyCorrectPoints(room, userId);
 
     getIo()?.to(`game:${room.roomCode}`).emit('hr:result', {
       name,
@@ -139,7 +139,7 @@ export function registerRoomInteractionHandlers(socket: Socket, {
     const normalizedExpected = rowDef.word.toUpperCase().replace(/\s+/g, '');
     if (normalizedGiven === normalizedExpected) {
       room.solvedRows.add(rowIndex);
-      const newKttx = applyCorrectPoints(room, String(socket.data.userId), room.activePick.name);
+      const newKttx = applyCorrectPoints(room, String(socket.data.userId));
       getIo()?.to(`game:${room.roomCode}`).emit('cw:solved', {
         rowIndex,
         name: room.activePick.name,

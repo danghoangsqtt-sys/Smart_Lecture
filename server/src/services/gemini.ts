@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Schema, type Type } from '@google/genai';
+import { GoogleGenAI, type Schema } from '@google/genai';
 import { HttpError } from '../utils/errors.js';
 import { getGeminiApiKey } from './appSettings.js';
 import { consumeQuota } from './quota.js';
