@@ -69,6 +69,7 @@ try {
   await run(powerShellCommand(), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/e2e-smoke.ps1']);
   await run(process.execPath, ['scripts/e2e-excel-regression.mjs']);
   await run(process.execPath, ['scripts/socket-test.mjs']);
+  await run(process.execPath, ['scripts/game-lifecycle-test.mjs']);
   await run(process.execPath, ['scripts/e2e-regressions.mjs']);
   await stopServer(server);
   server = startServer();
