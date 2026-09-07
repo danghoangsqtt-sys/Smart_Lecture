@@ -641,3 +641,45 @@ test('default circuit room restores host and learners without duplicate grading'
   await peerContext.close();
   await studentContext.close();
 });
+
+test('student can join a game room from the dashboard button', async ({ page, request }) => {
+  // Regression test for a real bug: the dashboard's two student-facing "Nhập mã
+  // phòng" (enter room code) links pointed at /games (the teacher's game-builder
+  // page) instead of /games/play (the actual join form). No existing test ever
+  // clicked that button as a student — every other browser test is teacher/admin
+  // scoped, and the socket-level tests join a room directly via socket.io-client,
+  // bypassing this navigation entirely.
+  const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
+  const adminToken = (await adminLogin.json() as { token: string }).token;
+  const teacher = await request.post('/api/users', { headers: { Authorization: `Bearer ${adminToken}` }, data: { username: 'browser.dash.teacher', password: 'Teacher@123', role: 'teacher', displayName: 'Dash Teacher' } });
+  expect(teacher.ok()).toBeTruthy();
+  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.dash.teacher', password: 'Teacher@123' } });
+  const teacherToken = (await teacherLogin.json() as { token: string }).token;
+  await request.post('/api/auth/change-password', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' } });
+  const created = await request.post('/api/classes', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { name: 'Dash Class', subject: 'Dash Subject', academicYear: '2026-2027' } });
+  const classId = (await created.json() as { class: { id: string } }).class.id;
+  const student = await request.post('/api/users', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { username: 'browser.dash.student', password: 'Student@123', role: 'student', displayName: 'Dash Student' } });
+  const studentId = (await student.json() as { user: { id: string } }).user.id;
+  await request.post(`/api/classes/${classId}/enroll`, { headers: { Authorization: `Bearer ${teacherToken}` }, data: { studentIds: [studentId] } });
+  const question = await request.post('/api/questions', {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { type: 'mcq', content: 'Dash question', options: ['A. 1', 'B. 2', 'C. 3', 'D. 4'], correctAnswer: 'A', bloomLevel: 'Nhận biết', category: '' },
+  });
+  const questionId = (await question.json() as { question: { id: string } }).question.id;
+  const game = await request.post('/api/games', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { gameType: 'quick_quiz', classId, questionIds: [questionId], secondsPerQuestion: 20 } });
+  const roomCode = (await game.json() as { roomCode: string }).roomCode;
+
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.dash.student');
+  await page.locator('#password').fill('Student@123');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
+
+  await page.getByRole('link', { name: 'Nhập mã phòng' }).first().click();
+  await expect(page).toHaveURL(/\/games\/play$/);
+  await expect(page.getByText('Tham gia trò chơi', { exact: false })).toBeVisible();
+
+  await page.locator('input').first().fill(roomCode);
+  await page.getByRole('button', { name: 'Vào phòng' }).click();
+  await expect(page.getByText(`Phòng ${roomCode}`, { exact: false })).toBeVisible({ timeout: 10_000 });
+});

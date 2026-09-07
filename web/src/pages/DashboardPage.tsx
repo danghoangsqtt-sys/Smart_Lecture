@@ -47,7 +47,7 @@ export default function DashboardPage() {
           <>
             <QuickLink to="/learning" icon="fa-book-open" label="Học liệu" desc="Bài giảng & tài liệu" />
             <QuickLink to="/my-exams" icon="fa-pen-to-square" label="Bài thi" desc="Kiểm tra & tự ôn" />
-            <QuickLink to="/games" icon="fa-gamepad" label="Trò chơi" desc="Nhập mã phòng" />
+            <QuickLink to="/games/play" icon="fa-gamepad" label="Trò chơi" desc="Nhập mã phòng" />
             <QuickLink to="/settings" icon="fa-gear" label="Cài đặt" desc="Tài khoản" />
           </>
         ) : (
@@ -101,7 +101,7 @@ export default function DashboardPage() {
         <Card className="mt-6 p-6 text-center">
           <p className="text-sm text-slate-500">Giáo viên đang mở trò chơi?</p>
           <Link
-            to="/games"
+            to="/games/play"
             className="mt-3 inline-flex items-center gap-2 rounded-sm bg-blue-900 px-8 py-3 text-lg font-bold text-white shadow-lg hover:bg-blue-800"
           >
             <i className="fas fa-gamepad" />
