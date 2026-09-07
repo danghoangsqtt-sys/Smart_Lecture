@@ -42,6 +42,16 @@
 - **Chi phí ước tính:** thấp–trung bình, chia nhỏ được theo từng file/rule (đúng khuyến nghị của chính react-doctor: "fix a representative sample first... don't mass-fix a broad pattern in one unreviewed pass").
 - **Không phải tính năng mới** — không vi phạm "không mở rộng lan man", đây là củng cố nền đã có.
 
+**Cập nhật 2026-09-07 — đã chạy benchmark LAN (`node scripts/lan-benchmark.mjs 20 40 60`):**
+
+| Tier | Join wall-clock (tất cả HV) | Connect+join latency (p50/p95/max) | Question broadcast reach (p50/p95/max) | Thành công |
+|---|---|---|---|---|
+| 20 học viên | 24ms | 6/9/9ms | 4/4/4ms | 20/20 |
+| 40 học viên | 33ms | 10/14/14ms | 3/3/3ms | 40/40 |
+| 60 học viên | 60ms | 18/30/31ms | 4/4/4ms | 60/60 |
+
+Server xử lý tốt ở cả 3 tier, không mất kết nối, độ trễ tăng gần tuyến tính theo số kết nối (không có dấu hiệu nghẽn cổ chai). **Lưu ý quan trọng:** benchmark này mô phỏng toàn bộ học viên từ một tiến trình Node trên `localhost` — đo đúng "trần" xử lý đồng thời của server (event loop + Socket.IO broadcast), **không đo được biến động WiFi/thiết bị thật trên LAN thật** (điều mà mục tiêu gốc P15 "Benchmark 20/40/60 kết nối game trên LAN" nhắm tới). Cần một buổi kiểm thử tại lớp học thật với thiết bị thật để xác nhận đầy đủ mục tiêu SPEC.md §1; phần server-side đã được xác nhận không phải là điểm nghẽn.
+
 ### C — Game/tương tác mới
 
 Sản phẩm đã có 9 loại game (Quick Quiz, kéo co, đua toán, giơ tay, ô chữ, bingo, memory match, xếp chữ, quiz show) cộng phòng lab mạch điện tử. **Không có bằng chứng cụ thể nào cho thấy cần thêm loại game mới** — đề xuất thêm bây giờ sẽ chính là kiểu "mở rộng lan man" mà `docs/PLAN.md` cảnh báo. Không khuyến nghị trừ khi có yêu cầu cụ thể từ giáo viên sử dụng thật.

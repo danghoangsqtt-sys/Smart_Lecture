@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "seed:demo-quiz": "node scripts/seed-demo-quiz.mjs",
     "test:e2e": "npm run build -w server && node scripts/e2e-isolated.mjs",
-    "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs"
+    "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs",
+    "bench:lan": "npm run build -w server && node scripts/lan-benchmark.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

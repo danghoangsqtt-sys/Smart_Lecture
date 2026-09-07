@@ -230,6 +230,15 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-07 (RFC-001 option B — code health + LAN benchmark, theo yêu cầu người dùng "tiếp tục")
+- Không có phản hồi chọn hướng từ RFC-001 nên tiến hành theo đề xuất mặc định của chính RFC (hướng B), chia batch nhỏ như đã cam kết.
+- react-doctor: xác nhận "autoplay without muted" ở `TeachingModePage.tsx` là false positive có chủ đích (video bài giảng GV mở có tiếng, mute sẽ phá tính năng) — không sửa.
+- Tách `downloadExcelWorkbook` khỏi `GradebookTab.tsx` sang `excelExport.ts` mới, xử lý finding "non-component export in component file"; verify đầy đủ, changed-scope 0 issue.
+- Cụm 3 finding derived-state/pass-data-to-parent/adjust-state-on-prop-change ở `CircuitCanvas.tsx:611-627` — đã đọc kỹ, xác định đây là pattern khó của chính React (sync state cục bộ từ prop `initialData` trong khi vẫn cho sửa tự do + báo cha) không có cách sửa "miễn phí rủi ro"; đây là component lõi nhất, được test nhiều nhất (20+ phase circuit lab). Quyết định KHÔNG tự sửa không giám sát, để lại làm finding đã đánh giá — đúng khuyến nghị chính react-doctor ("stop and ask before editing" khi cần quyết định kiến trúc).
+- 8 finding "high complexity function" chưa đụng tới trong phiên này (rủi ro/công sức cao hơn nhiều, cần chia nhỏ nhiều batch có review).
+- Viết `scripts/lan-benchmark.mjs` (+ script `npm run bench:lan`): mô phỏng 20/40/60 học viên đồng thời join + nhận broadcast câu hỏi trên server cô lập. Kết quả: 100% thành công cả 3 tier, p95 connect+join ở tier 60 là 30ms, broadcast reach p95 4ms — server không phải điểm nghẽn ở mục tiêu thiết kế 60 thiết bị (SPEC.md §1). Đã ghi rõ giới hạn: đây là benchmark localhost, không thay thế kiểm thử LAN thật với thiết bị thật.
+- Verify sau mỗi thay đổi: typecheck, build, lint (0 error), REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, Browser E2E 4/4.
+
 ### 2026-09-06 (RFC-001 next milestone — theo yêu cầu người dùng)
 - P1–P70 đã hoàn thành hết; theo đúng quy tắc decision-gate của chính `docs/PLAN.md` ("chỉ chọn một hướng có bằng chứng nhu cầu"), soạn `docs/rfc/RFC-001-next-milestone.md` thay vì tự chọn/triển khai hướng mới.
 - Liệt kê 5 hướng (A: vấn đáp giọng nói — đã được ROADMAP Phase 4 pre-flag từ trước; B: củng cố chất lượng/react-doctor 68-100/benchmark LAN; C: game mới; D: tích hợp; E: giữ nguyên) kèm bằng chứng, rủi ro, chi phí cho từng hướng.
