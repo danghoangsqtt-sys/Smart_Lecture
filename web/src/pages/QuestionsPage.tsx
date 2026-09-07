@@ -443,29 +443,7 @@ function EditQuestionModal({ question, folders, onClose, onSaved }: { question: 
           <div><Label>Chương</Label><Input value={form.chapter ?? ''} onChange={(e) => set('chapter', e.target.value)} /></div>
           <div><Label>Bài học</Label><Input value={form.lesson ?? ''} onChange={(e) => set('lesson', e.target.value)} /></div>
         </div>
-        {form.type === 'mcq' && (
-          <div className="space-y-2">
-            <Label>Phương án (chọn radio đánh dấu đáp án đúng)</Label>
-            {(form.options ?? []).map((opt, i) => {
-              const letter = String.fromCharCode(65 + i);
-              return <div key={letter} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="correct"
-                  aria-label={`Chọn phương án ${letter} là đáp án đúng`}
-                  checked={(form.correctAnswer ?? '') === letter}
-                  onChange={() => set('correctAnswer', letter)}
-                />
-                <Input value={opt} onChange={(e) => { const opts = [...(form.options ?? [])]; opts[i] = e.target.value; set('options', opts); }} placeholder={`Phương án ${letter}`} />
-              </div>
-            })}
-          </div>
-        )}
-        {(form.type === 'essay' || form.type === 'fill') && (
-          <div><Label>{form.type === 'fill' ? 'Đáp án đúng (so khớp chính xác, không phân biệt hoa/thường)' : 'Đáp án / dàn ý tham khảo'}</Label>
-            <Textarea rows={form.type === 'fill' ? 1 : 3} value={form.correctAnswer ?? ''} onChange={(e) => set('correctAnswer', e.target.value)} />
-          </div>
-        )}
+        <QuestionAnswerFields form={form} set={set} />
         <div><Label>Lời giải</Label><Textarea rows={2} value={form.explanation ?? ''} onChange={(e) => set('explanation', e.target.value)} /></div>
         <div>
           <Label>Thư mục</Label>
@@ -480,6 +458,43 @@ function EditQuestionModal({ question, folders, onClose, onSaved }: { question: 
       </div>
     </Modal>
   );
+}
+
+function QuestionAnswerFields({
+  form,
+  set,
+}: {
+  form: Partial<Question>;
+  set: <K extends keyof Question>(key: K, value: Question[K]) => void;
+}) {
+  if (form.type === 'mcq') {
+    return (
+      <div className="space-y-2">
+        <Label>Phương án (chọn radio đánh dấu đáp án đúng)</Label>
+        {(form.options ?? []).map((opt, i) => {
+          const letter = String.fromCharCode(65 + i);
+          return <div key={letter} className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="correct"
+              aria-label={`Chọn phương án ${letter} là đáp án đúng`}
+              checked={(form.correctAnswer ?? '') === letter}
+              onChange={() => set('correctAnswer', letter)}
+            />
+            <Input value={opt} onChange={(e) => { const opts = [...(form.options ?? [])]; opts[i] = e.target.value; set('options', opts); }} placeholder={`Phương án ${letter}`} />
+          </div>
+        })}
+      </div>
+    );
+  }
+  if (form.type === 'essay' || form.type === 'fill') {
+    return (
+      <div><Label>{form.type === 'fill' ? 'Đáp án đúng (so khớp chính xác, không phân biệt hoa/thường)' : 'Đáp án / dàn ý tham khảo'}</Label>
+        <Textarea rows={form.type === 'fill' ? 1 : 3} value={form.correctAnswer ?? ''} onChange={(e) => set('correctAnswer', e.target.value)} />
+      </div>
+    );
+  }
+  return null;
 }
 
 function ImportTab() {
