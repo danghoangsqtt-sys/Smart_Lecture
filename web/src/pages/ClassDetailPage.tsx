@@ -99,12 +99,45 @@ export default function ClassDetailPage() {
         ))}
       </div>
 
-      {activeTab === 'overview' && <OverviewTab classId={classId} />}
-      {activeTab === 'students' && <StudentsTab classId={classId} students={students} canManage={canManage} onChanged={loadDetail} />}
-      {activeTab === 'attendance' && <AttendanceTab classId={classId} canManage={canManage} />}
-      {activeTab === 'gradebook' && <GradebookTab classId={classId} canManage={canManage} />}
-      {activeTab === 'groups' && <GroupsTab classId={classId} students={students} canManage={canManage} />}
-      {activeTab === 'settings' && <SettingsTab classId={classId} cls={cls} canManage={canManage} onSaved={loadDetail} />}
+      <ActiveClassTab
+        activeTab={activeTab}
+        classId={classId}
+        students={students}
+        canManage={canManage}
+        cls={cls}
+        onChanged={loadDetail}
+      />
     </div>
   );
+}
+
+function ActiveClassTab({
+  activeTab,
+  classId,
+  students,
+  canManage,
+  cls,
+  onChanged,
+}: {
+  activeTab: Tab;
+  classId: string;
+  students: StudentProfile[];
+  canManage: boolean;
+  cls: ClassMeta;
+  onChanged: () => Promise<void>;
+}) {
+  switch (activeTab) {
+    case 'overview':
+      return <OverviewTab classId={classId} />;
+    case 'students':
+      return <StudentsTab classId={classId} students={students} canManage={canManage} onChanged={onChanged} />;
+    case 'attendance':
+      return <AttendanceTab classId={classId} canManage={canManage} />;
+    case 'gradebook':
+      return <GradebookTab classId={classId} canManage={canManage} />;
+    case 'groups':
+      return <GroupsTab classId={classId} students={students} canManage={canManage} />;
+    case 'settings':
+      return <SettingsTab classId={classId} cls={cls} canManage={canManage} onSaved={onChanged} />;
+  }
 }
