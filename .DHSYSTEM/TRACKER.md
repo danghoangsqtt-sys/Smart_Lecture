@@ -230,6 +230,17 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-07 (RFC-001 option B — complexity refactor batch, người dùng chọn "Có, làm từng file một")
+- react-doctor full-scan: 15 issue → 11 issue (68/100 → không đổi điểm hiển thị nhưng số issue giảm rõ). 5/8 finding "high complexity function" đã xử lý:
+  - `EventModal.tsx` — **giải quyết hoàn toàn**. Tách payload builder khỏi submit() + tách 3 JSX section (RecurringDaysFields/RecurringToggleSection/ModalFooterActions) + gom state initializer ternary vào `computeInitialFormValues`.
+  - `ClassDetailPage.tsx` — **giải quyết hoàn toàn**. Tách 6-nhánh tab-content dispatch (`{activeTab === 'x' && <Tab/>}`) vào `ActiveClassTab`.
+  - `QuestionsPage.tsx` (EditQuestionModal) — **giải quyết hoàn toàn**. Tách nhánh mcq/essay/fill answer editor vào `QuestionAnswerFields`.
+  - `TeachingModePage.tsx` — **cải thiện một phần, chưa hết finding**. Tách branching phục hồi workspace (resolveSelectedPlanId, computeWorkspaceRestoration) khỏi `loadData`; complexity còn lại rải rác ở nhiều handler lifecycle phiên dạy (startTeachingSession, recordTeachingAction, linkAttendanceToSession...) — cần tái cấu trúc state ownership (vd custom hook) mới hết hẳn, rủi ro cao hơn phạm vi phiên này nên dừng ở đây.
+  - `GamePlayPage.tsx` — **cải thiện một phần, chưa hết finding (số lượng finding file không đổi nhưng bản chất khác)**. Tách dispatch 10 loại game khỏi component chính vào `ActiveGameBody`; component chính (dòng flag gốc) hết bị flag, nhưng `ActiveGameBody` tự nó vẫn bị flag vì 10 nhánh game-type là complexity nội tại của domain (sản phẩm thật sự có 10 kiểu chơi khác nhau), không phải do gộp nhầm concern. Muốn giảm tiếp cần registry pattern (game-type → renderer) — thay đổi kiến trúc lớn hơn, để lại làm sau.
+- Còn lại chưa đụng: `CircuitPlayerView` trong GamePlayPage.tsx (JSX nặng nội dung: card thử thách/validation/tin nhắn GV) và `CircuitCanvas.tsx` x2 (component mạch điện lõi, phức tạp nhất, được test nhiều nhất — cần thận trọng nhất).
+- Verify sau MỌI thay đổi (không bỏ sót lần nào): typecheck, build, lint (0 error), REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, Browser E2E 4/4 — đặc biệt test #4 (circuit_simulate 3 learner context) trực tiếp đi qua đường dispatch vừa sửa ở GamePlayPage.
+- 5 commit riêng biệt, mỗi file một commit, dễ revert độc lập nếu cần.
+
 ### 2026-09-07 (RFC-001 option B — code health + LAN benchmark, theo yêu cầu người dùng "tiếp tục")
 - Không có phản hồi chọn hướng từ RFC-001 nên tiến hành theo đề xuất mặc định của chính RFC (hướng B), chia batch nhỏ như đã cam kết.
 - react-doctor: xác nhận "autoplay without muted" ở `TeachingModePage.tsx` là false positive có chủ đích (video bài giảng GV mở có tiếng, mute sẽ phá tính năng) — không sửa.

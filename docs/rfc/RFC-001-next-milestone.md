@@ -52,6 +52,8 @@
 
 Server xử lý tốt ở cả 3 tier, không mất kết nối, độ trễ tăng gần tuyến tính theo số kết nối (không có dấu hiệu nghẽn cổ chai). **Lưu ý quan trọng:** benchmark này mô phỏng toàn bộ học viên từ một tiến trình Node trên `localhost` — đo đúng "trần" xử lý đồng thời của server (event loop + Socket.IO broadcast), **không đo được biến động WiFi/thiết bị thật trên LAN thật** (điều mà mục tiêu gốc P15 "Benchmark 20/40/60 kết nối game trên LAN" nhắm tới). Cần một buổi kiểm thử tại lớp học thật với thiết bị thật để xác nhận đầy đủ mục tiêu SPEC.md §1; phần server-side đã được xác nhận không phải là điểm nghẽn.
 
+**Cập nhật 2026-09-07 — đã xử lý 5/8 finding "high complexity" của react-doctor (người dùng chọn tiếp tục, làm từng file một):** `EventModal.tsx`, `ClassDetailPage.tsx`, `QuestionsPage.tsx` giải quyết hoàn toàn; `TeachingModePage.tsx` và `GamePlayPage.tsx` cải thiện một phần (complexity còn lại là domain-inherent hoặc cần tái cấu trúc kiến trúc lớn hơn, chủ động dừng để tránh rủi ro vượt phạm vi). Full-scan: 15 → 11 issue. Còn lại: `CircuitPlayerView` (trong GamePlayPage.tsx) và `CircuitCanvas.tsx` ×2 — component mạch điện lõi, phức tạp và được test nhiều nhất, để lại cho một phiên có thời gian rà soát kỹ hơn. Chi tiết đầy đủ trong session log 2026-09-07 của `.DHSYSTEM/TRACKER.md`.
+
 ### C — Game/tương tác mới
 
 Sản phẩm đã có 9 loại game (Quick Quiz, kéo co, đua toán, giơ tay, ô chữ, bingo, memory match, xếp chữ, quiz show) cộng phòng lab mạch điện tử. **Không có bằng chứng cụ thể nào cho thấy cần thêm loại game mới** — đề xuất thêm bây giờ sẽ chính là kiểu "mở rộng lan man" mà `docs/PLAN.md` cảnh báo. Không khuyến nghị trừ khi có yêu cầu cụ thể từ giáo viên sử dụng thật.
