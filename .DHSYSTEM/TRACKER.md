@@ -230,6 +230,15 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-07 (CRITICAL — sửa lỗi crash khởi động server trên database thật, trước báo cáo)
+- Người dùng cần chạy demo thật trước báo cáo. Khởi động server thật với `data/smart-lecture.db` thật (không phải DB test cô lập) → **crash ngay khi boot**: `Error: no such column: class_id` tại `migrate()`.
+- Nguyên nhân gốc: `schema.sql` có `CREATE TABLE IF NOT EXISTS game_sessions` đã "nướng sẵn" cột `class_id` (thực ra chỉ được thêm qua migration v18 bằng `ALTER TABLE` có guard) + một dòng `CREATE INDEX idx_game_class ON game_sessions(class_id, status)` độc lập, chạy vô điều kiện ở MỌI lần boot, TRƯỚC khi bất kỳ migration nào chạy. Trên DB mới: `CREATE TABLE IF NOT EXISTS` tạo bảng có sẵn cột → OK. Trên DB thật đã tồn tại từ trước v18: `CREATE TABLE IF NOT EXISTS` là no-op (bảng cũ không có cột) → dòng CREATE INDEX chết ngay, migration v18 chưa kịp chạy để thêm cột.
+- **Lỗi này vô hình với TOÀN BỘ bộ test tự động** vì mọi E2E script đều dùng DB tạm hoàn toàn mới (`mkdtempSync`) — không bao giờ tái hiện được tình huống "DB thật cũ nâng cấp lên". Có thể đã tồn tại âm thầm nhiều ngày.
+- Sửa: xoá dòng CREATE INDEX trùng lặp khỏi schema.sql (migration v18 đã tạo đúng index này sau khi đảm bảo cột tồn tại). Rà toàn bộ schema.sql tìm pattern tương tự (cột thêm qua ALTER TABLE nhưng bị "nướng" vào CREATE TABLE + có index độc lập tham chiếu) — chỉ có đúng 1 chỗ này.
+- Verify trên bản sao dữ liệu thật (đã backup gốc trước khi làm gì): server boot thành công, migration v18-v24 áp dụng, `/api/health` + `/api/auth/login` (admin/admin123 — xác nhận qua DB, không đoán mò) đều pass, giao diện đăng nhập render đúng qua browser thật. **Không sửa dữ liệu thật** — chỉ sửa code, verify bằng bản sao dùng-rồi-xoá.
+- Thêm `scripts/upgrade-path-test.mjs`: tái tạo đúng shape `game_sessions` tiền-v18, xác nhận server compiled thật boot được — đã verify test này FAIL đúng trên code cũ (qua `git stash`) và PASS trên code đã sửa, wire vào `e2e-isolated.mjs` (CI đã chạy trực tiếp script này, không cần sửa CI).
+- Verify cuối: typecheck, build, lint 0 lỗi, REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, upgrade-path test mới, Browser E2E 4/4.
+
 ### 2026-09-07 (RFC-001 option B — complexity refactor batch, người dùng chọn "Có, làm từng file một")
 - react-doctor full-scan: 15 issue → 11 issue (68/100 → không đổi điểm hiển thị nhưng số issue giảm rõ). 5/8 finding "high complexity function" đã xử lý:
   - `EventModal.tsx` — **giải quyết hoàn toàn**. Tách payload builder khỏi submit() + tách 3 JSX section (RecurringDaysFields/RecurringToggleSection/ModalFooterActions) + gom state initializer ternary vào `computeInitialFormValues`.
