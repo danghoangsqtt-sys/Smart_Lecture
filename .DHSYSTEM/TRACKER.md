@@ -230,6 +230,13 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-07 (đóng gói demo — phát hiện thêm 1 lỗi hiển thị port sai ở Dashboard)
+- Yêu cầu: dựng bộ dữ liệu demo sạch (không đụng dữ liệu thật) để xem/đóng gói dự án cho buổi báo cáo. Tạo `scripts/seed-demo-tour.mjs` (lớp DH31A mô phỏng lớp thật, 4 học viên, 1 bài giảng, 4 câu hỏi, 1 phòng quiz + 1 phòng mạch điện).
+- Chạy screenshot tour qua Playwright trên server demo cổng 4800 (khác cổng mặc định 4000) → phát hiện `DashboardPage.tsx` in cứng `:4000` ở cả URL LAN hiển thị lẫn mã QR, thay vì dùng cổng thật của server đang chạy. Đây là màn hình GV chiếu đầu mỗi buổi dạy — sai cổng ở đây là lỗi câm, HV quét QR sẽ không kết nối được, không có thông báo lỗi nào.
+- Sửa: thêm `port` vào response `/api/health` (không cần auth, không nhạy cảm — endpoint này đã lộ IP LAN), Dashboard dùng `health.port` thay vì literal `4000`. Verify trực quan bằng server thật chạy cổng 4800: trước sửa hiện `:4000` sai, sau sửa hiện đúng `:4800`, mã QR mã hoá đúng cổng.
+- Verify: typecheck, build, lint 0 lỗi, REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, upgrade-path test, Browser E2E 4/4.
+- Chụp ảnh tour đầy đủ: đăng nhập, dashboard, lớp học, ngân hàng câu hỏi, phòng chờ game (mã phòng + QR), phòng lab mạch điện tử (Half Adder tương tác) — dùng cho tài liệu trình bày.
+
 ### 2026-09-07 (CRITICAL — sửa lỗi crash khởi động server trên database thật, trước báo cáo)
 - Người dùng cần chạy demo thật trước báo cáo. Khởi động server thật với `data/smart-lecture.db` thật (không phải DB test cô lập) → **crash ngay khi boot**: `Error: no such column: class_id` tại `migrate()`.
 - Nguyên nhân gốc: `schema.sql` có `CREATE TABLE IF NOT EXISTS game_sessions` đã "nướng sẵn" cột `class_id` (thực ra chỉ được thêm qua migration v18 bằng `ALTER TABLE` có guard) + một dòng `CREATE INDEX idx_game_class ON game_sessions(class_id, status)` độc lập, chạy vô điều kiện ở MỌI lần boot, TRƯỚC khi bất kỳ migration nào chạy. Trên DB mới: `CREATE TABLE IF NOT EXISTS` tạo bảng có sẵn cột → OK. Trên DB thật đã tồn tại từ trước v18: `CREATE TABLE IF NOT EXISTS` là no-op (bảng cũ không có cột) → dòng CREATE INDEX chết ngay, migration v18 chưa kịp chạy để thêm cột.
