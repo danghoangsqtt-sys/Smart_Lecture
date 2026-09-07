@@ -183,7 +183,11 @@ CREATE TABLE IF NOT EXISTS game_sessions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_game_host ON game_sessions(host_teacher_id, status);
-CREATE INDEX IF NOT EXISTS idx_game_class ON game_sessions(class_id, status);
+-- idx_game_class is created by migration v18, after it guarantees game_sessions.class_id
+-- exists (ALTER TABLE ... ADD COLUMN on databases older than v18). Do not duplicate it here:
+-- schema.sql runs unconditionally on every boot, before migrations, so on a database whose
+-- game_sessions table predates class_id, this index would reference a column that doesn't
+-- exist yet and crash startup.
 
 CREATE TABLE IF NOT EXISTS game_results (
   game_session_id TEXT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
