@@ -213,14 +213,14 @@ router.post(
     const d = parsed.data;
     if (d.classId) {
       const cls = getClassOrThrow(d.classId);
-      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n vá»›i lá»›p nÃ y');
+      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với lớp này');
     }
     if (d.subjectId) {
       const subject = db.prepare('SELECT class_id FROM subjects WHERE id = ?').get(d.subjectId) as { class_id: string } | undefined;
-      if (!subject) throw new HttpError(404, 'NOT_FOUND', 'KhÃ´ng tÃ¬m tháº¥y mÃ´n há»c');
-      if (d.classId && subject.class_id !== d.classId) throw new HttpError(400, 'BAD_INPUT', 'MÃ´n há»c khÃ´ng thuá»™c lá»›p Ä‘Ã£ chá»n');
+      if (!subject) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy môn học');
+      if (d.classId && subject.class_id !== d.classId) throw new HttpError(400, 'BAD_INPUT', 'Môn học không thuộc lớp đã chọn');
       const cls = getClassOrThrow(subject.class_id);
-      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'KhÃ´ng cÃ³ quyá»n vá»›i mÃ´n há»c nÃ y');
+      if (!canManageClass(cls, authed.user)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với môn học này');
     }
     const NO_QUESTIONS: readonly string[] = ['math_race', 'crossword', 'bingo', 'memory_match', 'circuit_draw', 'circuit_simulate'];
     if (!NO_QUESTIONS.includes(d.gameType) && (!d.questionIds || d.questionIds.length === 0)) {
