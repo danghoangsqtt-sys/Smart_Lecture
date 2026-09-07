@@ -411,8 +411,8 @@ export default function GamePlayPage() {
   const initialRoom = (searchParams.get('room') ?? '').replace(/\D/g, '').slice(0, 6);
   const [state, setField] = useFieldReducer(() => createPlayerGameState(initialRoom));
   const {
-    roomInput, showGuide, joined, gameType, myTeam, question, reveal, ropePos,
-    mathProblem, mathInput, myAnswer, finished, error, nowTick,
+    roomInput, showGuide, joined, gameType, question, reveal,
+    mathProblem, mathInput, myAnswer, error, nowTick,
     pickedMe, cwState, cwRow, cwWord, bingoCard, bingoCalled,
     memCards, memRevealed, scWord, scGuess, qsQuestion, qsReveal, qsPicked, qsLifelines,
   } = state;
@@ -555,78 +555,147 @@ export default function GamePlayPage() {
         </Card>
       )}
 
-      {joined && finished && <FinishedPlayerView state={state} />}
+      <ActiveGameBody
+        state={state}
+        secondsLeft={secondsLeft}
+        bingoCalledSet={bingoCalledSet}
+        memRevealedSet={memRevealedSet}
+        onRaiseHand={raiseHand}
+        onCwRowChange={(row) => setField('cwRow', row)}
+        onCwWordChange={(word) => setField('cwWord', word)}
+        onCwSubmit={cwSubmit}
+        onMathInputChange={(value) => setField('mathInput', value)}
+        onSubmitMath={submitMath}
+        onBingoToggle={bingoToggle}
+        onMemFlip={memFlip}
+        onScGuessChange={(value) => setField('scGuess', value)}
+        onScSubmit={scSubmit}
+        onQsAnswer={qsAnswer}
+        onQsUseLifeline={qsUseLifeline}
+        onCircuitChange={syncCircuit}
+        onSubmitCircuit={submitCircuit}
+        onAcknowledgeTeacherMessage={acknowledgeTeacherMessage}
+        onToggleCircuitReference={() => setField('showRef', (visible) => !visible)}
+        onAnswer={answer}
+        onFillChange={(value) => setField('fillText', value)}
+      />
 
-      {joined && !finished && gameType === 'hand_raise' && question && (
-        <HandRaisePlayerView state={state} onRaiseHand={raiseHand} />
+      {joined && showGuide && <StudentGuideModal mode={gameType} onClose={() => setField('showGuide', false)} />}
+    </div>
+  );
+}
+
+function ActiveGameBody({
+  state,
+  secondsLeft,
+  bingoCalledSet,
+  memRevealedSet,
+  onRaiseHand,
+  onCwRowChange,
+  onCwWordChange,
+  onCwSubmit,
+  onMathInputChange,
+  onSubmitMath,
+  onBingoToggle,
+  onMemFlip,
+  onScGuessChange,
+  onScSubmit,
+  onQsAnswer,
+  onQsUseLifeline,
+  onCircuitChange,
+  onSubmitCircuit,
+  onAcknowledgeTeacherMessage,
+  onToggleCircuitReference,
+  onAnswer,
+  onFillChange,
+}: {
+  state: PlayerGameState;
+  secondsLeft: number;
+  bingoCalledSet: Set<number>;
+  memRevealedSet: Set<number>;
+  onRaiseHand: () => void;
+  onCwRowChange: (row: number) => void;
+  onCwWordChange: (word: string) => void;
+  onCwSubmit: () => void;
+  onMathInputChange: (value: string) => void;
+  onSubmitMath: () => void;
+  onBingoToggle: (rowIdx: number, colIdx: number, n: number) => void;
+  onMemFlip: (cardId: number) => void;
+  onScGuessChange: (value: string) => void;
+  onScSubmit: () => void;
+  onQsAnswer: (idx: number) => void;
+  onQsUseLifeline: (kind: 'fiftyFifty' | 'askAudience' | 'phoneFriend') => void;
+  onCircuitChange: (data: CircuitData) => void;
+  onSubmitCircuit: (data: CircuitData) => void;
+  onAcknowledgeTeacherMessage: (messageId: string) => void;
+  onToggleCircuitReference: () => void;
+  onAnswer: (choiceIdx: number, text?: string) => void;
+  onFillChange: (value: string) => void;
+}) {
+  const { joined, finished, gameType, question, cwState, myTeam, ropePos, roomInput } = state;
+
+  if (!joined) return null;
+  if (finished) return <FinishedPlayerView state={state} />;
+
+  return (
+    <>
+      {gameType === 'hand_raise' && question && (
+        <HandRaisePlayerView state={state} onRaiseHand={onRaiseHand} />
       )}
 
-      {joined && !finished && gameType === 'crossword' && cwState && (
+      {gameType === 'crossword' && cwState && (
         <CrosswordPlayerView
           state={state}
-          onRaiseHand={raiseHand}
-          onRowChange={(row) => setField('cwRow', row)}
-          onWordChange={(word) => setField('cwWord', word)}
-          onSubmit={cwSubmit}
+          onRaiseHand={onRaiseHand}
+          onRowChange={onCwRowChange}
+          onWordChange={onCwWordChange}
+          onSubmit={onCwSubmit}
         />
       )}
 
-      {joined && !finished && gameType === 'math_race' && (
-        <MathRacePlayerView
-          state={state}
-          onInputChange={(value) => setField('mathInput', value)}
-          onSubmit={submitMath}
-        />
+      {gameType === 'math_race' && (
+        <MathRacePlayerView state={state} onInputChange={onMathInputChange} onSubmit={onSubmitMath} />
       )}
 
-      {joined && !finished && gameType === 'bingo' && (
-        <BingoPlayerView state={state} calledSet={bingoCalledSet} onToggle={bingoToggle} />
+      {gameType === 'bingo' && (
+        <BingoPlayerView state={state} calledSet={bingoCalledSet} onToggle={onBingoToggle} />
       )}
 
-      {joined && !finished && gameType === 'memory_match' && (
-        <MemoryPlayerView state={state} revealedSet={memRevealedSet} onFlip={memFlip} />
+      {gameType === 'memory_match' && (
+        <MemoryPlayerView state={state} revealedSet={memRevealedSet} onFlip={onMemFlip} />
       )}
 
-      {joined && !finished && gameType === 'word_scramble' && (
-        <WordScramblePlayerView state={state} onGuessChange={(value) => setField('scGuess', value)} onSubmit={scSubmit} />
+      {gameType === 'word_scramble' && (
+        <WordScramblePlayerView state={state} onGuessChange={onScGuessChange} onSubmit={onScSubmit} />
       )}
 
       {/* ===== CHIẾC NÓN KỲ DỆU ===== */}
-      {joined && !finished && gameType === 'quiz_show' && (
-        <QuizShowPlayerView state={state} onAnswer={qsAnswer} onUseLifeline={qsUseLifeline} />
+      {gameType === 'quiz_show' && (
+        <QuizShowPlayerView state={state} onAnswer={onQsAnswer} onUseLifeline={onQsUseLifeline} />
       )}
 
       {/* ===== MẠCH ĐIỆN ===== */}
-      {joined && !finished && (gameType === 'circuit_draw' || gameType === 'circuit_simulate') && (
+      {(gameType === 'circuit_draw' || gameType === 'circuit_simulate') && (
         <CircuitPlayerView
           state={state}
-          onCircuitChange={syncCircuit}
-          onSubmit={submitCircuit}
-          onAcknowledge={acknowledgeTeacherMessage}
-          onToggleReference={() => setField('showRef', (visible) => !visible)}
+          onCircuitChange={onCircuitChange}
+          onSubmit={onSubmitCircuit}
+          onAcknowledge={onAcknowledgeTeacherMessage}
+          onToggleReference={onToggleCircuitReference}
         />
       )}
 
       {/* ===== QUIZ / KÉO CO / ĐIỀN CHỖ TRỐNG ===== */}
-      {joined && !finished && gameType === 'tug_of_war' && (
-        <TugOfWarPlayerView team={myTeam} ropePosition={ropePos} />
+      {gameType === 'tug_of_war' && <TugOfWarPlayerView team={myTeam} ropePosition={ropePos} />}
+
+      {(gameType === 'quick_quiz' || gameType === 'tug_of_war') && question && (
+        <StandardQuestionPlayerView state={state} secondsLeft={secondsLeft} onAnswer={onAnswer} onFillChange={onFillChange} />
       )}
 
-      {joined && !finished && (gameType === 'quick_quiz' || gameType === 'tug_of_war') && question && (
-        <StandardQuestionPlayerView
-          state={state}
-          secondsLeft={secondsLeft}
-          onAnswer={answer}
-          onFillChange={(value) => setField('fillText', value)}
-        />
-      )}
-
-      {joined && !finished && !SANDBOX_MODES.has(gameType) && gameType !== 'math_race' && !question && (
+      {!SANDBOX_MODES.has(gameType) && gameType !== 'math_race' && !question && (
         <WaitingPlayerView roomCode={roomInput} team={myTeam} />
       )}
-
-      {joined && showGuide && <StudentGuideModal mode={gameType} onClose={() => setField('showGuide', false)} />}
-    </div>
+    </>
   );
 }
 
