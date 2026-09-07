@@ -169,6 +169,50 @@ function getConvertedSibling(lecture: TeachingLecture | null, materialId: string
   return materials.find((material) => material.convertedFromId === materialId) ?? null;
 }
 
+function resolveSelectedPlanId(
+  subjectPlans: TeachingPlan[],
+  prevSelectedId: string | null,
+  snapshotSelectedId: string | null | undefined,
+): string | null {
+  if (prevSelectedId && subjectPlans.some((p) => p.id === prevSelectedId)) return prevSelectedId;
+  if (snapshotSelectedId && subjectPlans.some((p) => p.id === snapshotSelectedId)) return snapshotSelectedId;
+  return subjectPlans[0]?.id ?? null;
+}
+
+interface WorkspaceRestoration {
+  selectedItemId: string | null;
+  contentMode: ContentMode;
+  gameDockOpen: boolean;
+  gameDockMinimized: boolean;
+  gameDockPosition: DockPosition;
+  videoDockMaterial: TeachingMaterial | null;
+  videoDockMinimized: boolean;
+  videoDockPosition: DockPosition;
+  videoPlayback: VideoPlaybackCheckpoint;
+}
+
+function computeWorkspaceRestoration(
+  subjectPlans: TeachingPlan[],
+  subjectLectures: TeachingLecture[],
+  snapshot: TeachingWorkspaceSnapshot | null,
+): WorkspaceRestoration {
+  const itemIds = new Set(subjectPlans.flatMap((plan) => plan.items.map((item) => item.id)));
+  const savedVideo = snapshot?.videoMaterialId
+    ? subjectLectures.flatMap((lecture) => lecture.materials as TeachingMaterial[]).find((material) => material.id === snapshot.videoMaterialId && material.type === 'video') ?? null
+    : null;
+  return {
+    selectedItemId: snapshot?.selectedItemId && itemIds.has(snapshot.selectedItemId) ? snapshot.selectedItemId : null,
+    contentMode: snapshot?.contentMode ?? 'slides',
+    gameDockOpen: snapshot?.gameDockOpen === true,
+    gameDockMinimized: snapshot?.gameDockMinimized === true,
+    gameDockPosition: clampDockPosition(snapshot?.gameDockPosition ?? DEFAULT_GAME_DOCK_POSITION, 48),
+    videoDockMaterial: savedVideo,
+    videoDockMinimized: snapshot?.videoDockMinimized === true,
+    videoDockPosition: clampDockPosition(snapshot?.videoDockPosition ?? DEFAULT_VIDEO_DOCK_POSITION, 40),
+    videoPlayback: savedVideo ? snapshot?.videoPlayback ?? DEFAULT_VIDEO_PLAYBACK_CHECKPOINT : DEFAULT_VIDEO_PLAYBACK_CHECKPOINT,
+  };
+}
+
 export default function TeachingModePage() {
   const { id, subjectId } = useParams<{ id: string; subjectId: string }>();
   const classId = id ?? '';
@@ -214,19 +258,18 @@ export default function TeachingModePage() {
       setPlans(subjectPlans);
       setLectures(subjectLectures);
       setActiveLog(activeLogRes.log);
-      setSelectedPlanId((prev) => (prev && subjectPlans.some((p) => p.id === prev) ? prev : snapshot?.selectedPlanId && subjectPlans.some((p) => p.id === snapshot.selectedPlanId) ? snapshot.selectedPlanId : subjectPlans[0]?.id ?? null));
+      setSelectedPlanId((prev) => resolveSelectedPlanId(subjectPlans, prev, snapshot?.selectedPlanId));
       if (!workspaceRestoredRef.current) {
-        const itemIds = new Set(subjectPlans.flatMap((plan) => plan.items.map((item) => item.id)));
-        setSelectedItemId(snapshot?.selectedItemId && itemIds.has(snapshot.selectedItemId) ? snapshot.selectedItemId : null);
-        setContentMode(snapshot?.contentMode ?? 'slides');
-        setGameDockOpen(snapshot?.gameDockOpen === true);
-        setGameDockMinimized(snapshot?.gameDockMinimized === true);
-        setGameDockPosition(clampDockPosition(snapshot?.gameDockPosition ?? DEFAULT_GAME_DOCK_POSITION, 48));
-        const savedVideo = snapshot?.videoMaterialId ? subjectLectures.flatMap((lecture) => lecture.materials as TeachingMaterial[]).find((material) => material.id === snapshot.videoMaterialId && material.type === 'video') ?? null : null;
-        setVideoDockMaterial(savedVideo);
-        setVideoDockMinimized(snapshot?.videoDockMinimized === true);
-        setVideoDockPosition(clampDockPosition(snapshot?.videoDockPosition ?? DEFAULT_VIDEO_DOCK_POSITION, 40));
-        setVideoPlayback(savedVideo ? snapshot?.videoPlayback ?? DEFAULT_VIDEO_PLAYBACK_CHECKPOINT : DEFAULT_VIDEO_PLAYBACK_CHECKPOINT);
+        const restored = computeWorkspaceRestoration(subjectPlans, subjectLectures, snapshot);
+        setSelectedItemId(restored.selectedItemId);
+        setContentMode(restored.contentMode);
+        setGameDockOpen(restored.gameDockOpen);
+        setGameDockMinimized(restored.gameDockMinimized);
+        setGameDockPosition(restored.gameDockPosition);
+        setVideoDockMaterial(restored.videoDockMaterial);
+        setVideoDockMinimized(restored.videoDockMinimized);
+        setVideoDockPosition(restored.videoDockPosition);
+        setVideoPlayback(restored.videoPlayback);
         workspaceRestoredRef.current = true;
       }
     } catch (e) {
