@@ -230,6 +230,13 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-07 (sửa tận gốc — quét toàn bộ repo tìm hết mọi chỗ hardcode port :4000)
+- Người dùng yêu cầu "sửa lỗi tận gốc" sau khi báo lỗi port sai ở Dashboard. Thay vì dừng ở 1 chỗ đã thấy, quét toàn bộ `web/src` + `server/src` + `scripts/` tìm literal `4000`.
+- Tìm thấy **chỗ thứ 2** cùng lỗi: `web/src/lib/health.ts` (`fetchLanBase()`) — hardcode `:4000` y hệt, nhưng nghiêm trọng hơn vì nuôi **mã QR riêng của từng phòng game** (`GamesPage.tsx` dùng để tạo QR "vào đúng phòng này" mà GV chiếu giữa giờ dạy).
+- Xác nhận không còn chỗ nào khác: các kết quả "4000" còn lại đều không liên quan (setTimeout ms, toạ độ SVG, giới hạn ký tự, và `config.ts`'s `?? 4000` fallback hợp lệ). Script dev/test hardcode port cho chính chúng không tính vì không phải giao diện người dùng cuối.
+- Sửa theo đúng pattern đã dùng cho Dashboard: đọc `port` từ `/api/health`. Verify bằng cách chặn network request thật của trình duyệt (`page.on('response')`) xác nhận nhận đúng `port: 4800`, QR render thành công.
+- Verify: typecheck, build, lint 0 lỗi, REST 86/86, Socket 10/10, regression 22/22, restore/restart, circuit restart suite, upgrade-path test, Browser E2E 4/4.
+
 ### 2026-09-07 (đóng gói demo — phát hiện thêm 1 lỗi hiển thị port sai ở Dashboard)
 - Yêu cầu: dựng bộ dữ liệu demo sạch (không đụng dữ liệu thật) để xem/đóng gói dự án cho buổi báo cáo. Tạo `scripts/seed-demo-tour.mjs` (lớp DH31A mô phỏng lớp thật, 4 học viên, 1 bài giảng, 4 câu hỏi, 1 phòng quiz + 1 phòng mạch điện).
 - Chạy screenshot tour qua Playwright trên server demo cổng 4800 (khác cổng mặc định 4000) → phát hiện `DashboardPage.tsx` in cứng `:4000` ở cả URL LAN hiển thị lẫn mã QR, thay vì dùng cổng thật của server đang chạy. Đây là màn hình GV chiếu đầu mỗi buổi dạy — sai cổng ở đây là lỗi câm, HV quét QR sẽ không kết nối được, không có thông báo lỗi nào.
