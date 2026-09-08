@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import { JWT_EXPIRES_IN, JWT_SECRET } from '../config.js';
 import { db, findUserByUsername, toPublicUser } from '../db/connection.js';
@@ -11,12 +12,28 @@ const MAX_FAILED_ATTEMPTS = 10;
 
 const router = Router();
 
+// Per-account lockout (MAX_FAILED_ATTEMPTS) only stops repeated guesses against
+// ONE username. Nothing else stopped a single LAN device from cycling through
+// many different usernames — e.g. the sequential student-import usernames this
+// app itself generates (hv2024001, hv2024002, ...) — and permanently locking an
+// entire class right before an exam. This limits failed attempts per source IP;
+// successful logins never count against it, so normal classroom traffic (many
+// students logging in correctly from many devices) is unaffected.
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: { code: 'RATE_LIMITED', message: 'Quá nhiều lần đăng nhập sai từ thiết bị này, thử lại sau ít phút' } },
+});
+
 const loginSchema = z.object({
   username: z.string().min(1).max(100),
   password: z.string().min(1).max(200),
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', loginRateLimit, (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'Dữ liệu không hợp lệ' } });

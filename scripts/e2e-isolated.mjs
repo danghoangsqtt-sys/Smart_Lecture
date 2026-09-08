@@ -66,6 +66,9 @@ let server = startServer();
 try {
   await waitForServer();
   await run(process.execPath, ['scripts/upgrade-path-test.mjs']);
+  await run(process.execPath, ['scripts/mdns-resilience-test.mjs']);
+  await run(process.execPath, ['scripts/spreadsheet-formula-injection-test.mjs']);
+  await run(process.execPath, ['scripts/auth-rate-limit-test.mjs']);
   await run(powerShellCommand(), ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/e2e-smoke.ps1']);
   await run(process.execPath, ['scripts/e2e-excel-regression.mjs']);
   await run(process.execPath, ['scripts/socket-test.mjs']);

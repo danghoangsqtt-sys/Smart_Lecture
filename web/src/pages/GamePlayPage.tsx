@@ -181,6 +181,7 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
 
   useEffect(() => {
     if (!token) return;
+    const pendingTimers = pendingTimersRef.current;
     const socket = getSocket(token);
     socketRef.current = socket;
     const socketEvents = createSocketEventScope(socket);
@@ -290,10 +291,10 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     on('memory:hide', (d: { cardIndices: number[] }) => {
       const hiddenIds = new Set(d.cardIndices);
       const timer = setTimeout(() => {
-        pendingTimersRef.current.delete(timer);
+        pendingTimers.delete(timer);
         setField('memRevealed', (prev) => prev.filter((i) => !hiddenIds.has(i)));
       }, 900);
-      pendingTimersRef.current.add(timer);
+      pendingTimers.add(timer);
     });
 
     // --- Word Scramble ---
@@ -395,8 +396,8 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
     });
 
     return () => {
-      for (const timer of pendingTimersRef.current) clearTimeout(timer);
-      pendingTimersRef.current.clear();
+      for (const timer of pendingTimers) clearTimeout(timer);
+      pendingTimers.clear();
       socketEvents.dispose();
       socket.disconnect();
     };

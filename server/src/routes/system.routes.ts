@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import type { EventEmitter } from 'node:events';
 import { Router } from 'express';
 import { NETWORK_INTERFACES, PORT } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
@@ -14,14 +15,40 @@ router.use(requireAuth);
 let mdnsAdvertised = false;
 export const mdnsHostname = 'smart-lecture.local';
 
+// bonjour-service exposes no public API for the underlying multicast-dns socket's
+// 'error' event (EACCES/EADDRINUSE on the shared UDP 5353 port — e.g. another
+// SmartLecture instance already advertising on this LAN). With zero listeners
+// Node rethrows that as an uncaught exception and kills the whole server
+// (verified against node_modules/multicast-dns/index.js). `server`/`mdns` are
+// private only in the .d.ts, not at runtime, so reach through that shape to
+// attach a handler and keep this from ever crashing. Exported standalone so the
+// crash-prevention itself can be regression-tested against a real Bonjour
+// instance without booting the whole server.
+export function attachMdnsSafetyNet(bonjour: unknown): void {
+  const mdnsSocket = (bonjour as { server: { mdns: EventEmitter } }).server.mdns;
+  mdnsSocket.on('error', (err: Error) => {
+    console.log(`[mdns] lỗi mạng, bỏ qua quảng cáo hostname: ${err.message}`);
+  });
+}
+
 export function advertiseMdns(): void {
   try {
     import('bonjour-service')
       .then(({ Bonjour }) => {
         const bonjour = new Bonjour();
-        bonjour.publish({ name: 'SmartLecture', type: 'http', host: mdnsHostname, port: PORT, txt: { app: 'smart-lecture' } });
-        mdnsAdvertised = true;
-        console.log(`[mdns] advertised http://${mdnsHostname}:${PORT}`);
+        attachMdnsSafetyNet(bonjour);
+        const service = bonjour.publish({ name: 'SmartLecture', type: 'http', host: mdnsHostname, port: PORT, txt: { app: 'smart-lecture' } });
+        const upTimeout = setTimeout(() => {
+          if (!mdnsAdvertised) {
+            console.log('[mdns] không xác nhận được quảng cáo hostname sau 5s (có thể trùng tên với máy khác trên LAN) — dùng địa chỉ IP LAN thay thế');
+          }
+        }, 5000);
+        upTimeout.unref();
+        service.on('up', () => {
+          clearTimeout(upTimeout);
+          mdnsAdvertised = true;
+          console.log(`[mdns] advertised http://${mdnsHostname}:${PORT}`);
+        });
       })
       .catch(() => {
         console.log('[mdns] bonjour-service not available — hostname mDNS bị bỏ qua');

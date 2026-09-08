@@ -36,10 +36,21 @@ export async function readFirstWorksheetRows(buffer: Buffer, format: 'csv' | 'xl
   return rows;
 }
 
+// Excel/LibreOffice evaluate a cell as a formula if its text starts with one of
+// these characters, regardless of whether the writer marked it as a formula —
+// this applies to plain strings written by ExcelJS/CSV just as much as to a
+// hand-typed cell. Any string cell built from user-controlled text (names,
+// remarks, titles, ...) must be neutralized before it reaches an export.
+const FORMULA_TRIGGER = /^[=+\-@\t\r]/u;
+
+function neutralizeFormula(text: string): string {
+  return FORMULA_TRIGGER.test(text) ? `'${text}` : text;
+}
+
 export async function createXlsxBuffer(sheetName: string, rows: SpreadsheetRows, widths: readonly number[] = []): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(sheetName);
-  sheet.addRows(rows.map((row) => [...row]));
+  sheet.addRows(rows.map((row) => row.map((cell) => (typeof cell === 'string' ? neutralizeFormula(cell) : cell))));
   widths.forEach((width, index) => {
     sheet.getColumn(index + 1).width = width;
   });
@@ -47,7 +58,8 @@ export async function createXlsxBuffer(sheetName: string, rows: SpreadsheetRows,
 }
 
 function escapeCsvCell(value: SpreadsheetCell): string {
-  const text = value instanceof Date ? value.toISOString() : String(value);
+  const raw = value instanceof Date ? value.toISOString() : String(value);
+  const text = typeof value === 'string' ? neutralizeFormula(raw) : raw;
   return /[",\r\n]/u.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
 }
 

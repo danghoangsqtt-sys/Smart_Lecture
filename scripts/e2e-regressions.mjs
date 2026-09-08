@@ -123,6 +123,10 @@ if (classId) {
   const teachingGame = await request('POST', '/games', teacherToken, {
     gameType: 'math_race', title: 'Math race in teaching log', classId, subjectId, durationSec: 120, difficulty: 1,
   });
+  const hostViewsGame = await request('GET', `/games/${teachingGame.data?.id}`, teacherToken);
+  const studentViewsGame = await request('GET', `/games/${teachingGame.data?.id}`, studentToken);
+  check('game host can read own game session', hostViewsGame.status === 200 && hostViewsGame.data?.session?.id === teachingGame.data?.id);
+  check('unrelated student cannot read another game session by id', studentViewsGame.status === 403);
   const trackedGameAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: teachingGame.data?.id });
   const invalidGameAction = await request('POST', `/teaching-logs/${sessionId}/actions`, teacherToken, { kind: 'game', id: 'not-a-game' });
   const activeTeachingSession = await request('GET', `/classes/${classId}/teaching-logs/active`, teacherToken);

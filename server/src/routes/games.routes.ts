@@ -92,18 +92,14 @@ function getCircuitDebriefOrThrow(row: GameRow, req: AuthedRequest) {
   return debrief;
 }
 
-function spreadsheetSafeText(value: string): string {
-  return /^[=+\-@\t\r]/u.test(value) ? `'${value}` : value;
-}
-
 function circuitDebriefExportRows(row: GameRow, debrief: NonNullable<ReturnType<typeof readPersistedCircuitDebrief>>): SpreadsheetRows {
   const session = serializeSession(row);
   const summary = debrief.summary;
   return [
     ['SMARTLECTURE — TỔNG KẾT HỌC TẬP MẠCH'],
-    ['Tên phiên', spreadsheetSafeText(session.config.title || 'Mô phỏng mạch')],
+    ['Tên phiên', session.config.title || 'Mô phỏng mạch'],
     ['Mã phiên', row.id],
-    ['Mã phòng', spreadsheetSafeText(row.room_code)],
+    ['Mã phòng', row.room_code],
     ['Kết thúc', row.finished_at ?? ''],
     [],
     ['TỔNG QUAN'],
@@ -118,7 +114,7 @@ function circuitDebriefExportRows(row: GameRow, debrief: NonNullable<ReturnType<
     ['STT', 'Học viên', 'Bài hoàn thành', 'Tổng bài', 'Lượt nộp', 'Lượt chưa đạt', 'Điểm'],
     ...debrief.learners.map((learner, index) => [
       index + 1,
-      spreadsheetSafeText(learner.name),
+      learner.name,
       learner.completedCount,
       learner.totalChallenges,
       learner.totalSubmissionAttempts,
@@ -292,6 +288,7 @@ router.get(
   '/games/:id',
   h(async (req, res) => {
     const row = getGameOrThrow(String(req.params.id));
+    assertHost(row, req as AuthedRequest);
     res.json({ session: serializeSession(row) });
   })
 );

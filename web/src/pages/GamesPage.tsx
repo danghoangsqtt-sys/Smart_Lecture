@@ -1289,6 +1289,7 @@ function useHostConsoleEffects(
   useEffect(() => {
     const token = useAuthStore.getState().token;
     if (!token) return;
+    const pendingTimers = pendingTimersRef.current;
     const socket = getSocket(token);
     socketRef.current = socket;
     const socketEvents = createSocketEventScope(socket);
@@ -1334,10 +1335,10 @@ function useHostConsoleEffects(
     on('hr:result', (d: { name: string; correct: boolean; delta: number; newKttx: number | null }) => {
       setField('hrResult', d);
       const timer = setTimeout(() => {
-        pendingTimersRef.current.delete(timer);
+        pendingTimers.delete(timer);
         setField('hrResult', null);
       }, 4000);
-      pendingTimersRef.current.add(timer);
+      pendingTimers.add(timer);
     });
     on('cw:state', (d: { keywordRevealed: string[]; rows: { index: number; clue: string; wordLen: number; solved: boolean; word: string | null }[]; solvedCount: number; total: number }) => {
       setField('cwState', d);
@@ -1372,12 +1373,12 @@ function useHostConsoleEffects(
     on('memory:hide', (d: { cardIndices: number[] }) => {
       const hiddenIds = new Set(d.cardIndices);
       const timer = setTimeout(() => {
-        pendingTimersRef.current.delete(timer);
+        pendingTimers.delete(timer);
         setField('memBoard', (prev) =>
           prev.map((c) => (!c.matched && hiddenIds.has(c.id) ? { ...c, value: '?' } : c))
         );
       }, 900);
-      pendingTimersRef.current.add(timer);
+      pendingTimers.add(timer);
     });
 
     // --- Word Scramble ---
@@ -1467,8 +1468,8 @@ function useHostConsoleEffects(
     socket.emit('game:host-attach', { sessionId });
 
     return () => {
-      for (const timer of pendingTimersRef.current) clearTimeout(timer);
-      pendingTimersRef.current.clear();
+      for (const timer of pendingTimers) clearTimeout(timer);
+      pendingTimers.clear();
       socketEvents.dispose();
       socket.disconnect();
     };
