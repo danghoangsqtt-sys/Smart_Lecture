@@ -65,8 +65,15 @@ if ($listeners.Count -gt 0) {
     throw "Cong $Port dang do tien trinh PID $ownerPid su dung nhung khong phai SmartLecture. Launcher se khong tu dung tien trinh nay."
 }
 
-$node = (Get-Command node -ErrorAction Stop).Source
-$runtimeDir = if ($DataDir) { [System.IO.Path]::GetFullPath($DataDir) } else { Join-Path $projectDir 'data' }
+$bundledNode = Join-Path $projectDir 'node\node.exe'
+$node = if (Test-Path -LiteralPath $bundledNode) { $bundledNode } else { (Get-Command node -ErrorAction Stop).Source }
+$runtimeDir = if ($DataDir) {
+    [System.IO.Path]::GetFullPath($DataDir)
+} elseif (Test-Path -LiteralPath $bundledNode) {
+    Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'SmartLecture\data'
+} else {
+    Join-Path $projectDir 'data'
+}
 $logDir = Join-Path $runtimeDir 'logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $stdoutLog = Join-Path $logDir 'smartlecture-server.out.log'

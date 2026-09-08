@@ -2,6 +2,12 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
+## Phase 72 — Windows installer distribution
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-7201 | Đóng gói SmartLecture thành một file cài đặt Windows độc lập | P72 | done | typecheck + lint + build + staged bundled-node healthcheck + Inno Setup compile |
+
 ## Phase 71 — One-click launcher
 
 | ID | Task | Phase | Status | Verify |

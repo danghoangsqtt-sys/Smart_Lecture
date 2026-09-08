@@ -1,5 +1,11 @@
 # ROADMAP — Smart_Lecture
 
+## Phase 72 — Windows Installer Distribution ✅
+
+- [x] Đóng gói production web/server, Node runtime và dependencies vào một `SmartLecture-Setup.exe`.
+- [x] Cài đặt per-user với icon Desktop/Start Menu; dữ liệu lớp học nằm ngoài thư mục chương trình và được giữ khi gỡ cài đặt.
+- [x] Xác minh bundle chạy với Node đi kèm và không chứa source/Git/data runtime.
+
 ## Phase 71 — Windows One-Click Launcher ✅
 
 - [x] Tạo launcher PowerShell kiểm tra health, khởi động server production an toàn và mở ứng dụng trong trình duyệt mặc định.

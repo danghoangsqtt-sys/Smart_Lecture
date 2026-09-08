@@ -68,6 +68,10 @@ npm run install:shortcut
 
 Từ đó, giáo viên chỉ cần bấm đúp **SmartLecture** trên Desktop. Icon tự kiểm tra server, tự khởi động server nền nếu cần và mở `http://localhost:4000` trong trình duyệt mặc định. Launcher không tự build và không tự dừng tiến trình lạ đang chiếm cổng 4000; sau khi cập nhật, hãy chạy lại `npm run build` trước khi mở icon.
 
+### Phát hành cho giảng viên không cần GitHub
+
+Trên máy phát triển, tạo một file cài đặt độc lập bằng `npm run package:windows`. File kết quả là `release/SmartLecture-Setup-<version>.exe`; gửi riêng file này cho giảng viên qua USB hoặc dịch vụ chia sẻ tệp. Bộ cài chứa Node runtime và toàn bộ thành phần chạy ứng dụng, không yêu cầu Node.js, Git hay quyền truy cập repository ở máy giảng viên. Hướng dẫn dành cho giảng viên: [HUONG-DAN-CAI-DAT.md](docs/HUONG-DAN-CAI-DAT.md).
+
 | Việc | Cách |
 |---|---|
 | Tự khởi động cùng Windows | `powershell -File scripts/install-autostart.ps1` (chạy `npm run build` trước) |

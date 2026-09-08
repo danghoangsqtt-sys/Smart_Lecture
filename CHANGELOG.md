@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Windows installer distribution
+
+- Thêm pipeline tạo `SmartLecture-Setup-<version>.exe` để phân phối cho giảng viên không cần GitHub, Git, Node.js hay terminal.
+- Bản cài chạy theo người dùng, có icon Desktop/Start Menu; dữ liệu lớp học được giữ riêng trong `%LOCALAPPDATA%\SmartLecture\data` khi cập nhật hoặc gỡ cài đặt.
+
 ## Unreleased — Windows one-click launcher
 
 - Thêm icon Desktop **SmartLecture**: bấm đúp để kiểm tra health, khởi động server production khi cần và mở ứng dụng trong trình duyệt mặc định.

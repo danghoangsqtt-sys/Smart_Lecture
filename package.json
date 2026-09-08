@@ -17,6 +17,7 @@
     "start:app": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-smartlecture.ps1",
     "install:shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-desktop-shortcut.ps1",
     "uninstall:shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/uninstall-desktop-shortcut.ps1",
+    "package:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-installer.ps1",
     "seed:demo-quiz": "node scripts/seed-demo-quiz.mjs",
     "test:e2e": "npm run build -w server && node scripts/e2e-isolated.mjs",
     "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs",
