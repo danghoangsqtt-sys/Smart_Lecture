@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Windows one-click launcher
+
+- Thêm icon Desktop **SmartLecture**: bấm đúp để kiểm tra health, khởi động server production khi cần và mở ứng dụng trong trình duyệt mặc định.
+- Launcher không tự build, không dừng tiến trình lạ chiếm cổng và ghi log khởi động vào `data/logs/`.
+
 ## 2026-09-06 — Game engine modularization
 
 - Tách toàn bộ circuit_simulate challenge runtime (init/send/evaluate/next/control/sync/timer/progress/inspection/host-snapshot) khỏi `gameRoom.ts` vào `circuitSimulateRuntime.ts`.

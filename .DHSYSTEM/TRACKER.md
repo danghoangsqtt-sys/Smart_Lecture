@@ -2,6 +2,12 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
+## Phase 71 — One-click launcher
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-7101 | Launcher PowerShell và icon Desktop mở SmartLecture một chạm | P71 | done | typecheck + lint (2 warnings cũ) + build + repeated launcher/healthcheck smoke |
+
 ## Phase 1
 
 | ID | Task | Phase | Status | Verify |

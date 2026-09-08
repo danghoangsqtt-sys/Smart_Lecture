@@ -57,9 +57,22 @@ Lệnh có thể chạy lại an toàn, không tạo dữ liệu trùng. Sau khi
 
 ## Tiện ích vận hành
 
+### Mở bằng một icon trên Desktop (Windows)
+
+Sau mỗi lần cập nhật mã nguồn, chuẩn bị bản production và cài icon một lần:
+
+```powershell
+npm run build
+npm run install:shortcut
+```
+
+Từ đó, giáo viên chỉ cần bấm đúp **SmartLecture** trên Desktop. Icon tự kiểm tra server, tự khởi động server nền nếu cần và mở `http://localhost:4000` trong trình duyệt mặc định. Launcher không tự build và không tự dừng tiến trình lạ đang chiếm cổng 4000; sau khi cập nhật, hãy chạy lại `npm run build` trước khi mở icon.
+
 | Việc | Cách |
 |---|---|
 | Tự khởi động cùng Windows | `powershell -File scripts/install-autostart.ps1` (chạy `npm run build` trước) |
+| Cài/gỡ icon Desktop SmartLecture | `npm run install:shortcut` / `npm run uninstall:shortcut` |
+| Mở bằng terminal (tương đương bấm icon) | `npm run start:app` |
 | Backup thủ công / xem bản sao lưu | Cài đặt → Hệ thống & sao lưu (tự động 02:00 hằng ngày, giữ 7 bản) |
 | Cho HV làm BTVN từ nhà | Cài đặt → Mở tunnel (cần `cloudflared`) — **tắt ngay sau khi giao bài** |
 | Truy cập kiểu `smart-lecture.local` | Tự động nếu máy có Bonjour |

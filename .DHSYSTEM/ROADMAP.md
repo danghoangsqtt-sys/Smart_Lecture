@@ -1,5 +1,11 @@
 # ROADMAP — Smart_Lecture
 
+## Phase 71 — Windows One-Click Launcher ✅
+
+- [x] Tạo launcher PowerShell kiểm tra health, khởi động server production an toàn và mở ứng dụng trong trình duyệt mặc định.
+- [x] Tạo script cài/gỡ shortcut `SmartLecture` trên Desktop của người dùng hiện tại.
+- [x] Xác minh launcher bằng healthcheck ở cổng kiểm thử, không giết process lạ và không ảnh hưởng dữ liệu runtime.
+
 ## Phase 49 — Default Circuit Room E2E ✅
 
 - [x] Browser E2E creates a default circuit-simulation room through the teacher UI.

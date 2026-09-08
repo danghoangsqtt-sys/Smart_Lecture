@@ -3,8 +3,8 @@
   "displayName": "SmartLecture",
   "version": "0.9.2-planned",
   "created": "2026-08-23",
-  "status": "phase-70-completed",
-  "phase_current": "P70-game-engine-modularization",
+  "status": "phase-71-completed",
+  "phase_current": "P71-one-click-launcher",
   "workflow_state": "all-defined-phases-complete",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P1-P70 all done. No open TRACKER task. ESLint now configured and enforced (eslint.config.mjs, wired into CI). Draft RFC written at docs/rfc/RFC-001-next-milestone.md proposing option B (code-health hardening: react-doctor 68/100, LAN benchmark) as the evidence-backed default over option A (voice oral exam grading, pre-flagged in ROADMAP.md Phase 4 but unconfirmed demand) or new features (no evidence). Waiting on the project owner to pick a direction in the RFC's 'Viec can quyet dinh' section before any further implementation starts."
+  "next_action": "P71 T-7101 completed: SmartLecture now has a health-aware Windows launcher and a current-user Desktop icon. Daily use is double-clicking SmartLecture.lnk; after future source updates, run npm install and npm run build before launching."
 }
