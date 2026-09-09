@@ -149,10 +149,11 @@ export function createRoomStore({ rooms, initCircuitSimulate, restoreCircuitSimu
     return room;
   };
 
-  const loadCircuitRoomByCodeFromDb = (roomCode: string): RoomState | null => {
+  const loadJoinableRoomByCodeFromDb = (roomCode: string): RoomState | null => {
     const row = db.prepare(`
       SELECT id FROM game_sessions
-      WHERE room_code = ? AND game_type = 'circuit_simulate' AND status IN ('lobby', 'running')
+      WHERE room_code = ?
+        AND (status = 'lobby' OR (game_type = 'circuit_simulate' AND status = 'running'))
       LIMIT 1
     `).get(roomCode) as { id: string } | undefined;
     return row ? loadRoomFromDb(row.id) : null;
@@ -173,5 +174,5 @@ export function createRoomStore({ rooms, initCircuitSimulate, restoreCircuitSimu
     }
   };
 
-  return { loadRoomFromDb, loadCircuitRoomByCodeFromDb, restoreActiveCircuitRooms };
+  return { loadRoomFromDb, loadJoinableRoomByCodeFromDb, restoreActiveCircuitRooms };
 }

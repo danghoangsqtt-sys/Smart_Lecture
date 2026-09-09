@@ -84,7 +84,7 @@ for (const spec of specs) {
   const learner = connect(student);
   let host = null;
   const result = await new Promise((resolve) => {
-    let hostSynced = false, joined = false;
+    let hostSynced = false, joined = false, started = false;
     const finish = (ok, reason) => resolve({ ok, reason });
     const timeout = setTimeout(() => finish(false, `timeout (hostSync=${hostSynced} joined=${joined})`), 6000);
 
@@ -95,12 +95,14 @@ for (const spec of specs) {
       host.on('connect', () => host.emit('game:host-attach', { sessionId: game.id }));
       host.on('host:sync', () => {
         hostSynced = true;
+        started = true;
         host.emit('game:host-start');
       });
       host.on('game:error', (d) => { clearTimeout(timeout); finish(false, `host error: ${d.message}`); });
     });
     learner.on('game:error', (d) => { clearTimeout(timeout); finish(false, `learner error: ${d.message}`); });
     learner.on(spec.initEvent, () => {
+      if (!started) return;
       clearTimeout(timeout);
       finish(hostSynced && joined, 'ok');
     });

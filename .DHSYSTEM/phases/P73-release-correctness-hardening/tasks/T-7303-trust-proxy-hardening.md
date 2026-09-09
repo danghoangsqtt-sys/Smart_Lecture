@@ -2,7 +2,7 @@
 
 ## Status
 
-- `todo`
+- `in_progress`
 
 ## Objective
 
@@ -33,4 +33,3 @@
 - `node scripts/auth-rate-limit-test.mjs`
 - `npm.cmd run typecheck`
 - `npm.cmd run lint`
-

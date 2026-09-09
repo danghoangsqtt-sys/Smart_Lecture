@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -24,12 +24,12 @@ Hydrate lobby từ SQLite khi learner join trước host, đồng thời giữ g
 
 ## Acceptance Criteria
 
-- [ ] Learner-first join thành công cho 11 game lobby.
-- [ ] Host attach sau learner dùng cùng runtime room.
-- [ ] Finished/cancelled và non-durable running room không được hydrate.
-- [ ] Lifecycle test đạt 11/11 ổn định.
+- [x] Learner-first join thành công cho 11 game lobby.
+- [x] Host attach sau learner dùng cùng runtime room.
+- [x] Query chỉ hydrate lobby hoặc running circuit_simulate; finished/cancelled và non-durable running bị loại.
+- [x] Lifecycle test đạt 11/11.
 
 ## Verification
 
-- `npm.cmd run test:game-join-race`
-- `npm.cmd run test:e2e`
+- `npm.cmd run typecheck`: pass.
+- `npm.cmd run test:e2e`: REST 86/86, Socket 10/10, lifecycle 11/11, regression 24/24, restore/circuit restart pass.

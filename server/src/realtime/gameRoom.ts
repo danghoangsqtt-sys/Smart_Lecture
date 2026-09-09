@@ -69,7 +69,7 @@ const { restoreCircuitSimulateRoom } = createCircuitRecovery({
   scheduleTimer: circuitSimulateRuntime.scheduleTimer,
 });
 const { initCircuitDraw } = createCircuitDrawLifecycle({ getIo: () => ioRef });
-const { loadRoomFromDb, loadCircuitRoomByCodeFromDb, restoreActiveCircuitRooms } = createRoomStore({
+  const { loadRoomFromDb, loadJoinableRoomByCodeFromDb, restoreActiveCircuitRooms } = createRoomStore({
   rooms,
   initCircuitSimulate: circuitSimulateRuntime.init,
   restoreCircuitSimulateRoom,
@@ -220,7 +220,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     socket.on('game:join', (raw: unknown) => {
       const parsed = zRoom.safeParse(raw);
       if (!parsed.success || socket.data.role !== 'student' || !socket.data.userId) return;
-      const room = rooms.get(parsed.data.roomCode) ?? loadCircuitRoomByCodeFromDb(parsed.data.roomCode);
+      const room = rooms.get(parsed.data.roomCode) ?? loadJoinableRoomByCodeFromDb(parsed.data.roomCode);
       if (!room) {
         socket.emit('game:error', { message: 'Không tìm thấy phòng. Kiểm tra lại mã phòng.' });
         return;
