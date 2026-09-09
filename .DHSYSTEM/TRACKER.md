@@ -6,8 +6,8 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-7301 | Regression learner join trước host | P73 | doing | deterministic lobby race test |
-| T-7302 | Hydrate joinable room từ SQLite | P73 | todo | 11/11 lifecycle + negative recovery cases |
+| T-7301 | Regression learner join trước host | P73 | done | deterministic baseline: 10/11 fail; only circuit_simulate fallback passes |
+| T-7302 | Hydrate joinable room từ SQLite | P73 | doing | 11/11 lifecycle + negative recovery cases |
 | T-7303 | Harden trust proxy cho LAN | P73 | todo | spoofed forwarded-IP regression |
 | T-7304 | CSP, token và dependency baseline | P73 | todo | browser + audit + Excel regression |
 | T-7305 | Đồng bộ docs và release state 0.10.1 | P73 | todo | release baseline + full gates |

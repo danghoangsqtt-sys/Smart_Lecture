@@ -2,7 +2,7 @@
 
 ## Status
 
-- `todo`
+- `in_progress`
 
 ## Objective
 
@@ -33,4 +33,3 @@ Hydrate lobby từ SQLite khi learner join trước host, đồng thời giữ g
 
 - `npm.cmd run test:game-join-race`
 - `npm.cmd run test:e2e`
-

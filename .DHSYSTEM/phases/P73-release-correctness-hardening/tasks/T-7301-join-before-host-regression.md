@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -29,11 +29,10 @@ Tạo regression test xác định rõ hợp đồng: học viên được phép
 
 ## Acceptance Criteria
 
-- [ ] Test tái hiện lỗi trên implementation cũ.
-- [ ] Test bao phủ learner-first lobby cho mọi game type.
-- [ ] Test bao phủ negative cases finished/invalid room.
+- [x] Test tái hiện lỗi trên implementation cũ: 10 game không có fallback đều trả `Không tìm thấy phòng`.
+- [x] Test bao phủ learner-first lobby cho mọi game type trong lifecycle matrix.
+- [ ] Negative cases finished/invalid room được hoàn thiện cùng loader policy ở T-7302.
 
 ## Verification
 
-- `node scripts/game-join-race-test.mjs` trên server E2E cô lập: fail đúng trước T-7302.
-
+- `npm.cmd run test:e2e`: fail đúng tại lifecycle matrix, 1/11 pass trước T-7302; REST 86/86 và Socket 10/10 vẫn pass.

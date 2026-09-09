@@ -81,21 +81,23 @@ for (const spec of specs) {
     continue;
   }
 
-  const host = connect(teacher);
   const learner = connect(student);
+  let host = null;
   const result = await new Promise((resolve) => {
     let hostSynced = false, joined = false;
     const finish = (ok, reason) => resolve({ ok, reason });
     const timeout = setTimeout(() => finish(false, `timeout (hostSync=${hostSynced} joined=${joined})`), 6000);
 
-    host.on('connect', () => host.emit('game:host-attach', { sessionId: game.id }));
-    host.on('host:sync', () => { hostSynced = true; });
-    host.on('game:error', (d) => { clearTimeout(timeout); finish(false, `host error: ${d.message}`); });
-
     learner.on('connect', () => learner.emit('game:join', { roomCode: game.roomCode }));
     learner.on('game:joined', () => {
       joined = true;
-      setTimeout(() => host.emit('game:host-start'), 200);
+      host = connect(teacher);
+      host.on('connect', () => host.emit('game:host-attach', { sessionId: game.id }));
+      host.on('host:sync', () => {
+        hostSynced = true;
+        host.emit('game:host-start');
+      });
+      host.on('game:error', (d) => { clearTimeout(timeout); finish(false, `host error: ${d.message}`); });
     });
     learner.on('game:error', (d) => { clearTimeout(timeout); finish(false, `learner error: ${d.message}`); });
     learner.on(spec.initEvent, () => {
@@ -104,7 +106,7 @@ for (const spec of specs) {
     });
   });
 
-  host.disconnect();
+  host?.disconnect();
   learner.disconnect();
 
   if (result.ok) { console.log(`  PASS  ${spec.type.padEnd(16)} room ${game.roomCode}`); pass++; }
