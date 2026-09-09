@@ -34,6 +34,18 @@ async function uploadMaterial(lectureId, token, filename, content, mimeType) {
   return { status: response.status, data };
 }
 
+async function uploadCurriculumDocument(classId, token, subjectId, filename, content, mimeType) {
+  const form = new FormData();
+  form.append('subjectId', subjectId);
+  form.append('file', new Blob([content], { type: mimeType }), filename);
+  const response = await fetch(`${base}/api/classes/${classId}/curriculum-documents`, {
+    method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form,
+  });
+  let data = null;
+  try { data = await response.json(); } catch { /* response without JSON */ }
+  return { status: response.status, data };
+}
+
 async function login(username, password) {
   const result = await request('POST', '/auth/login', null, { username, password });
   return result.data?.token ?? '';
@@ -52,6 +64,13 @@ if (classId) {
   const subjectId = subjects.data?.subjects?.[0]?.id;
   const detail = await request('GET', `/classes/${classId}`, teacherToken);
   const studentId = detail.data?.students?.[0]?.id;
+
+  const spoofedCurriculum = await uploadCurriculumDocument(classId, teacherToken, subjectId, 'spoofed.pdf', 'not a pdf', 'application/pdf');
+  const canonicalCurriculum = await uploadCurriculumDocument(classId, teacherToken, subjectId, 'valid.pdf', '%PDF-1.4 fixture', 'text/html');
+  const curriculumList = await request('GET', `/classes/${classId}/curriculum-documents`, teacherToken);
+  const canonicalRow = curriculumList.data?.documents?.find((entry) => entry.id === canonicalCurriculum.data?.id);
+  check('curriculum upload rejects invalid file signatures', spoofedCurriculum.status === 400);
+  check('curriculum upload stores canonical MIME instead of client MIME', canonicalCurriculum.status === 201 && canonicalRow?.mime_type === 'application/pdf');
 
   const deniedPrepared = await request('POST', '/prepared-games', studentToken, {
     gameType: 'math_race', title: 'Không được phép', config: {}, questionIds: [], classId: null, subjectId: null,
