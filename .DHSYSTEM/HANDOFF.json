@@ -1,10 +1,10 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "created": "2026-08-23",
-  "status": "phase-72-completed",
-  "phase_current": "P72-windows-installer",
+  "status": "phase-73-completed",
+  "phase_current": "P73-release-correctness-hardening",
   "workflow_state": "all-defined-phases-complete",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P72 completed: distribute release/SmartLecture-Setup-0.10.0.exe together with its SHA-256 checksum. The installer bundles Node.js, creates Desktop/Start Menu shortcuts, and stores user data in %LOCALAPPDATA%\\SmartLecture\\data."
+  "next_action": "Release SmartLecture v0.10.1 from the completed and verified P73 baseline."
 }

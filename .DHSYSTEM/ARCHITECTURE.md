@@ -180,6 +180,9 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 
 ## 7. Bảo mật
 
+- HTTP security headers dùng Helmet CSP mặc định; asset, PDF worker, media và Socket.IO được phục vụ cùng origin.
+- Direct-LAN deployment không trust proxy headers mặc định. `TRUST_PROXY` chỉ được bật explicit khi ứng dụng thực sự đứng sau reverse proxy do đơn vị triển khai kiểm soát.
+
 - JWT HS256, secret random 64 bytes sinh 1 lần lưu `data/secret.key` (0600)
 - bcryptjs cost 10; khóa tài khoản sau 10 lần sai liên tiếp (unlock bởi admin/GV chủ lớp)
 - CORS chặn theo cấu hình; helmet headers; rate-limit express-rate-limit 300 req/phút/IP

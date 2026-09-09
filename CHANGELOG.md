@@ -1,17 +1,17 @@
 # Changelog
 
-## Unreleased — Release correctness hardening v0.10.1
+## 2026-09-09 — Release correctness hardening v0.10.1
 
 - Sửa race condition khi học viên tham gia lobby trước lúc host Socket attach.
 - Harden cấu hình trust proxy, CSP, token persistence và dependency baseline cho triển khai LAN.
 - Đồng bộ hướng dẫn bộ cài và trạng thái phát hành.
 
-## Unreleased — Distributable Windows installer v0.10.0
+## 2026-09-09 — Distributable Windows installer v0.10.0
 
 - Đóng gói SmartLecture thành bộ cài Windows tự chứa runtime, có thể gửi trực tiếp cho người dùng.
 - Thêm shortcut Desktop/Start Menu, luồng nâng cấp giữ dữ liệu và release checksum.
 
-## Unreleased — Windows one-click launcher
+## 2026-09-08 — Windows one-click launcher
 
 - Thêm icon Desktop **SmartLecture**: bấm đúp để kiểm tra health, khởi động server production khi cần và mở ứng dụng trong trình duyệt mặc định.
 - Launcher không tự build, không dừng tiến trình lạ chiếm cổng và ghi log khởi động vào `data/logs/`.
@@ -137,20 +137,20 @@
 - Khôi phục challenge mạch hiện tại, feed hoàn thành, số học viên và bảng xếp hạng điểm mạch qua `host:sync` có phân quyền.
 - Tách context xác thực giáo viên/ba học viên trong Browser E2E và kiểm chứng reload không gián đoạn, không cộng trùng KTTX.
 
-## Unreleased — Teaching Continuity Canvas v0.9.0 (planned)
+## 2026-08-28 — Teaching Continuity Canvas v0.9.0
 
 - Lập milestone cho presentation canvas PDF/PPTX, annotation, laser/highlight và video/game dock không gián đoạn phiên dạy.
 
-## Unreleased — Game telemetry trong phiên dạy
+## 2026-08-28 — Game telemetry trong phiên dạy
 
 - Chỉ ghi nhận game có phiên thật, đúng lớp/môn vào nhật ký dạy; không còn dùng dấu hiệu giao diện `game-dock`.
 - Game dock của Teaching Mode khóa lớp của tiết đang dạy; tổng quan hiển thị tên game đã dùng.
 
-## Unreleased — Post-lesson Insights v1
+## 2026-08-28 — Post-lesson Insights v1
 
 - Thêm tổng quan theo lớp/môn từ nhật ký dạy, học liệu, game, điểm danh và tiến độ chương trình.
 
-## Unreleased — Teaching Session v1
+## 2026-08-28 — Teaching Session v1
 
 - Bổ sung lifecycle phiên dạy được lưu, tiếp tục sau refresh và tổng kết sau tiết.
 - Liên kết an toàn giáo án, điểm danh, nội dung trình chiếu và game với nhật ký giảng dạy.

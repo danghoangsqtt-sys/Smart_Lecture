@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -21,6 +21,7 @@
 - .DHSYSTEM/ROADMAP.md
 - .DHSYSTEM/TRACKER.md
 - .DHSYSTEM/HANDOFF.json
+- .DHSYSTEM/ARCHITECTURE.md
 
 ## File-Level Plan
 
@@ -32,10 +33,10 @@
 
 ## Acceptance Criteria
 
-- [ ] Mọi lệnh README đều tồn tại trong package scripts.
-- [ ] Version `0.10.1` nhất quán.
-- [ ] ROADMAP/TRACKER/HANDOFF phản ánh đúng P73.
-- [ ] Full phase verification pass.
+- [x] Mọi lệnh README đều tồn tại trong package scripts.
+- [x] Version `0.10.1` nhất quán.
+- [x] ROADMAP/TRACKER/HANDOFF phản ánh đúng P73.
+- [x] Full phase verification pass.
 
 ## Verification
 
@@ -45,3 +46,5 @@
 - `npm.cmd run build`
 - `npm.cmd run test:e2e`
 - `npm.cmd run test:browser`
+
+Kết quả: toàn bộ gate pass; Browser 5/5; production audit không có high/critical (còn 2 moderate gián tiếp qua ExcelJS/uuid, được theo dõi theo ADR-001).

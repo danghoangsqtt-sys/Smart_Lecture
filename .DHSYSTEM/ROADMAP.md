@@ -1,11 +1,13 @@
 # ROADMAP — Smart_Lecture
 
-## Phase 73 — Release Correctness Hardening 🔄
+## Phase 73 — Release Correctness Hardening ✅
 
-- [ ] Khóa regression learner join lobby trước khi host Socket attach.
-- [ ] Hydrate room từ SQLite theo policy join/recovery an toàn.
-- [ ] Harden trust proxy, CSP, token persistence và dependency baseline.
-- [ ] Đồng bộ tài liệu, governance và bản vá `0.10.1`.
+- [x] Khóa regression learner join lobby trước khi host Socket attach.
+- [x] Hydrate room từ SQLite theo policy join/recovery an toàn.
+- [x] Harden trust proxy, CSP, token persistence và dependency baseline.
+- [x] Đồng bộ tài liệu, governance và bản vá `0.10.1`.
+
+> Governance note: P1–P6 thuộc giai đoạn legacy trước khi chuẩn hóa phase-state/tag. P12 và P70 có task/checkpoint evidence nhưng không tạo hồi tố completion tag để tránh gắn lịch sử không được chứng minh tại thời điểm hoàn tất.
 
 ## Phase 72 — Distributable Windows Installer ✅
 

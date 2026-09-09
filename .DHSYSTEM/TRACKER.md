@@ -10,7 +10,7 @@
 | T-7302 | Hydrate joinable room từ SQLite | P73 | done | typecheck + full E2E including lifecycle 11/11 and restart pass |
 | T-7303 | Harden trust proxy cho LAN | P73 | done | typecheck + lint + spoofed forwarded-IP regression 3/3 |
 | T-7304 | CSP, token và dependency baseline | P73 | done | browser 5/5 + audit high gate 0 + Excel regression |
-| T-7305 | Đồng bộ docs và release state 0.10.1 | P73 | doing | release baseline + full gates |
+| T-7305 | Đồng bộ docs và release state 0.10.1 | P73 | done | release baseline + typecheck + lint + build + E2E + browser 5/5 + audit high gate 0 |
 
 ## Phase 72 — Distributable Windows installer
 

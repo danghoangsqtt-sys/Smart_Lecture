@@ -24,7 +24,7 @@
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
-> Phiên bản hiện tại: **v0.10.0**. P1–P72 đã hoàn thành; bản phát hành Windows có bộ cài tự chứa runtime và đã được xác minh bằng production build, E2E, cài/chạy/gỡ thực tế.
+> Phiên bản hiện tại: **v0.10.1**. P1–P73 đã hoàn thành; bản vá hardening bảo đảm học viên có thể vào lobby trước khi host Socket kết nối, đồng thời bật CSP và bảo vệ rate-limit trong mô hình LAN.
 
 ## Chạy
 
@@ -84,7 +84,7 @@ Từ đó, giáo viên chỉ cần bấm đúp **SmartLecture** trên Desktop. I
 
 ### Phát hành cho giảng viên không cần GitHub
 
-Trên máy phát triển, tạo một file cài đặt độc lập bằng `npm run package:windows`. File kết quả là `release/SmartLecture-Setup-<version>.exe`; gửi riêng file này cho giảng viên qua USB hoặc dịch vụ chia sẻ tệp. Bộ cài chứa Node runtime và toàn bộ thành phần chạy ứng dụng, không yêu cầu Node.js, Git hay quyền truy cập repository ở máy giảng viên. Hướng dẫn dành cho giảng viên: [HUONG-DAN-CAI-DAT.md](docs/HUONG-DAN-CAI-DAT.md).
+Trên máy phát triển, tạo một file cài đặt độc lập bằng `npm.cmd run build:installer`. File kết quả là `release/SmartLecture-Setup-<version>.exe`; gửi riêng file này cho giảng viên qua USB hoặc dịch vụ chia sẻ tệp. Bộ cài chứa Node runtime và toàn bộ thành phần chạy ứng dụng, không yêu cầu Node.js, Git hay quyền truy cập repository ở máy giảng viên. Hướng dẫn dành cho giảng viên: [HUONG-DAN-CAI-DAT.md](docs/HUONG-DAN-CAI-DAT.md).
 
 | Việc | Cách |
 |---|---|
