@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { BACKUP_DIR, DATA_DIR, MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
+import { BACKUP_DIR, DATA_DIR, MEDIA_DIR, RESTORE_PENDING_MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
 import { db } from '../db/connection.js';
 import { APP_VERSION } from '../version.js';
 
@@ -12,7 +12,7 @@ const MAX_INLINE_MEDIA_MB = 20;
 function timestamp(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}-${String(d.getMilliseconds()).padStart(3, '0')}`;
 }
 
 export async function createBackup(reason = 'auto'): Promise<string> {
@@ -55,7 +55,7 @@ export async function createBackup(reason = 'auto'): Promise<string> {
 
     const content = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
     const outName = `backup-${timestamp()}-${reason}.zip`;
-    writeFileSync(path.join(BACKUP_DIR, outName), content);
+    writeFileSync(path.join(BACKUP_DIR, outName), content, { flag: 'wx' });
     pruneOldBackups();
     return outName;
   } finally {
@@ -109,9 +109,39 @@ export async function stageRestore(name: string): Promise<void> {
   if (content.subarray(0, 16).toString('utf8') !== 'SQLite format 3\u0000') {
     throw new Error('Cơ sở dữ liệu trong bản sao lưu không hợp lệ');
   }
-  const temporary = `${RESTORE_PENDING_PATH}.tmp`;
-  writeFileSync(temporary, content, { flag: 'w' });
-  renameSync(temporary, RESTORE_PENDING_PATH);
+  const manifestEntry = zip.file('manifest.json');
+  if (!manifestEntry) throw new Error('Backup is missing manifest.json');
+  const manifest = JSON.parse(await manifestEntry.async('string')) as {
+    media?: Array<{ file?: unknown; size?: unknown; inZip?: unknown }>;
+  };
+  if (!Array.isArray(manifest.media)) throw new Error('Backup media manifest is invalid');
+
+  const stagedMediaTemporary = `${RESTORE_PENDING_MEDIA_DIR}.tmp`;
+  rmSync(stagedMediaTemporary, { recursive: true, force: true });
+  mkdirSync(stagedMediaTemporary, { recursive: true });
+  try {
+    for (const item of manifest.media) {
+      if (item.inZip !== true) continue;
+      if (typeof item.file !== 'string' || path.basename(item.file) !== item.file || !/^[A-Za-z0-9._-]+$/.test(item.file)) {
+        throw new Error('Backup manifest contains an unsafe media path');
+      }
+      if (!Number.isSafeInteger(item.size) || Number(item.size) < 0) throw new Error('Backup manifest contains an invalid media size');
+      const entry = zip.file(`media/${item.file}`);
+      if (!entry) throw new Error(`Backup is missing media: ${item.file}`);
+      const mediaContent = await entry.async('nodebuffer');
+      if (mediaContent.length !== item.size) throw new Error(`Backup media size mismatch: ${item.file}`);
+      writeFileSync(path.join(stagedMediaTemporary, item.file), mediaContent, { flag: 'wx' });
+    }
+
+    const databaseTemporary = `${RESTORE_PENDING_PATH}.tmp`;
+    writeFileSync(databaseTemporary, content, { flag: 'w' });
+    rmSync(RESTORE_PENDING_MEDIA_DIR, { recursive: true, force: true });
+    renameSync(stagedMediaTemporary, RESTORE_PENDING_MEDIA_DIR);
+    renameSync(databaseTemporary, RESTORE_PENDING_PATH);
+  } catch (error) {
+    rmSync(stagedMediaTemporary, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 let lastBackupDay = '';

@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
-import { copyFileSync, existsSync, readFileSync, renameSync, unlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, unlinkSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { BACKUP_DIR, DB_PATH, RESTORE_PENDING_PATH } from '../config.js';
+import { BACKUP_DIR, DB_PATH, MEDIA_DIR, RESTORE_PENDING_MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
 
 function applyPendingRestore(): void {
   if (!existsSync(RESTORE_PENDING_PATH)) return;
@@ -10,15 +11,33 @@ function applyPendingRestore(): void {
   if (header !== 'SQLite format 3\u0000') {
     throw new Error('File restore-pending.db không phải SQLite hợp lệ');
   }
-  if (existsSync(DB_PATH)) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    copyFileSync(DB_PATH, `${BACKUP_DIR}/pre-restore-${stamp}.db`);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const previousDatabase = `${BACKUP_DIR}/pre-restore-${stamp}.db`;
+  if (existsSync(DB_PATH)) copyFileSync(DB_PATH, previousDatabase);
+  const mediaRollbackDir = `${BACKUP_DIR}/pre-restore-media-${stamp}`;
+  const stagedMedia = existsSync(RESTORE_PENDING_MEDIA_DIR) ? readdirSync(RESTORE_PENDING_MEDIA_DIR) : [];
+  mkdirSync(mediaRollbackDir, { recursive: true });
+  for (const name of stagedMedia) {
+    if (path.basename(name) !== name) throw new Error('Pending restore contains an unsafe media path');
+    const current = path.join(MEDIA_DIR, name);
+    if (existsSync(current)) copyFileSync(current, path.join(mediaRollbackDir, name));
   }
   for (const suffix of ['-wal', '-shm']) {
     const sidecar = `${DB_PATH}${suffix}`;
     if (existsSync(sidecar)) unlinkSync(sidecar);
   }
-  renameSync(RESTORE_PENDING_PATH, DB_PATH);
+  try {
+    for (const name of stagedMedia) {
+      copyFileSync(path.join(RESTORE_PENDING_MEDIA_DIR, name), path.join(MEDIA_DIR, name));
+    }
+    renameSync(RESTORE_PENDING_PATH, DB_PATH);
+    rmSync(RESTORE_PENDING_MEDIA_DIR, { recursive: true, force: true });
+    if (readdirSync(mediaRollbackDir).length === 0) rmSync(mediaRollbackDir, { recursive: true, force: true });
+  } catch (error) {
+    for (const name of readdirSync(mediaRollbackDir)) copyFileSync(path.join(mediaRollbackDir, name), path.join(MEDIA_DIR, name));
+    if (existsSync(previousDatabase)) copyFileSync(previousDatabase, DB_PATH);
+    throw error;
+  }
   console.log('[db] applied staged database restore');
 }
 

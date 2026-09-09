@@ -16,6 +16,7 @@ export const DB_PATH = process.env.DB_PATH?.trim()
   ? path.resolve(process.env.DB_PATH)
   : path.join(DATA_DIR, 'smart-lecture.db');
 export const RESTORE_PENDING_PATH = path.join(DATA_DIR, 'restore-pending.db');
+export const RESTORE_PENDING_MEDIA_DIR = path.join(DATA_DIR, 'restore-pending-media');
 export const WEB_DIST_DIR = path.resolve(__dirname, '../../web/dist');
 
 export const PORT = Number(process.env.PORT ?? 4000);
