@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Release correctness hardening v0.10.1
+
+- Sửa race condition khi học viên tham gia lobby trước lúc host Socket attach.
+- Harden cấu hình trust proxy, CSP, token persistence và dependency baseline cho triển khai LAN.
+- Đồng bộ hướng dẫn bộ cài và trạng thái phát hành.
+
 ## Unreleased — Distributable Windows installer v0.10.0
 
 - Đóng gói SmartLecture thành bộ cài Windows tự chứa runtime, có thể gửi trực tiếp cho người dùng.
