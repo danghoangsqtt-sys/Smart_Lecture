@@ -38,7 +38,7 @@ ensureAllDropFolders();
 
 const app = express();
 if (TRUST_PROXY !== false) app.set('trust proxy', TRUST_PROXY);
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet());
 app.use(express.json({ limit: '4mb' }));
 app.use(
   rateLimit({

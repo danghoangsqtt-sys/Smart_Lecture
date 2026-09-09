@@ -27,3 +27,10 @@ Workbook upload là dữ liệu không tin cậy. Giới hạn Multer 5 MB vẫn
 
 - `npm audit fix --force`: audit đề nghị hạ cấp ExcelJS và không giải quyết một cách tương thích; không chạy.
 - Giữ `xlsx` cùng exception: không đáp ứng mức rủi ro của dữ liệu giáo viên tải lên.
+
+## Rà soát lại tại Phase 73
+
+- `npm audit --omit=dev` báo hai finding mức moderate trong chuỗi `exceljs@4.4.0 → uuid`; không có high/critical.
+- Advisory của `uuid` liên quan các API namespace UUID nhận caller-provided buffer. SmartLecture không gọi trực tiếp các API UUID đó; ExcelJS chỉ được dùng qua adapter import/export workbook hiện có.
+- Tiếp tục giữ ExcelJS 4.4.0 và regression cho import/export + formula injection. Không chạy `npm audit fix --force` vì npm đề xuất downgrade major xuống ExcelJS 3.4.0, có nguy cơ phá hợp đồng workbook mà không giải quyết theo hướng nâng cấp an toàn.
+- Theo dõi upstream ExcelJS; nâng dependency khi có bản tương thích đã loại chuỗi `uuid` bị ảnh hưởng.

@@ -20,6 +20,8 @@ function createPdfFixture(): Buffer {
 }
 
 test('admin can change the initial password and log in through the browser', async ({ page, request }) => {
+  const shell = await request.get('/');
+  expect(shell.headers()['content-security-policy']).toContain("default-src 'self'");
   const firstLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'admin123' } });
   expect(firstLogin.ok()).toBeTruthy();
   const firstToken = (await firstLogin.json() as { token: string }).token;
