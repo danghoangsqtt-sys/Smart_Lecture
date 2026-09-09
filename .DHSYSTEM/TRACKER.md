@@ -10,7 +10,7 @@
 | T-7402 | Atomic media-aware backup restore | P74 | done | typecheck + lint + backup restore 6/6 |
 | T-7403 | Curriculum upload content validation | P74 | done | typecheck + lint + E2E regression 26/26 |
 | T-7404 | Login response and tag governance hardening | P74 | done | typecheck + lint + auth rate-limit 4/4 |
-| T-7405 | Release state sync 0.10.2 | P74 | doing | pending |
+| T-7405 | Release state sync 0.10.2 | P74 | done | full release gate + audit high gate 0 |
 
 ## Phase 73 — Release correctness hardening
 

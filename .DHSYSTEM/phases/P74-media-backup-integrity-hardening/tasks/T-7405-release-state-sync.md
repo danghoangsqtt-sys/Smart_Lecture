@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -33,9 +33,9 @@
 
 ## Acceptance Criteria
 
-- [ ] Version `0.10.2` nhất quán.
-- [ ] Docs/state phản ánh đúng P74.
-- [ ] Typecheck, lint, build, E2E, Browser E2E và audit high gate pass.
+- [x] Version `0.10.2` nhất quán.
+- [x] Docs/state phản ánh đúng P74.
+- [x] Typecheck, lint, build, E2E, Browser E2E và audit high gate pass.
 
 ## Verification
 
@@ -46,3 +46,5 @@
 - `npm.cmd run test:e2e`
 - `npm.cmd run test:browser`
 - `npm.cmd audit --omit=dev --audit-level=high`
+
+Kết quả: toàn bộ gate pass; REST 86/86, Socket 10/10, lifecycle 11/11, security/data 26/26, backup-media 6/6, Browser 6/6 và audit 0 high/critical.

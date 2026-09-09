@@ -1,12 +1,12 @@
 # ROADMAP — Smart_Lecture
 
-## Phase 74 — Media & Backup Integrity Hardening 🔄
+## Phase 74 — Media & Backup Integrity Hardening ✅
 
-- [ ] Khôi phục quyền xem/tải học liệu thật cho học viên và khóa regression bằng Browser E2E.
-- [ ] Khôi phục media từ backup an toàn, phát hiện file thiếu và loại bỏ ghi đè backup cùng phút.
-- [ ] Xác minh nội dung upload curriculum thay vì tin MIME từ client.
-- [ ] Giảm lộ trạng thái tài khoản ở login và chuẩn hóa governance tag lịch sử.
-- [ ] Đồng bộ bản vá `0.10.2` và chạy toàn bộ release gate.
+- [x] Khôi phục quyền xem/tải học liệu thật cho học viên và khóa regression bằng Browser E2E.
+- [x] Khôi phục media từ backup an toàn, phát hiện file thiếu và loại bỏ ghi đè backup cùng phút.
+- [x] Xác minh nội dung upload curriculum thay vì tin MIME từ client.
+- [x] Giảm lộ trạng thái tài khoản ở login và chuẩn hóa governance tag lịch sử.
+- [x] Đồng bộ bản vá `0.10.2` và chạy toàn bộ release gate.
 
 ## Phase 73 — Release Correctness Hardening ✅
 

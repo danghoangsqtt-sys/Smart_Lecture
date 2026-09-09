@@ -1,6 +1,6 @@
 # Phase State — P74 Media & Backup Integrity Hardening
 
-- Phase: `in_progress`
+- Phase: `completed`
 - Dependency: P73 completed
 - Target version: `0.10.2`
 
@@ -10,4 +10,4 @@
 | T-7402 Atomic media-aware backup restore | done | T-7401 | typecheck + lint + backup restore 6/6 |
 | T-7403 Curriculum upload content validation | done | T-7402 | typecheck + lint + E2E regression 26/26 |
 | T-7404 Login response and tag governance hardening | done | T-7403 | typecheck + lint + auth rate-limit 4/4 |
-| T-7405 Release state sync | in_progress | T-7404 | pending |
+| T-7405 Release state sync | done | T-7404 | release baseline + typecheck + lint + build + backup 6/6 + E2E + Browser 6/6 + audit high gate 0 |

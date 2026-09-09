@@ -24,7 +24,7 @@
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
-> Phiên bản hiện tại: **v0.10.1**. P1–P73 đã hoàn thành; bản vá hardening bảo đảm học viên có thể vào lobby trước khi host Socket kết nối, đồng thời bật CSP và bảo vệ rate-limit trong mô hình LAN.
+> Phiên bản hiện tại: **v0.10.2**. P1–P74 đã hoàn thành; học viên xem/tải được media đã phân quyền, backup khôi phục cả media đóng gói và upload curriculum được xác minh tại server boundary.
 
 ## Chạy
 

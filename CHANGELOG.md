@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-09 — Media & backup integrity hardening v0.10.2
+
+- Khôi phục URL media có xác thực cho native viewer/download trên trang học viên.
+- Khôi phục media đã đóng gói cùng SQLite, chống backup trùng tên và từ chối manifest không an toàn.
+- Xác minh signature/MIME upload curriculum và chuẩn hóa phản hồi login để giảm account enumeration.
+
 ## 2026-09-09 — Release correctness hardening v0.10.1
 
 - Sửa race condition khi học viên tham gia lobby trước lúc host Socket attach.
