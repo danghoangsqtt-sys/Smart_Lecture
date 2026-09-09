@@ -685,3 +685,63 @@ test('student can join a game room from the dashboard button', async ({ page, re
   await page.getByRole('button', { name: 'Vào phòng' }).click();
   await expect(page.getByText(`Phòng ${roomCode}`, { exact: false })).toBeVisible({ timeout: 10_000 });
 });
+
+test('student can download authenticated learning media', async ({ page, request }) => {
+  const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
+  const adminToken = (await adminLogin.json() as { token: string }).token;
+  const teacher = await request.post('/api/users', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { username: 'browser.media.teacher', password: 'Teacher@123', role: 'teacher', displayName: 'Media Teacher' },
+  });
+  expect(teacher.ok()).toBeTruthy();
+  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.media.teacher', password: 'Teacher@123' } });
+  const teacherToken = (await teacherLogin.json() as { token: string }).token;
+  await request.post('/api/auth/change-password', {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' },
+  });
+  const created = await request.post('/api/classes', {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { name: 'Media Class', subject: 'Media Subject', academicYear: '2026-2027' },
+  });
+  const classId = (await created.json() as { class: { id: string } }).class.id;
+  const student = await request.post('/api/users', {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { username: 'browser.media.student', password: 'Student@123', role: 'student', displayName: 'Media Student' },
+  });
+  const studentId = (await student.json() as { user: { id: string } }).user.id;
+  await request.post(`/api/classes/${classId}/enroll`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { studentIds: [studentId] },
+  });
+  const lecture = await request.post(`/api/classes/${classId}/lectures`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { chapter: 'Media', title: 'Authenticated material', description: '' },
+  });
+  const lectureId = (await lecture.json() as { id: string }).id;
+  const fixture = Buffer.from('authenticated-learning-media');
+  const material = await request.post(`/api/lectures/${lectureId}/materials`, {
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    multipart: { file: { name: 'learner-material.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: fixture } },
+  });
+  const materialId = (await material.json() as { id: string }).id;
+  expect((await request.get(`/api/media/${materialId}/stream`)).status()).toBe(401);
+
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.media.student');
+  await page.locator('#password').fill('Student@123');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.goto('/learning');
+  await page.getByRole('button', { name: /learner-material/ }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Tải xuống' }).click();
+  const download = await downloadPromise;
+  expect(await download.createReadStream().then(async (stream) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks).toString();
+  })).toBe(fixture.toString());
+  const response = await page.request.get(download.url());
+  expect(response.headers()['cache-control']).toBe('private, no-store');
+  expect(response.headers()['referrer-policy']).toBe('no-referrer');
+});

@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -28,13 +28,15 @@
 
 ## Acceptance Criteria
 
-- [ ] Học viên đã enroll xem được image/PDF/video hoặc tải document từ My Learning.
-- [ ] Request không token vẫn bị 401.
-- [ ] Media response dùng private/no-referrer headers.
-- [ ] Typecheck, lint và Browser E2E pass.
+- [x] Học viên đã enroll xem được image/PDF/video hoặc tải document từ My Learning.
+- [x] Request không token vẫn bị 401.
+- [x] Media response dùng private/no-referrer headers.
+- [x] Typecheck, lint và Browser E2E pass.
 
 ## Verification
 
 - `npm.cmd run typecheck`
 - `npm.cmd run lint`
 - `npm.cmd run test:browser`
+
+Kết quả: typecheck/lint pass; Browser E2E 6/6, gồm download học liệu bằng tài khoản học viên.

@@ -26,6 +26,8 @@ router.get(
     if (!existsSync(fullPath)) throw new HttpError(404, 'NOT_FOUND', 'Tệp không còn trên đĩa');
     const size = statSync(fullPath).size;
     const range = req.headers.range;
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', material.mime_type || 'application/octet-stream');
     if (range) {

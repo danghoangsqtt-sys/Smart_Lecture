@@ -2,6 +2,7 @@
 import { api } from '../lib/api';
 import { Card, EmptyState, PageHeader, Select, Spinner } from '../components/ui';
 import toast from '../stores/toastStore';
+import { useAuthStore } from '../stores/authStore';
 import { useMyClasses } from './LecturesPage';
 
 interface Material {
@@ -27,6 +28,8 @@ export default function MyLearningPage() {
   const [lectures, setLectures] = useState<Lecture[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewer, setViewer] = useState<{ material: Material } | null>(null);
+  const token = useAuthStore((state) => state.token);
+  const streamUrl = viewer ? `/api/media/${viewer.material.id}/stream?token=${encodeURIComponent(token ?? '')}` : '';
 
   useEffect(() => {
     if (classes.length > 0 && !classId) setClassId(classes[0].id);
@@ -96,14 +99,14 @@ export default function MyLearningPage() {
           </div>
           <div className="relative flex min-h-0 flex-1 items-center justify-center">
             {viewer.material.type === 'video' && (
-              <video controls autoPlay muted className="max-h-full max-w-full rounded-sm" src={`/api/media/${viewer.material.id}/stream`} />
+              <video controls autoPlay muted className="max-h-full max-w-full rounded-sm" src={streamUrl} />
             )}
             {viewer.material.type === 'image' && (
-              <img className="max-h-full max-w-full rounded-sm" src={`/api/media/${viewer.material.id}/stream`} alt={viewer.material.title} />
+              <img className="max-h-full max-w-full rounded-sm" src={streamUrl} alt={viewer.material.title} />
             )}
             {(viewer.material.type === 'pdf') && (
-              <object aria-label={viewer.material.title} data={`/api/media/${viewer.material.id}/stream`} type="application/pdf" className="h-full w-full rounded-sm bg-white">
-                <a href={`/api/media/${viewer.material.id}/stream`} target="_blank" rel="noreferrer" className="text-blue-400 underline">Mở tài liệu PDF trong tab mới ↗</a>
+              <object aria-label={viewer.material.title} data={streamUrl} type="application/pdf" className="h-full w-full rounded-sm bg-white">
+                <a href={streamUrl} target="_blank" rel="noreferrer" className="text-blue-400 underline">Mở tài liệu PDF trong tab mới ↗</a>
               </object>
             )}
             {(viewer.material.type === 'docx' || viewer.material.type === 'pptx' || viewer.material.type === 'link') && (
@@ -113,7 +116,7 @@ export default function MyLearningPage() {
                 ) : (
                   <>
                     <p className="mb-3">Định dạng này tải về để xem trên thiết bị của bạn</p>
-                    <a href={`/api/media/${viewer.material.id}/stream`} download className="inline-block rounded-sm bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500">Tải xuống</a>
+                    <a href={streamUrl} download className="inline-block rounded-sm bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500">Tải xuống</a>
                   </>
                 )}
               </div>
