@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { NETWORK_INTERFACES, PORT, WEB_DIST_DIR } from './config.js';
+import { NETWORK_INTERFACES, PORT, TRUST_PROXY, WEB_DIST_DIR } from './config.js';
 import { migrate } from './db/connection.js';
 import { seedAdmin } from './db/seed.js';
 import authRoutes from './routes/auth.routes.js';
@@ -37,7 +37,7 @@ seedAdmin();
 ensureAllDropFolders();
 
 const app = express();
-app.set('trust proxy', 1);
+if (TRUST_PROXY !== false) app.set('trust proxy', TRUST_PROXY);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '4mb' }));
 app.use(

@@ -2,7 +2,7 @@
 
 ## Status
 
-- `in_progress`
+- `completed`
 
 ## Objective
 
@@ -24,12 +24,12 @@
 
 ## Acceptance Criteria
 
-- [ ] Direct LAN mặc định không trust proxy headers.
-- [ ] Proxy mode có thể bật explicit.
-- [ ] Login rate-limit regression pass và spoofed header không bypass mặc định.
+- [x] Direct LAN mặc định không trust proxy headers.
+- [x] Proxy mode có thể bật explicit qua `TRUST_PROXY`.
+- [x] Login rate-limit regression 3/3 và spoofed header không bypass mặc định.
 
 ## Verification
 
-- `node scripts/auth-rate-limit-test.mjs`
-- `npm.cmd run typecheck`
-- `npm.cmd run lint`
+- `node scripts/auth-rate-limit-test.mjs`: 3/3 pass.
+- `npm.cmd run typecheck`: pass.
+- `npm.cmd run lint`: pass.

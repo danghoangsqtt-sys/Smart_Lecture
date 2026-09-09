@@ -2,7 +2,7 @@
 
 ## Status
 
-- `todo`
+- `in_progress`
 
 ## Objective
 
@@ -35,4 +35,3 @@ Giảm blast radius của XSS, đánh giá token persistence và khóa quyết �
 - `npm.cmd run test:browser`
 - `npm.cmd run test:e2e`
 - `npm.cmd audit --omit=dev`
-

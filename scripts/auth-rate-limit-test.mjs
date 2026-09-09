@@ -50,10 +50,13 @@ async function waitForServer(child) {
   return false;
 }
 
-async function login(username, password) {
+async function login(username, password, forwardedFor) {
   const response = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(forwardedFor ? { 'X-Forwarded-For': forwardedFor } : {}),
+    },
     body: JSON.stringify({ username, password }),
   });
   return response.status;
@@ -70,12 +73,12 @@ if (healthy) {
 
   const statuses = [];
   for (let i = 0; i < 30; i++) {
-    statuses.push(await login(`no-such-user-${i}`, 'wrong'));
+    statuses.push(await login(`no-such-user-${i}`, 'wrong', `198.51.100.${i + 1}`));
   }
   const unauthorized = statuses.filter((s) => s === 401).length;
   const throttled = statuses.filter((s) => s === 429).length;
   check(
-    `a 30-attempt burst against 30 distinct usernames gets throttled before all of them go through (401=${unauthorized}, 429=${throttled})`,
+    `spoofed forwarded IPs cannot bypass the direct-LAN limit (401=${unauthorized}, 429=${throttled})`,
     throttled > 0 && unauthorized < 30,
   );
 

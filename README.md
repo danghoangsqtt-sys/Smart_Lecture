@@ -35,6 +35,8 @@ npm run dev          # API :4000 + Web :5173 (dev proxy sẵn)
 npm run build && npm start -w server    # học viên truy cập http://<ip-máy-GV>:4000
 ```
 
+Mặc định server chạy trực tiếp trong LAN và không tin header proxy. Chỉ khi triển khai sau reverse proxy do bạn kiểm soát, đặt `TRUST_PROXY=1` (hoặc danh sách subnet/IP theo cú pháp Express) trước khi khởi động server.
+
 Nếu cần kiểm tra bản production sau khi khởi động trên Windows:
 
 ```powershell

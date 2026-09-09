@@ -8,8 +8,8 @@
 |---|---|---|---|---|
 | T-7301 | Regression learner join trước host | P73 | done | deterministic baseline: 10/11 fail; only circuit_simulate fallback passes |
 | T-7302 | Hydrate joinable room từ SQLite | P73 | done | typecheck + full E2E including lifecycle 11/11 and restart pass |
-| T-7303 | Harden trust proxy cho LAN | P73 | doing | spoofed forwarded-IP regression |
-| T-7304 | CSP, token và dependency baseline | P73 | todo | browser + audit + Excel regression |
+| T-7303 | Harden trust proxy cho LAN | P73 | done | typecheck + lint + spoofed forwarded-IP regression 3/3 |
+| T-7304 | CSP, token và dependency baseline | P73 | doing | browser + audit + Excel regression |
 | T-7305 | Đồng bộ docs và release state 0.10.1 | P73 | todo | release baseline + full gates |
 
 ## Phase 72 — Distributable Windows installer

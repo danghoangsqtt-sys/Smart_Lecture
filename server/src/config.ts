@@ -20,6 +20,14 @@ export const WEB_DIST_DIR = path.resolve(__dirname, '../../web/dist');
 
 export const PORT = Number(process.env.PORT ?? 4000);
 
+export const TRUST_PROXY: boolean | number | string = (() => {
+  const raw = process.env.TRUST_PROXY?.trim();
+  if (!raw || raw.toLowerCase() === 'false') return false;
+  if (raw.toLowerCase() === 'true') return true;
+  if (/^\d+$/.test(raw)) return Number(raw);
+  return raw;
+})();
+
 export const NETWORK_INTERFACES: { name: string; address: string }[] = (() => {
   const result: { name: string; address: string }[] = [];
   for (const [name, infos] of Object.entries(os.networkInterfaces())) {
