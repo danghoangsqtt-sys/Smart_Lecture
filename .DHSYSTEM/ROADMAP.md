@@ -15,7 +15,7 @@
 - [x] Harden trust proxy, CSP, token persistence và dependency baseline.
 - [x] Đồng bộ tài liệu, governance và bản vá `0.10.1`.
 
-> Governance note: P1–P6 thuộc giai đoạn legacy trước khi chuẩn hóa phase-state/tag. P12 và P70 có task/checkpoint evidence nhưng không tạo hồi tố completion tag để tránh gắn lịch sử không được chứng minh tại thời điểm hoàn tất.
+> Governance note: P1–P6 thuộc giai đoạn legacy trước khi chuẩn hóa phase-state/tag. P13–P69 dùng phase tag `-done` theo convention lịch sử; P12 và P70 có task/checkpoint evidence nhưng không tạo hồi tố completion tag. Không tạo thêm tag `-complete` hồi tố để tránh gắn lịch sử không được chứng minh tại thời điểm hoàn tất.
 
 ## Phase 72 — Distributable Windows Installer ✅
 

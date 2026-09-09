@@ -400,7 +400,7 @@ Check ("Double-apply rejected ({0})" -f $dup.code) ($dup.ok -eq $false -and $dup
 # --- Lockout ---
 for ($i = 0; $i -lt 10; $i++) { Req POST "/auth/login" $null @{ username = "cuong"; password = "saibietnaodo" } | Out-Null }
 $cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = "Hocvien@123" }
-Check ("Lockout after 10 fails (status={0})" -f $cuongLocked.status) ($cuongLocked.ok -eq $false -and $cuongLocked.status -eq 403)
+Check ("Lockout after 10 fails returns uniform credentials response (status={0})" -f $cuongLocked.status) ($cuongLocked.ok -eq $false -and $cuongLocked.status -eq 401 -and $cuongLocked.code -eq "BAD_CREDENTIALS")
 
 Write-Host ""
 Write-Host "==============================="

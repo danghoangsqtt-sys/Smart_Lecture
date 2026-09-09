@@ -62,6 +62,15 @@ async function login(username, password, forwardedFor) {
   return response.status;
 }
 
+async function loginResponse(username, password) {
+  const response = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 console.log('=== auth login rate-limit regression test ===');
 const { child, getOutput } = startServer();
 const healthy = await waitForServer(child);
@@ -70,6 +79,14 @@ check('isolated server boots', healthy);
 if (healthy) {
   const legit = await login('admin', 'admin123');
   check('legitimate login before the limit trips succeeds normally', legit === 200);
+
+  for (let i = 0; i < 10; i++) await loginResponse('admin', 'wrong-password');
+  const locked = await loginResponse('admin', 'admin123');
+  const missing = await loginResponse('missing-account', 'admin123');
+  check(
+    'locked and missing accounts have indistinguishable public responses',
+    locked.status === 401 && JSON.stringify(locked) === JSON.stringify(missing),
+  );
 
   const statuses = [];
   for (let i = 0; i < 30; i++) {

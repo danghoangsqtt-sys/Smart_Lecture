@@ -9,5 +9,5 @@
 | T-7401 Authenticated learner media delivery | done | P73 | typecheck + lint + Browser 6/6 |
 | T-7402 Atomic media-aware backup restore | done | T-7401 | typecheck + lint + backup restore 6/6 |
 | T-7403 Curriculum upload content validation | done | T-7402 | typecheck + lint + E2E regression 26/26 |
-| T-7404 Login response and tag governance hardening | in_progress | T-7403 | pending |
-| T-7405 Release state sync | todo | T-7404 | pending |
+| T-7404 Login response and tag governance hardening | done | T-7403 | typecheck + lint + auth rate-limit 4/4 |
+| T-7405 Release state sync | in_progress | T-7404 | pending |

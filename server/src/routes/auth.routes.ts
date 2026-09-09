@@ -9,6 +9,7 @@ import { db, findUserByUsername, toPublicUser } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 
 const MAX_FAILED_ATTEMPTS = 10;
+const BAD_CREDENTIALS = { error: { code: 'BAD_CREDENTIALS', message: 'Sai tên đăng nhập hoặc mật khẩu' } } as const;
 
 const router = Router();
 
@@ -42,11 +43,11 @@ router.post('/login', loginRateLimit, (req, res) => {
   const { username, password } = parsed.data;
   const row = findUserByUsername(username);
   if (!row) {
-    res.status(401).json({ error: { code: 'BAD_CREDENTIALS', message: 'Sai tên đăng nhập hoặc mật khẩu' } });
+    res.status(401).json(BAD_CREDENTIALS);
     return;
   }
   if (row.status === 'locked') {
-    res.status(403).json({ error: { code: 'LOCKED', message: 'Tài khoản đã bị khóa. Liên hệ quản trị viên.' } });
+    res.status(401).json(BAD_CREDENTIALS);
     return;
   }
   if (!bcrypt.compareSync(password, row.password_hash)) {
@@ -57,12 +58,7 @@ router.post('/login', loginRateLimit, (req, res) => {
       locked ? 'locked' : 'active',
       row.id
     );
-    res.status(401).json({
-      error: {
-        code: 'BAD_CREDENTIALS',
-        message: locked ? 'Tài khoản bị khóa do nhập sai quá nhiều lần' : `Sai tên đăng nhập hoặc mật khẩu`,
-      },
-    });
+    res.status(401).json(BAD_CREDENTIALS);
     return;
   }
   db.prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?').run(row.id);
