@@ -2,6 +2,16 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
+## Phase 74 — Media & backup integrity hardening
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-7401 | Authenticated learner media delivery | P74 | doing | pending |
+| T-7402 | Atomic media-aware backup restore | P74 | todo | pending |
+| T-7403 | Curriculum upload content validation | P74 | todo | pending |
+| T-7404 | Login response and tag governance hardening | P74 | todo | pending |
+| T-7405 | Release state sync 0.10.2 | P74 | todo | pending |
+
 ## Phase 73 — Release correctness hardening
 
 | ID | Task | Phase | Status | Verify |

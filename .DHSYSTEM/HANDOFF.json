@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.10.1",
   "created": "2026-08-23",
-  "status": "phase-73-completed",
-  "phase_current": "P73-release-correctness-hardening",
-  "workflow_state": "all-defined-phases-complete",
+  "status": "phase-74-in-progress",
+  "phase_current": "P74-media-backup-integrity-hardening",
+  "workflow_state": "task-7401-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Release SmartLecture v0.10.1 from the completed and verified P73 baseline."
+  "next_action": "Execute T-7401 authenticated learner media delivery and its Browser E2E regression."
 }
