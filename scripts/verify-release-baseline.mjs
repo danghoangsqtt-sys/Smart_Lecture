@@ -28,6 +28,6 @@ check('system info imports the central version', read('server/src/routes/system.
 check('backup manifest imports the central version', read('server/src/services/backup.ts').includes("from '../version.js'"));
 check('no stale runtime app version remains', !read('server/src/routes/system.routes.ts').includes("appVersion: '0.3.0'") && !read('server/src/services/backup.ts').includes("appVersion: '0.3.0'"));
 check('handoff identifies the active development version', JSON.parse(read('.DHSYSTEM/HANDOFF.json')).version.startsWith(appVersion));
-check('project metadata identifies the active development version', read('.DHSYSTEM/PROJECT-META.md').includes(`| Phiên bản | ${appVersion} (planned) |`));
+check('project metadata identifies the active development version', new RegExp(`\\| Phiên bản \\| ${appVersion.replaceAll('.', '\\.')}(?: \\(planned\\))? \\|`).test(read('.DHSYSTEM/PROJECT-META.md')));
 
 if (failures) process.exit(1);

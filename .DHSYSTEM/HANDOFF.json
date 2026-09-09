@@ -1,7 +1,7 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.9.2-planned",
+  "version": "0.10.0",
   "created": "2026-08-23",
   "status": "phase-72-completed",
   "phase_current": "P72-windows-installer",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P72 T-7201 completed: distribute release/SmartLecture-Setup-0.9.2.exe directly to teachers. The installer contains bundled runtime and does not require GitHub, Git, Node.js, or terminal use."
+  "next_action": "P72 completed: distribute release/SmartLecture-Setup-0.10.0.exe together with its SHA-256 checksum. The installer bundles Node.js, creates Desktop/Start Menu shortcuts, and stores user data in %LOCALAPPDATA%\\SmartLecture\\data."
 }

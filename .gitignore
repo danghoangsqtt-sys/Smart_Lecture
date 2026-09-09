@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 .verify-dist/
+release/installer-stage/
+release/*.exe
+release/*.sha256
 *.tsbuildinfo
 
 # Runtime data (database, media, secrets, backups)

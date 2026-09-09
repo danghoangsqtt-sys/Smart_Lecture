@@ -24,7 +24,7 @@
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
-> Phiên bản hiện tại: **v0.9.2**. P1–P70 đã hoàn thành và được xác minh bằng E2E REST/Socket/Browser và restore/restart; phase kế tiếp chờ quyết định sản phẩm (RFC theo `docs/PLAN.md`).
+> Phiên bản hiện tại: **v0.10.0**. P1–P72 đã hoàn thành; bản phát hành Windows có bộ cài tự chứa runtime và đã được xác minh bằng production build, E2E, cài/chạy/gỡ thực tế.
 
 ## Chạy
 
@@ -56,6 +56,18 @@ npm run seed:demo-quiz
 Lệnh có thể chạy lại an toàn, không tạo dữ liệu trùng. Sau khi đăng nhập bằng tài khoản đã seed, mở **Trò chơi → Lưu sẵn** để chạy lại game mẫu; hoặc dùng mã phòng được in ra ở terminal.
 
 ## Tiện ích vận hành
+
+### Bộ cài gửi cho người dùng Windows
+
+Build bộ cài phát hành bằng:
+
+```powershell
+npm.cmd run build:installer
+```
+
+Artifact được tạo tại `release/SmartLecture-Setup-<version>.exe` cùng file checksum `.sha256`. Người dùng chỉ cần chạy file `.exe`; bộ cài chứa sẵn Node.js runtime, tạo shortcut Desktop/Start Menu và không yêu cầu source code hay npm trên máy đích.
+
+Dữ liệu được lưu riêng tại `%LOCALAPPDATA%\SmartLecture\data`, không bị xóa khi nâng cấp hoặc gỡ ứng dụng. Bộ cài hiện chưa ký số nên Windows SmartScreen có thể hiển thị cảnh báo nhà phát hành không xác định; chỉ phát hành qua kênh tin cậy và đối chiếu SHA-256.
 
 ### Mở bằng một icon trên Desktop (Windows)
 

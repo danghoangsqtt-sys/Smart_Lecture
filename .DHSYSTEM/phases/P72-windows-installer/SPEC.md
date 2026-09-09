@@ -1,23 +1,21 @@
-# Phase 72 — Windows installer distribution
+# Phase 72 — Distributable Windows Installer
 
 ## Goal
 
-Produce one self-contained `SmartLecture-Setup-<version>.exe` that a teacher can install without Git, Node.js, a terminal, or repository access.
+Tạo một file cài đặt Windows có thể gửi cho người dùng. Sau khi cài, người dùng mở SmartLecture từ Desktop hoặc Start Menu mà không cần cài Node.js hay giữ source repository.
 
-## Distribution design
+## Architecture
 
-- Inno Setup installs per user under `%LOCALAPPDATA%\Programs\SmartLecture`; administrator permission is not required.
-- The installer includes the production web/server builds, a bundled `node.exe`, runtime dependencies, a launcher, Desktop/Start Menu shortcuts, and the Vietnamese installation guide.
-- Teacher data, logs, database, media, secret key, and backups live under `%LOCALAPPDATA%\SmartLecture\data`, outside the application folder. Uninstall removes the program but deliberately keeps this data.
+- Giữ mô hình local web server hiện tại; không thêm Electron.
+- Bundle Node.js runtime, production build và production dependencies trong payload.
+- Cài application dưới per-user application directory, không yêu cầu quyền Administrator cho luồng chuẩn.
+- Dữ liệu runtime nằm trong `%LOCALAPPDATA%\SmartLecture\data` để upgrade/uninstall không làm mất dữ liệu mặc định.
+- Launcher kiểm tra health, không dừng process lạ chiếm cổng và mở browser mặc định.
 
-## Non-goals
+## Acceptance Criteria
 
-- The installer does not expose the Git repository or require GitHub access.
-- It does not promise source-code secrecy against a determined reverse engineer; repository visibility and secret rotation remain separate controls.
-- It does not use Electron.
-
-## Quality gate
-
-- Production build and static checks pass before staging.
-- Staged copy starts with bundled Node on an isolated port and satisfies `/api/health`.
-- Inno Setup compiles an executable in ignored `release/` output.
+- Sinh được `SmartLecture-Setup-0.10.0.exe` cùng SHA-256 checksum.
+- Máy đích không cần Node.js riêng.
+- Shortcut Desktop và Start Menu chạy ứng dụng bằng một lần bấm đúp.
+- Upgrade giữ nguyên runtime data; uninstall không xóa dữ liệu nếu người dùng chưa chủ động chọn.
+- Typecheck, lint, production build và installed-payload smoke test pass.

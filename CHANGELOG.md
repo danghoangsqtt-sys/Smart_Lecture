@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased — Windows installer distribution
+## Unreleased — Distributable Windows installer v0.10.0
 
-- Thêm pipeline tạo `SmartLecture-Setup-<version>.exe` để phân phối cho giảng viên không cần GitHub, Git, Node.js hay terminal.
-- Bản cài chạy theo người dùng, có icon Desktop/Start Menu; dữ liệu lớp học được giữ riêng trong `%LOCALAPPDATA%\SmartLecture\data` khi cập nhật hoặc gỡ cài đặt.
+- Đóng gói SmartLecture thành bộ cài Windows tự chứa runtime, có thể gửi trực tiếp cho người dùng.
+- Thêm shortcut Desktop/Start Menu, luồng nâng cấp giữ dữ liệu và release checksum.
 
 ## Unreleased — Windows one-click launcher
 

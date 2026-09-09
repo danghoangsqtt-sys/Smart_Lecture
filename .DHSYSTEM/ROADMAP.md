@@ -1,10 +1,11 @@
 # ROADMAP — Smart_Lecture
 
-## Phase 72 — Windows Installer Distribution ✅
+## Phase 72 — Distributable Windows Installer ✅
 
-- [x] Đóng gói production web/server, Node runtime và dependencies vào một `SmartLecture-Setup.exe`.
-- [x] Cài đặt per-user với icon Desktop/Start Menu; dữ liệu lớp học nằm ngoài thư mục chương trình và được giữ khi gỡ cài đặt.
-- [x] Xác minh bundle chạy với Node đi kèm và không chứa source/Git/data runtime.
+- [x] Tạo payload production tự chứa Node.js runtime, server/web build và production dependencies.
+- [x] Tạo bộ cài Windows `.exe` có icon Desktop/Start Menu, uninstaller và nâng cấp giữ nguyên dữ liệu.
+- [x] Lưu dữ liệu runtime ngoài thư mục cài đặt và mở ứng dụng bằng launcher health-aware hiện có.
+- [x] Xác minh cài mới, chạy một-click, gỡ cài đặt và release artifact/checksum.
 
 ## Phase 71 — Windows One-Click Launcher ✅
 
