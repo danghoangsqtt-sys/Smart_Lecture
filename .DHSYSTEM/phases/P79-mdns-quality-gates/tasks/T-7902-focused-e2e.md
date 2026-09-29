@@ -8,6 +8,8 @@ Separate focused regressions from the full process-level chain and restore a rel
 
 - `package.json`
 - `scripts/e2e-isolated.mjs`
+- `scripts/e2e-browser-isolated.mjs`
+- `playwright.config.ts`
 - `scripts/e2e-smoke.ps1`
 - `scripts/socket-test.mjs`
 - `scripts/auth-rate-limit-test.mjs`
@@ -26,6 +28,7 @@ Separate focused regressions from the full process-level chain and restore a rel
 
 - `package.json`: expose named, build-once focused gates for upgrade, recovery/auth, upload/security, spreadsheet and mDNS, while retaining `test:e2e` as the final chain.
 - `scripts/e2e-isolated.mjs`: disable mDNS only in the isolated child, use the test-only IPC shutdown from T-7901, track the active child, and identify failed stages with bounded waits and cleanup after exit. Never probe or stop the installed app on port 4000.
+- `scripts/e2e-browser-isolated.mjs`, `playwright.config.ts`: give each Browser E2E run its own temporary Playwright output directory (avoiding Windows locks on repository test-results), disable mDNS on its child server, and use graceful test-only shutdown; preserve failure artifacts for diagnosis.
 - `scripts/e2e-smoke.ps1`: use explicit bearer authentication without a shared cookie jar, refresh tokens after password changes, consume one-time imported student credentials, and keep assertions aligned with the current security contract.
 - `scripts/socket-test.mjs`: use accounts and rotated tokens created by the current smoke/import flow; keep enrollment and forbidden-join assertions meaningful.
 - `scripts/auth-rate-limit-test.mjs`: use disabled mDNS and the same bounded private shutdown for its isolated server.

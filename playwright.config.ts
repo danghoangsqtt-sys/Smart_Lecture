@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/browser',
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'test-results',
   timeout: 30_000,
   retries: 0,
   reporter: 'list',
