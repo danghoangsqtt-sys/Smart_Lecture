@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-76-in-progress",
   "phase_current": "P76-session-browser-auth",
-  "workflow_state": "T-7601-completed-next-T-7602",
+  "workflow_state": "T-7602-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",

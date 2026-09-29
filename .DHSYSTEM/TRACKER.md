@@ -9,7 +9,7 @@
 | T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
 | T-7502 | Offline owner administrator recovery | P75 | done | recovery 6/6 + typecheck/lint/build |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | done | session 7/7 + recovery 6/6 + typecheck/lint/build |
-| T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
+| T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | doing | browser auth/media/CSP regression |
 | T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
 | T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
