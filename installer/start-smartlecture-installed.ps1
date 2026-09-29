@@ -4,6 +4,7 @@ param(
     [int]$Port = 4000,
     [ValidateRange(1, 60)]
     [int]$TimeoutSeconds = 20,
+    [string]$DataDir,
     [switch]$NoBrowser
 )
 
@@ -14,7 +15,7 @@ $serverDir = Join-Path $appDir 'server'
 $serverEntry = Join-Path $serverDir 'dist\index.js'
 $webEntry = Join-Path $appDir 'web\dist\index.html'
 $node = Join-Path $PSScriptRoot 'runtime\node.exe'
-$dataDir = Join-Path $env:LOCALAPPDATA 'SmartLecture\data'
+$dataDir = if ($DataDir) { [System.IO.Path]::GetFullPath($DataDir) } else { Join-Path $env:LOCALAPPDATA 'SmartLecture\data' }
 $prepareData = Join-Path $PSScriptRoot 'prepare-smartlecture-data.ps1'
 $url = "http://127.0.0.1:$Port"
 
@@ -47,15 +48,18 @@ if ($listeners.Count -gt 0) {
     throw "Cong $Port dang duoc mot ung dung khac su dung. SmartLecture se khong tu dung ung dung do."
 }
 
-$legacyDataDirs = @((Join-Path $appDir 'data'))
-if ($env:SMARTLECTURE_LEGACY_DATA_DIR) {
-    $legacyDataDirs += $env:SMARTLECTURE_LEGACY_DATA_DIR
-}
-$legacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{BD9F49AD-2D69-4D62-83B1-77C9EB043B17}_is1'
-if (Test-Path -LiteralPath $legacyUninstallKey) {
-    $legacyInstallLocation = (Get-ItemProperty -LiteralPath $legacyUninstallKey -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
-    if ($legacyInstallLocation) {
-        $legacyDataDirs += Join-Path $legacyInstallLocation 'app\data'
+$legacyDataDirs = @()
+if (-not $DataDir) {
+    $legacyDataDirs += Join-Path $appDir 'data'
+    if ($env:SMARTLECTURE_LEGACY_DATA_DIR) {
+        $legacyDataDirs += $env:SMARTLECTURE_LEGACY_DATA_DIR
+    }
+    $legacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{BD9F49AD-2D69-4D62-83B1-77C9EB043B17}_is1'
+    if (Test-Path -LiteralPath $legacyUninstallKey) {
+        $legacyInstallLocation = (Get-ItemProperty -LiteralPath $legacyUninstallKey -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
+        if ($legacyInstallLocation) {
+            $legacyDataDirs += Join-Path $legacyInstallLocation 'app\data'
+        }
     }
 }
 $migration = & $prepareData -TargetDataDir $dataDir -LegacyDataDirs $legacyDataDirs

@@ -7,6 +7,9 @@
 #ifndef OutputDir
   #define OutputDir "..\release"
 #endif
+#ifndef BuildLabel
+  #define BuildLabel "local"
+#endif
 
 [Setup]
 AppId={{AE2B4FD5-A21B-45AA-9DD2-97B5D2C8104B}
@@ -20,7 +23,9 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
-OutputBaseFilename=SmartLecture-Setup-{#AppVersion}
+OutputBaseFilename=SmartLecture-Setup-{#AppVersion}-{#BuildLabel}
+SetupIconFile={#SourceDir}\SmartLecture.ico
+UninstallDisplayIcon={app}\SmartLecture.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -31,8 +36,8 @@ CloseApplications=no
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autodesktop}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; Comment: "Mo SmartLecture"
-Name: "{group}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; Comment: "Mo SmartLecture"
+Name: "{autodesktop}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\SmartLecture.ico"; Comment: "Mo SmartLecture"
+Name: "{group}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; IconFilename: "{app}\SmartLecture.ico"; Comment: "Mo SmartLecture"
 Name: "{group}\Huong dan cai dat"; Filename: "{app}\HUONG-DAN-CAI-DAT.md"
 Name: "{group}\Khoi phuc mat khau admin"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\recover-admin.ps1"""; WorkingDir: "{app}"; Comment: "Khoi phuc admin offline tren may chu"
 Name: "{group}\Go cai dat SmartLecture"; Filename: "{uninstallexe}"

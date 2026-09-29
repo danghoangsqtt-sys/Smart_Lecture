@@ -1,19 +1,23 @@
 [CmdletBinding()]
 param(
     [switch]$SkipBuild,
-    [switch]$KeepStaging
+    [switch]$KeepStaging,
+    [string]$BuildLabel = ([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))
 )
 
 $ErrorActionPreference = 'Stop'
 
 $projectDir = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $projectDir 'release'
-$stageDir = Join-Path $releaseDir 'installer-stage'
+$stageDir = Join-Path $releaseDir "installer-stage-$BuildLabel"
 $stageAppDir = Join-Path $stageDir 'app'
 $stageRuntimeDir = Join-Path $stageDir 'runtime'
 $package = Get-Content -Raw -LiteralPath (Join-Path $projectDir 'package.json') | ConvertFrom-Json
 $version = $package.version
-$expectedStage = [System.IO.Path]::GetFullPath((Join-Path $projectDir 'release\installer-stage'))
+if ($BuildLabel -notmatch '^[A-Za-z0-9][A-Za-z0-9.-]{0,39}$') { throw 'Invalid build label.' }
+$iconPath = Join-Path $projectDir 'docs\icon\Icon_sm.ico'
+if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) { throw "Missing installer icon: $iconPath" }
+$expectedStage = [System.IO.Path]::GetFullPath((Join-Path $releaseDir "installer-stage-$BuildLabel"))
 $resolvedStage = [System.IO.Path]::GetFullPath($stageDir)
 
 if ($resolvedStage -ne $expectedStage -or -not $resolvedStage.StartsWith([System.IO.Path]::GetFullPath($projectDir), [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -38,7 +42,7 @@ if (-not $SkipBuild) {
 }
 
 if (Test-Path -LiteralPath $stageDir) {
-    Remove-Item -LiteralPath $stageDir -Recurse -Force
+    throw "Staging path already exists: $stageDir"
 }
 New-Item -ItemType Directory -Path $stageAppDir, $stageRuntimeDir -Force | Out-Null
 
@@ -62,6 +66,7 @@ Copy-Item -LiteralPath (Join-Path $projectDir 'installer\start-smartlecture-inst
 Copy-Item -LiteralPath (Join-Path $projectDir 'installer\prepare-smartlecture-data.ps1') -Destination (Join-Path $stageDir 'prepare-smartlecture-data.ps1')
 Copy-Item -LiteralPath (Join-Path $projectDir 'installer\recover-admin.ps1') -Destination (Join-Path $stageDir 'recover-admin.ps1')
 Copy-Item -LiteralPath (Join-Path $projectDir 'docs\HUONG-DAN-CAI-DAT.md') -Destination (Join-Path $stageDir 'HUONG-DAN-CAI-DAT.md')
+Copy-Item -LiteralPath $iconPath -Destination (Join-Path $stageDir 'SmartLecture.ico')
 
 $smokeData = Join-Path $stageDir 'smoke-data'
 $smokePort = 4399
@@ -106,10 +111,10 @@ try {
     }
 }
 
-& $iscc '/Qp' "/DAppVersion=$version" "/DSourceDir=$stageDir" "/DOutputDir=$releaseDir" (Join-Path $projectDir 'installer\SmartLecture.iss')
+& $iscc '/Qp' "/DAppVersion=$version" "/DBuildLabel=$BuildLabel" "/DSourceDir=$stageDir" "/DOutputDir=$releaseDir" (Join-Path $projectDir 'installer\SmartLecture.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 
-$installer = Join-Path $releaseDir "SmartLecture-Setup-$version.exe"
+$installer = Join-Path $releaseDir "SmartLecture-Setup-$version-$BuildLabel.exe"
 if (-not (Test-Path -LiteralPath $installer)) { throw "Installer was not created: $installer" }
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant()
 $checksumPath = "$installer.sha256"

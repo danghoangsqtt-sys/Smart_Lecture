@@ -2,7 +2,7 @@
 
 ## Cai dat
 
-1. Nhan file `SmartLecture-Setup-<phien-ban>.exe` tu nguoi quan ly.
+1. Nhan file `SmartLecture-Setup-<phien-ban>-<ma-build>.exe` tu nguoi quan ly.
 2. Bam dup file, chon **Install**, sau do chon **Finish**.
 3. Khong can cai Node.js, Git, hay mo terminal.
 
@@ -10,8 +10,8 @@ Sau khi cai dat, icon **SmartLecture** xuat hien tren Desktop va Start Menu.
 
 ## Su dung hang ngay
 
-1. Bam dup icon **SmartLecture**.
-2. Doi trinh duyet mo tai `http://localhost:4000`.
+1. Bam dup icon **SmartLecture** tren Desktop hoac Start Menu. Launcher se tu khoi dong dich vu neu can.
+2. Doi dich vu san sang va trinh duyet mac dinh mo tai `http://localhost:4000`.
 3. Dang nhap lan dau bang `admin` / `admin123`, sau do doi mat khau ngay.
 4. Cho hoc vien ket noi cung Wi-Fi/LAN. Lay QR hoac dia chi LAN tren Dashboard de hoc vien truy cap bang trinh duyet.
 
@@ -33,7 +33,7 @@ Neu ca thu muc cu va `%LOCALAPPDATA%\SmartLecture\data` deu co du lieu ma khong 
 
 ## Cap nhat
 
-Khi nhan file `SmartLecture-Setup-<phien-ban-moi>.exe`, dong SmartLecture, chay file moi va cai de len ban cu. Du lieu lop hoc van duoc giu nguyen.
+Khi nhan file `SmartLecture-Setup-<phien-ban-moi>-<ma-build>.exe`, dong SmartLecture, chay file moi va cai de len ban cu. Du lieu lop hoc van duoc giu nguyen.
 
 ## Xu ly su co
 
