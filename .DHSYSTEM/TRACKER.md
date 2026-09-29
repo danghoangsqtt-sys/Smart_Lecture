@@ -8,7 +8,7 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-8301 | Additive session–class schema and legacy compatibility | P83 | doing | migration + rollback/backup + single-class regression |
+| T-8301 | Additive session–class schema and legacy compatibility | P83 | blocked | focused 6/6 + quality pass; full E2E awaits P79 |
 | T-8302 | Multi-class teaching lifecycle and authorization | P83 | todo | REST 2–4 classes + conflict/idempotency cases |
 | T-8303 | Shared source-lesson access across participant classes | P83 | todo | source/member/non-member access matrix |
 | T-8401 | Per-class attendance links within one teaching session | P84 | todo | per-class records + same-day conflict regression |
@@ -31,7 +31,7 @@
 | T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
 | T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
-| T-7901 | Bonjour ownership and graceful shutdown | P79 | todo | duplicate-name/signal regression |
+| T-7901 | Bonjour ownership and graceful shutdown | P79 | doing | duplicate-name/signal regression |
 | T-7902 | Focused and isolated E2E reliability | P79 | todo | full suite beside installed instance |
 | T-8001 | Generate, integrate and validate icon family | P80 | todo | web/PWA/Windows inspection |
 | T-8101 | GamesPage decomposition | P81 | todo | React Doctor + game browser contracts |

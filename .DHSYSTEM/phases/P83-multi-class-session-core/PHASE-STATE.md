@@ -7,7 +7,7 @@
 
 | Task | Status | Verification |
 |---|---|---|
-| T-8301 Session–class schema | in_progress | migration + backup + legacy regression |
+| T-8301 Session–class schema | blocked | focused gate passed; full E2E awaits P79 repair |
 | T-8302 Group session lifecycle | todo | REST permission/conflict/idempotency |
 | T-8303 Shared content access | todo | participant/non-participant access matrix |
 
