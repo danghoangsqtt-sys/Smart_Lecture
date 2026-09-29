@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-75-completed",
+  "status": "phase-76-in-progress",
   "phase_current": "P76-session-browser-auth",
-  "workflow_state": "P75-completed-next-P76",
+  "workflow_state": "T-7601-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",

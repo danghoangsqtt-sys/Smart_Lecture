@@ -6,15 +6,22 @@ Invalidate stale authentication after password, recovery and account-status chan
 
 ## Paths
 
-- `server/src/db/schema.sql`
-- `server/src/db/connection.ts`
-- `server/src/routes/auth.routes.ts`
-- `server/src/routes/users.routes.ts`
-- `server/src/middleware/auth.ts`
-- `server/src/realtime/socketAuth.ts`
-- `server/src/cli/recoverAdmin.ts`
-- `scripts/auth-session-revocation-test.mjs`
-- `.DHSYSTEM/ARCHITECTURE.md`
+- `server/src/db/schema.sql` — add the stable session-version default for new databases.
+- `server/src/db/connection.ts` — guard the v25 upgrade and expose the version on user rows.
+- `server/src/routes/auth.routes.ts` — sign versioned claims and rotate the version on lock/password change.
+- `server/src/routes/users.routes.ts` — revoke sessions on reset, lock and unlock.
+- `server/src/middleware/auth.ts` — reject stale REST and flexible-media tokens.
+- `server/src/realtime/socketAuth.ts` — reject stale Socket.IO handshakes.
+- `server/src/cli/recoverAdmin.ts` — advance the recovered account version in the offline transaction.
+- `web/src/components/Layout.tsx` — replace the current token after a successful self-service password change.
+- `scripts/auth-session-revocation-test.mjs` — exercise pre-v25 upgrade plus REST/Socket stale/current claims.
+- `.DHSYSTEM/ARCHITECTURE.md` — document the session claim and revocation invariant.
+
+## Best Practices
+
+- Keep authorization fail-closed and compare integer claims with the current SQLite row on every handshake/request.
+- Increment versions in the same SQL mutation that changes credentials or account status.
+- Never expose `session_version` in `PublicUser`; it is an internal security counter.
 
 ## File-Level Plan
 
@@ -31,4 +38,4 @@ Invalidate stale authentication after password, recovery and account-status chan
 
 ## Status
 
-- `todo`
+- `in_progress`
