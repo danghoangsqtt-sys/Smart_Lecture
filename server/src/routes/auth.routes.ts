@@ -53,8 +53,12 @@ router.post('/login', loginRateLimit, (req, res) => {
   if (!bcrypt.compareSync(password, row.password_hash)) {
     const failed = row.failed_attempts + 1;
     const locked = failed >= MAX_FAILED_ATTEMPTS;
-    db.prepare('UPDATE users SET failed_attempts = ?, status = ? WHERE id = ?').run(
+    db.prepare(`UPDATE users
+      SET failed_attempts = ?, status = ?,
+          session_version = session_version + CASE WHEN status <> ? THEN 1 ELSE 0 END
+      WHERE id = ?`).run(
       failed,
+      locked ? 'locked' : 'active',
       locked ? 'locked' : 'active',
       row.id
     );
@@ -62,7 +66,7 @@ router.post('/login', loginRateLimit, (req, res) => {
     return;
   }
   db.prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?').run(row.id);
-  const token = jwt.sign({ sub: row.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const token = jwt.sign({ sub: row.id, sv: row.session_version }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   res.json({ token, user: toPublicUser(row) });
 });
 
@@ -88,8 +92,12 @@ router.post('/change-password', requireAuth, (req, res) => {
     return;
   }
   const hash = bcrypt.hashSync(parsed.data.newPassword, 10);
-  db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hash, row.id);
-  res.json({ ok: true });
+  db.prepare(`UPDATE users
+    SET password_hash = ?, must_change_password = 0, failed_attempts = 0, session_version = session_version + 1
+    WHERE id = ?`).run(hash, row.id);
+  const updated = findUserByUsername(row.username)!;
+  const token = jwt.sign({ sub: updated.id, sv: updated.session_version }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  res.json({ ok: true, token, user: toPublicUser(updated) });
 });
 
 const createUserSchema = z.object({

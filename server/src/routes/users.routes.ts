@@ -186,7 +186,7 @@ router.patch(
       throw new HttpError(403, 'FORBIDDEN', 'Không đủ quyền');
     }
     const status = target.status === 'locked' ? 'active' : 'locked';
-    db.prepare('UPDATE users SET status = ?, failed_attempts = 0 WHERE id = ?').run(status, target.id);
+    db.prepare('UPDATE users SET status = ?, failed_attempts = 0, session_version = session_version + 1 WHERE id = ?').run(status, target.id);
     res.json({ status });
   })
 );
@@ -205,7 +205,9 @@ router.post(
     if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
       throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
-    db.prepare('UPDATE users SET password_hash = ?, failed_attempts = 0, must_change_password = 1 WHERE id = ?').run(
+    db.prepare(`UPDATE users
+      SET password_hash = ?, failed_attempts = 0, must_change_password = 1, session_version = session_version + 1
+      WHERE id = ?`).run(
       hashPassword(parsed.data.newPassword),
       target.id
     );

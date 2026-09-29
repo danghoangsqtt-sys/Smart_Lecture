@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-76-in-progress",
   "phase_current": "P76-session-browser-auth",
-  "workflow_state": "T-7601-in-progress",
+  "workflow_state": "T-7601-completed-next-T-7602",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Start T-7601 session versioning and revoke stale REST/Socket tokens after credential or account changes."
+  "next_action": "Start T-7602 cookie-based browser authentication, CSRF protection and removal of persisted bearer tokens."
 }

@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'locked')),
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   must_change_password INTEGER NOT NULL DEFAULT 0,
+  session_version INTEGER NOT NULL DEFAULT 0 CHECK (session_version >= 0),
   created_by TEXT REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

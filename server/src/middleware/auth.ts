@@ -1,10 +1,20 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config.js';
-import { getUserById, toPublicUser } from '../db/connection.js';
+import { getUserById, toPublicUser, type UserRow } from '../db/connection.js';
 
 export interface AuthedRequest extends Request {
   user?: ReturnType<typeof toPublicUser>;
+}
+
+type SessionClaims = { sub: string; sv: number };
+
+function resolveSession(token: string): UserRow | null {
+  const payload = jwt.verify(token, JWT_SECRET) as Partial<SessionClaims>;
+  if (typeof payload.sub !== 'string' || !Number.isInteger(payload.sv)) return null;
+  const row = getUserById(payload.sub);
+  if (!row || row.status === 'locked' || row.session_version !== payload.sv) return null;
+  return row;
 }
 
 export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
@@ -14,9 +24,8 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
     return;
   }
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET) as { sub: string };
-    const row = getUserById(payload.sub);
-    if (!row || row.status === 'locked') {
+    const row = resolveSession(header.slice(7));
+    if (!row) {
       res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
       return;
     }
@@ -39,9 +48,8 @@ export function requireAuthFlexible(req: AuthedRequest, res: Response, next: Nex
     return;
   }
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
-    const row = getUserById(payload.sub);
-    if (!row || row.status === 'locked') {
+    const row = resolveSession(token);
+    if (!row) {
       res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
       return;
     }

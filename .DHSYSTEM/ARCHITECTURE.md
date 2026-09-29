@@ -184,6 +184,7 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - Direct-LAN deployment không trust proxy headers mặc định. `TRUST_PROXY` chỉ được bật explicit khi ứng dụng thực sự đứng sau reverse proxy do đơn vị triển khai kiểm soát.
 
 - JWT HS256, secret random 64 bytes sinh 1 lần lưu `data/secret.key` (0600)
+- JWT mang claim `sv`; REST, media-flexible và Socket.IO chỉ chấp nhận khi `sv` bằng `users.session_version`. Đổi/reset mật khẩu và lock/unlock tăng counter trong cùng mutation; owner recovery còn xoay `secret.key` để thu hồi toàn bộ token.
 - bcryptjs cost 10; khóa tài khoản sau 10 lần sai liên tiếp (unlock bởi admin/GV chủ lớp)
 - CORS chặn theo cấu hình; helmet headers; rate-limit express-rate-limit 300 req/phút/IP
 - Upload: whitelist mime + extension, giới hạn 500MB/video, quét phần mở rộng kép; filename lưu uuid, giữ tên gốc trong DB

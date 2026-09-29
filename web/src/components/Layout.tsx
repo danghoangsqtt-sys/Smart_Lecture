@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { Modal, Label, Input, Button } from './ui';
 import toast from '../stores/toastStore';
 import { ContextGuide } from './ContextGuide';
+import type { PublicUser } from '../types';
 
 interface NavItemDef {
   to: string;
@@ -120,8 +121,11 @@ function ChangePasswordModal({ open, required, onClose }: { open: boolean; requi
   async function submit() {
     setBusy(true);
     try {
-      await api('/auth/change-password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) });
-      useAuthStore.setState((s) => (s.user ? { user: { ...s.user, mustChangePassword: false } } : s));
+      const result = await api<{ token: string; user: PublicUser }>('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      useAuthStore.getState().setAuth(result.token, result.user);
       toast.success('Đã đổi mật khẩu');
       onClose();
     } catch (e) {

@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
 | T-7502 | Offline owner administrator recovery | P75 | done | recovery 6/6 + typecheck/lint/build |
-| T-7601 | Version REST/Socket sessions and revoke stale access | P76 | doing | auth/session regression |
+| T-7601 | Version REST/Socket sessions and revoke stale access | P76 | done | session 7/7 + recovery 6/6 + typecheck/lint/build |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
 | T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
 | T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
@@ -284,6 +284,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-29 (P76 T-7601 — versioned REST and Socket sessions)
+- Added guarded migration v25 for `users.session_version` and embedded the current counter as JWT claim `sv`.
+- REST, flexible media and Socket.IO now fail closed on missing/stale claims. Password change/reset, lock/unlock and offline recovery advance the counter; self-service password change returns a renewed token.
+- Focused upgrade/REST/Socket regression passed 7/7, owner recovery remained 6/6, and typecheck, lint, production build plus release baseline passed.
+
 ### 2026-09-29 (P75 T-7502 — offline owner recovery)
 - Added a local-only recovery CLI and packaged PowerShell wrapper; no unauthenticated HTTP route was introduced.
 - Recovery requires the exact data root and explicit username confirmation, refuses SQLite WAL/SHM sidecars, backs up DB/secret, unlocks the selected admin, generates a one-time temporary password, forces password change and rotates the JWT secret to revoke existing tokens.

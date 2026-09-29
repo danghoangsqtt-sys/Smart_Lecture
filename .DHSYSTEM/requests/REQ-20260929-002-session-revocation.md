@@ -2,8 +2,8 @@
 
 - Type: BUG
 - Priority: high
-- Status: planned
-- Planned phase: P76 / T-7601
+- Status: completed
+- Implemented by: P76 / T-7601
 - Audit tier: 3
 - Detected: 2026-09-29
 

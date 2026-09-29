@@ -9,9 +9,10 @@ export function authenticateSocket(socket: Socket): SocketPayload | null {
   const token = socket.handshake.auth?.token as string | undefined;
   if (!token) return null;
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { sub: string };
+    const payload = jwt.verify(token, JWT_SECRET) as { sub?: string; sv?: number };
+    if (typeof payload.sub !== 'string' || !Number.isInteger(payload.sv)) return null;
     const user = getUserById(payload.sub);
-    if (!user || user.status === 'locked' || user.must_change_password === 1) return null;
+    if (!user || user.status === 'locked' || user.must_change_password === 1 || user.session_version !== payload.sv) return null;
     return { userId: user.id, role: user.role };
   } catch {
     return null;

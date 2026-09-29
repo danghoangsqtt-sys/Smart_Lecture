@@ -24,6 +24,7 @@
     "test:backup-restore": "npm run build -w server && node scripts/backup-media-restore-test.mjs",
     "test:data-root": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/installed-data-migration-test.ps1",
     "test:admin-recovery": "npm run build -w server && node scripts/admin-recovery-test.mjs",
+    "test:session-revocation": "npm run build -w server && node scripts/auth-session-revocation-test.mjs",
     "bench:lan": "npm run build -w server && node scripts/lan-benchmark.mjs"
   },
   "devDependencies": {

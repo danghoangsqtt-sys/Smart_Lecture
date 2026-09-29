@@ -7,5 +7,5 @@
 
 | Task | Status | Verification |
 | --- | --- | --- |
-| T-7601 Server-side session versioning | doing | REST + Socket stale-token regression |
+| T-7601 Server-side session versioning | done | session revocation 7/7 + recovery 6/6 + quality gates |
 | T-7602 Browser credential and CSP hardening | todo | browser auth/media/CSP regression |

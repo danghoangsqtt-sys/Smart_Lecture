@@ -38,4 +38,11 @@ Invalidate stale authentication after password, recovery and account-status chan
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Result
+
+- Added guarded schema migration v25 and versioned `sv` claims without exposing the counter in public user payloads.
+- REST, flexible media authentication and Socket.IO now compare the claim with the current user row.
+- Password change/reset, account lock/unlock and offline recovery rotate the version atomically; self-service password change returns a renewed token.
+- Focused session regression passed 7/7, owner recovery remained 6/6, and typecheck/lint/build/release gates passed.

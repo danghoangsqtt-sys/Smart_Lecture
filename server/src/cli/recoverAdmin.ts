@@ -59,9 +59,14 @@ const passwordHash = bcrypt.hashSync(temporaryPassword, 10);
 const db = new DatabaseSync(dbPath);
 try {
   db.exec('BEGIN IMMEDIATE');
+  const userColumns = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+  if (!userColumns.some((column) => column.name === 'session_version')) {
+    db.exec('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0 CHECK (session_version >= 0)');
+  }
   const result = db.prepare(
     `UPDATE users
-        SET password_hash = ?, status = 'active', failed_attempts = 0, must_change_password = 1
+        SET password_hash = ?, status = 'active', failed_attempts = 0, must_change_password = 1,
+            session_version = session_version + 1
       WHERE id = ? AND role = 'admin'`
   ).run(passwordHash, admin.id);
   if (result.changes !== 1) throw new Error('Administrator row changed during recovery.');
