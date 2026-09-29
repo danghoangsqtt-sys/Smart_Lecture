@@ -46,4 +46,4 @@ Make mDNS optional, non-fatal and cleanly stoppable on Windows.
 
 ## Status
 
-- `in_progress`
+- `done` (2026-09-29). Build, typecheck, lint, mDNS regression and upgrade-path test passed. Full E2E passed these stages but failed later in the PowerShell smoke test at teacher creation/import under the new CSRF contract; follow-up T-7902 remains open.

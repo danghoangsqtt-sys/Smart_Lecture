@@ -8,6 +8,7 @@
 
 ## Unreleased — Recovery, security & release reliability v0.11.0
 
+- mDNS hiện sở hữu Bonjour và đóng sạch khi server dừng; trùng tên/lỗi socket dùng URL IP LAN thay thế. Kiểm thử nâng cấp dừng tiến trình con qua IPC riêng, hết lỗi libuv Windows. Full E2E vẫn cần sửa smoke CSRF ở T-7902.
 - Bắt đầu P75 với di chuyển dữ liệu cài đặt ra `%LOCALAPPDATA%\SmartLecture\data` và cơ chế khôi phục admin offline.
 - Hoàn thành migration backup-first từ data legacy: xác minh SHA-256, publish nguyên tử, từ chối collision và giữ nguyên nguồn để rollback.
 - Thêm khôi phục admin offline có backup, mật khẩu tạm bắt đổi và xoay JWT secret để thu hồi phiên cũ; không mở reset endpoint trên LAN.
