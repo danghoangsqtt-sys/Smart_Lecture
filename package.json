@@ -23,6 +23,7 @@
     "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs",
     "test:backup-restore": "npm run build -w server && node scripts/backup-media-restore-test.mjs",
     "test:data-root": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/installed-data-migration-test.ps1",
+    "test:admin-recovery": "npm run build -w server && node scripts/admin-recovery-test.mjs",
     "bench:lan": "npm run build -w server && node scripts/lan-benchmark.mjs"
   },
   "devDependencies": {

@@ -37,6 +37,17 @@ Khi nhan file `SmartLecture-Setup-<phien-ban-moi>.exe`, dong SmartLecture, chay 
 
 ## Xu ly su co
 
+### Quen mat khau admin
+
+SmartLecture khong mo endpoint "quen mat khau" tren LAN vi he thong hoat dong offline va khong co email da xac minh. Chu may co the khoi phuc an toan tai chinh may cai dat:
+
+1. Dong SmartLecture hoan toan.
+2. Mo PowerShell trong thu muc cai dat va chay `powershell -ExecutionPolicy Bypass -File .\recover-admin.ps1`.
+3. Kiem tra duong dan data va nhap lai dung username admin de xac nhan.
+4. Ghi lai mat khau tam chi hien mot lan, dang nhap va doi mat khau ngay.
+
+Lenh tao backup trong `data\backups\owner-recovery-*`, mo khoa admin, bat buoc doi mat khau va xoay khoa JWT de huy cac phien cu. Neu thay file `smart-lecture.db-wal`/`smart-lecture.db-shm`, lenh se tu choi; khong tu xoa cac file nay khi ung dung con chay.
+
 - Neu icon thong bao cong 4000 dang duoc su dung, khoi dong lai may tinh roi mo lai SmartLecture.
 - Neu trinh duyet khong tu mo, truy cap `http://localhost:4000`.
 - Nhat ky khoi dong nam trong `%LOCALAPPDATA%\SmartLecture\data\logs`.

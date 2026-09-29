@@ -1,6 +1,6 @@
 ﻿# Phase State â€” P75 Installed Data Safety & Owner Recovery
 
-- Phase: `in_progress`
+- Phase: `completed`
 - Milestone: `0.11.0`
 - Dependency: P72 completed
 - Requests: REQ-20260929-003, REQ-20260929-001
@@ -8,4 +8,4 @@
 | Task | Status | Verification |
 | --- | --- | --- |
 | T-7501 Installed data root and legacy migration | done | migration 6/6 + typecheck/lint/build + installer build |
-| T-7502 Offline owner recovery | doing | recovery CLI security/data regression |
+| T-7502 Offline owner recovery | done | recovery 6/6 + typecheck/lint/build |

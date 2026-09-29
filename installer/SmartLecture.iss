@@ -34,6 +34,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{autodesktop}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; Comment: "Mo SmartLecture"
 Name: "{group}\SmartLecture"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\start-smartlecture.ps1"""; WorkingDir: "{app}"; Comment: "Mo SmartLecture"
 Name: "{group}\Huong dan cai dat"; Filename: "{app}\HUONG-DAN-CAI-DAT.md"
+Name: "{group}\Khoi phuc mat khau admin"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\recover-admin.ps1"""; WorkingDir: "{app}"; Comment: "Khoi phuc admin offline tren may chu"
 Name: "{group}\Go cai dat SmartLecture"; Filename: "{uninstallexe}"
 
 [Run]

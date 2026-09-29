@@ -7,7 +7,7 @@
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
 | T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
-| T-7502 | Offline owner administrator recovery | P75 | doing | recovery CLI security/data regression |
+| T-7502 | Offline owner administrator recovery | P75 | done | recovery 6/6 + typecheck/lint/build |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | todo | auth/session regression |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
 | T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
@@ -284,6 +284,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-29 (P75 T-7502 — offline owner recovery)
+- Added a local-only recovery CLI and packaged PowerShell wrapper; no unauthenticated HTTP route was introduced.
+- Recovery requires the exact data root and explicit username confirmation, refuses SQLite WAL/SHM sidecars, backs up DB/secret, unlocks the selected admin, generates a one-time temporary password, forces password change and rotates the JWT secret to revoke existing tokens.
+- Added Start Menu discoverability and operator documentation. Recovery regression 6/6, data migration 6/6, typecheck, lint, build and release baseline passed.
+
 ### 2026-09-29 (P75 T-7501 — installed data root and legacy migration)
 - Reconciled the local v0.11 plan with the newer remote v0.10.2/P74 baseline, preserving published P73–P74 history and moving the audit milestone to P75–P82.
 - Both launchers now export the resolved data root. Installed startup discovers legacy in-app data from the current tree, the pre-P72 uninstall registry entry, or `SMARTLECTURE_LEGACY_DATA_DIR`.

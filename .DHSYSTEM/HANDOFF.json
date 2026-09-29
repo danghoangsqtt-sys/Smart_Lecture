@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-75-in-progress",
-  "phase_current": "P75-data-safety-owner-recovery",
-  "workflow_state": "T-7502-in-progress",
+  "status": "phase-75-completed",
+  "phase_current": "P76-session-browser-auth",
+  "workflow_state": "P75-completed-next-P76",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Start T-7502 offline owner recovery against temporary database copies; do not mutate the running installed database."
+  "next_action": "Start T-7601 session versioning and revoke stale REST/Socket tokens after credential or account changes."
 }

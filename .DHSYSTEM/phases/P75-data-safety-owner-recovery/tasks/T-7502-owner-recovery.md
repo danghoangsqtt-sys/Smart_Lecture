@@ -30,4 +30,10 @@ Provide a local, backup-first recovery command for a forgotten sole-admin passwo
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Result
+
+- Added an offline CLI and Windows wrapper; no recovery HTTP route exists.
+- The command requires the exact data root and username confirmation, refuses WAL/SHM sidecars, backs up the database/secret, resets and unlocks the admin, forces password change, and rotates the JWT secret.
+- Added a Start Menu recovery entry and packaged wrapper. Focused recovery regression passed 6/6 alongside migration, typecheck, lint and build gates.

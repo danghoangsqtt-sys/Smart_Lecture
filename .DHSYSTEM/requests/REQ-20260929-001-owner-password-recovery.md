@@ -2,8 +2,8 @@
 
 - Type: ENH
 - Priority: medium
-- Status: planned
-- Planned phase: P75 / T-7502
+- Status: completed
+- Implemented by: P75 / T-7502
 - Audit tier: 3
 - Detected: 2026-09-29
 
