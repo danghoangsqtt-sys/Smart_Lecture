@@ -196,6 +196,7 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - Subject CRUD thuộc `classes.routes.ts`; question CRUD/import/stats thuộc `questions.routes.ts`; backup thuộc `system.routes.ts`. Không mount router trùng.
 - `ZodError` và JSON sai cú pháp được error middleware chuẩn hóa thành HTTP 400.
 - `DATA_DIR` và `DB_PATH` có thể override bằng biến môi trường; CI/E2E bắt buộc dùng thư mục tạm.
+- Bản cài Windows luôn truyền `DATA_DIR=%LOCALAPPDATA%\SmartLecture\data`. Dữ liệu legacy trong cây ứng dụng chỉ được sao chép qua staging cùng ổ đích, kiểm tra manifest SHA-256 và publish nguyên tử; không tự gộp hai data root đã có nội dung.
 - Restore xác minh ZIP/manifest, stage `restore-pending.db` cùng `restore-pending-media/`; lần boot kế tiếp tạo bản DB/media rollback, phục hồi media đóng gói rồi thay DB trước khi mở kết nối SQLite. Media lớn chỉ có trong manifest và media ngoài manifest được giữ nguyên.
 - Native media viewer dùng URL query-token đã encode vì `<video>`, `<img>` và `<object>` không gắn được Bearer header; response đặt `Cache-Control: private, no-store` và `Referrer-Policy: no-referrer`.
 - `game_sessions.class_id` là nguồn enrollment gate; mọi event điều khiển host so khớp `host_teacher_id` với JWT socket.

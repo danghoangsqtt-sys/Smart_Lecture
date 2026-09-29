@@ -1,0 +1,22 @@
+﻿flowchart TD
+  Owner["Machine owner"] --> Wrapper["Local recovery PowerShell wrapper"]
+  Wrapper --> Guard{"Server stopped and data root explicit?"}
+  Guard -->|No| Refuse["Refuse without mutation"]
+  Guard -->|Yes| Backup["Backup/checkpoint SQLite"]
+  Backup --> Recovery["Recovery CLI transaction"]
+  Recovery --> Users[("users: password hash, must_change, session_version")]
+
+  Launcher["Installed launcher"] --> Resolve["Resolve %LOCALAPPDATA%/SmartLecture/data"]
+  Resolve --> Legacy{"Legacy app/data exists?"}
+  Legacy -->|Safe empty target| Migrate["Offline backup-first migration"]
+  Legacy -->|Collision| Refuse
+  Migrate --> Data[("Durable data root")]
+  Resolve --> Data
+
+  Browser["Same-origin browser"] --> Session["Protected session transport"]
+  Session --> REST["Express REST auth"]
+  Session --> Socket["Socket.IO auth"]
+  REST --> Version{"JWT/session version matches SQLite?"}
+  Socket --> Version
+  Version -->|No| Deny["401 / reconnect denied"]
+  Version -->|Yes| App["Authorized application flow"]

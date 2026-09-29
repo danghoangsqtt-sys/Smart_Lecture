@@ -24,7 +24,7 @@
 - **RAG:** PDF/DOCX/PPTX/TXT → chunk heading-aware → Gemini embedding → cosine search;
   **không có API key vẫn chạy** ở chế độ từ khóa (offline-first)
 
-> Phiên bản hiện tại: **v0.10.2**. P1–P74 đã hoàn thành; học viên xem/tải được media đã phân quyền, backup khôi phục cả media đóng gói và upload curriculum được xác minh tại server boundary.
+> Baseline phát hành: **v0.10.2** (P1–P74 hoàn thành). Milestone **v0.11.0** đang triển khai từ P75 cho khôi phục chủ sở hữu, an toàn dữ liệu cài đặt, hardening và bộ icon mới.
 
 ## Chạy
 

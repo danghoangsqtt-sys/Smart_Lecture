@@ -4,12 +4,12 @@
 |---|---|
 | Tên repo | Smart_Lecture |
 | Tên hiển thị | SmartLecture |
-| Phiên bản | 0.10.2 |
+| Phiên bản | 0.11.0 (planned) |
 | Ngày tạo | 2026-08-23 |
 | Tác giả | DHsystem |
 | Mô tả | LMS client-server chạy nội bộ máy giáo viên: bài giảng, ngân hàng câu hỏi AI, thi online, game realtime, sổ điểm & điểm danh. Học viên truy cập qua WiFi/LAN bằng browser |
-| Phase hiện tại | P74 (Media & backup integrity hardening) — completed |
-| Workflow state | P1–P74 completed; v0.10.2 đã qua toàn bộ release gate |
+| Phase hiện tại | P75 (Installed data safety & owner recovery) — in progress |
+| Workflow state | P1–P74 completed; v0.11.0 execution started at T-7501 |
 | Brainstorm | docs/brainstorm/session-2026-08-23.md |
 
 ## Lệnh chạy

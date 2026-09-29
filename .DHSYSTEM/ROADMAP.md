@@ -1,5 +1,18 @@
 # ROADMAP — Smart_Lecture
 
+## Milestone v0.11.0 — Recovery, Security & Release Reliability (planned)
+
+- P75: installed-data migration and offline owner recovery.
+- P76: REST/Socket session revocation and safer browser authentication.
+- P77: one-time imported credentials with forced first change.
+- P78: multipart, direct-LAN perimeter and dependency advisory hardening.
+- P79: mDNS lifecycle and reliable isolated E2E.
+- P80: normalized web/PWA/Windows icon family from the supplied assets.
+- P81: maintainability decomposition with focused tests.
+- P82: documentation reconciliation and v0.11.0 release gate.
+
+Execution begins at `T-7501`; P73–P74 below remain immutable completed history from v0.10.1–v0.10.2.
+
 ## Phase 74 — Media & Backup Integrity Hardening ✅
 
 - [x] Khôi phục quyền xem/tải học liệu thật cho học viên và khóa regression bằng Browser E2E.

@@ -1,11 +1,11 @@
 {
   "project": "Smart_Lecture",
   "displayName": "SmartLecture",
-  "version": "0.10.2",
+  "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-74-completed",
-  "phase_current": "P74-media-backup-integrity-hardening",
-  "workflow_state": "all-defined-phases-complete",
+  "status": "phase-75-in-progress",
+  "phase_current": "P75-data-safety-owner-recovery",
+  "workflow_state": "T-7501-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Release SmartLecture v0.10.2 from the completed and verified P74 baseline."
+  "next_action": "Complete T-7501 installed data-root migration without touching the running installed database."
 }

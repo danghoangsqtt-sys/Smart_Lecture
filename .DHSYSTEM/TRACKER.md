@@ -2,6 +2,26 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
+## Milestone v0.11.0 — Owner recovery, security & release reliability
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-7501 | Installed data root and legacy migration | P75 | doing | focused migration regression + release gates |
+| T-7502 | Offline owner administrator recovery | P75 | todo | recovery CLI security/data regression |
+| T-7601 | Version REST/Socket sessions and revoke stale access | P76 | todo | auth/session regression |
+| T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
+| T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
+| T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
+| T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
+| T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
+| T-7901 | Bonjour ownership and graceful shutdown | P79 | todo | duplicate-name/signal regression |
+| T-7902 | Focused and isolated E2E reliability | P79 | todo | full suite beside installed instance |
+| T-8001 | Generate, integrate and validate icon family | P80 | todo | web/PWA/Windows inspection |
+| T-8101 | GamesPage decomposition | P81 | todo | React Doctor + game browser contracts |
+| T-8102 | Game player and circuit canvas decomposition | P81 | todo | React Doctor + circuit/game regression |
+| T-8103 | Teaching/classes decomposition and focused tests | P81 | todo | API/browser/focused suites |
+| T-8201 | Reconcile state and release v0.11.0 | P82 | todo | consistency scan + complete release gate |
+
 ## Phase 74 — Media & backup integrity hardening
 
 | ID | Task | Phase | Status | Verify |
