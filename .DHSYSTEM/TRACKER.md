@@ -9,7 +9,7 @@
 | T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
 | T-7502 | Offline owner administrator recovery | P75 | done | recovery 6/6 + typecheck/lint/build |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | done | session 7/7 + recovery 6/6 + typecheck/lint/build |
-| T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | doing | browser auth/media/CSP regression |
+| T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | done | browser auth 9/9 + Browser E2E 6/6 + typecheck/lint/build |
 | T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
 | T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
@@ -284,6 +284,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-29 (P76 T-7602 — browser cookie authentication and CSP)
+- Replaced persisted browser bearer tokens with an HttpOnly SameSite cookie, memory-only public-user state and `/auth/me` hydration; logout clears the cookie and password change renews it after revoking the old version.
+- Cookie mutations require a same-host Origin, media and Socket.IO use the cookie, query-string tokens are rejected, and no-Origin/Bearer local integrations remain compatible.
+- Bundled Font Awesome locally, removed runtime CDN/font dependencies and applied an explicit LAN-safe CSP. Browser security passed 9/9, session revocation 7/7, Browser E2E 6/6, typecheck, lint, build and release baseline all passed.
+
 ### 2026-09-29 (P76 T-7601 — versioned REST and Socket sessions)
 - Added guarded migration v25 for `users.session_version` and embedded the current counter as JWT claim `sv`.
 - REST, flexible media and Socket.IO now fail closed on missing/stale claims. Password change/reset, lock/unlock and offline recovery advance the counter; self-service password change returns a renewed token.

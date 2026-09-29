@@ -1,8 +1,10 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Layout from './components/Layout';
 import { Spinner, Toaster } from './components/ui';
+import { api } from './lib/api';
+import type { PublicUser } from './types';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -27,12 +29,23 @@ const SchedulePage = lazy(() => import('./pages/SchedulePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const token = useAuthStore((s) => s.token);
-  if (!token) return <Navigate to="/login" replace />;
+  const user = useAuthStore((s) => s.user);
+  const hydrated = useAuthStore((s) => s.hydrated);
+  if (!hydrated) return <Spinner />;
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 export default function App() {
+  useEffect(() => {
+    let active = true;
+    void api<{ user: PublicUser }>('/auth/me')
+      .then(({ user }) => { if (active) useAuthStore.getState().setAuth(user); })
+      .catch(() => { if (active) useAuthStore.getState().clearAuth(); })
+      .finally(() => { if (active) useAuthStore.getState().finishHydration(); });
+    return () => { active = false; };
+  }, []);
+
   return (
     <BrowserRouter>
       <Suspense fallback={<Spinner />}>

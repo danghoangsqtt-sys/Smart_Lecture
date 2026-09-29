@@ -175,14 +175,13 @@ function deserializeCircuitFromRoom(data: {
   };
 }
 
-function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
+function usePlayerSocketEvents(setField: PlayerSetField) {
   const socketRef = useRef<ReturnType<typeof getSocket> | null>(null);
   const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
-    if (!token) return;
     const pendingTimers = pendingTimersRef.current;
-    const socket = getSocket(token);
+    const socket = getSocket();
     socketRef.current = socket;
     const socketEvents = createSocketEventScope(socket);
     const on = socketEvents.on;
@@ -401,14 +400,14 @@ function usePlayerSocketEvents(token: string | null, setField: PlayerSetField) {
       socketEvents.dispose();
       socket.disconnect();
     };
-  }, [token, setField]);
+  }, [setField]);
 
   return socketRef;
 }
 
 export default function GamePlayPage() {
   const [searchParams] = useSearchParams();
-  const token = useAuthStore((s) => s.token);
+  const user = useAuthStore((s) => s.user);
   const initialRoom = (searchParams.get('room') ?? '').replace(/\D/g, '').slice(0, 6);
   const [state, setField] = useFieldReducer(() => createPlayerGameState(initialRoom));
   const {
@@ -420,7 +419,7 @@ export default function GamePlayPage() {
   const autoJoinAttemptedRef = useRef(false);
   const bingoCalledSet = useMemo(() => new Set(bingoCalled), [bingoCalled]);
   const memRevealedSet = useMemo(() => new Set(memRevealed), [memRevealed]);
-  const socketRef = usePlayerSocketEvents(token, setField);
+  const socketRef = usePlayerSocketEvents(setField);
 
   useEffect(() => {
     const t = setInterval(() => setField('nowTick', Date.now()), 250);
@@ -439,14 +438,14 @@ export default function GamePlayPage() {
   }, [roomInput, setField, socketRef]);
 
   useEffect(() => {
-    if (!token || joined || autoJoinAttemptedRef.current) return;
+    if (!user || joined || autoJoinAttemptedRef.current) return;
     const urlRoom = (searchParams.get('room') ?? '').replace(/\D/g, '').slice(0, 6);
     if (/^\d{6}$/.test(urlRoom)) {
       autoJoinAttemptedRef.current = true;
       const t = setTimeout(() => join(urlRoom), 400);
       return () => clearTimeout(t);
     }
-  }, [token, joined, searchParams, join]);
+  }, [user, joined, searchParams, join]);
 
   function answer(choiceIdx: number, text?: string) {
     if (!question || myAnswer !== null || reveal) return;
@@ -531,7 +530,7 @@ export default function GamePlayPage() {
     socketRef.current?.emit('circuit_simulate:teacher-message-ack', { messageId });
   }
 
-  if (!token) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

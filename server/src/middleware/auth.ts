@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config.js';
 import { getUserById, toPublicUser, type UserRow } from '../db/connection.js';
+import { getSessionCookie } from '../auth/sessionCookie.js';
 
 export interface AuthedRequest extends Request {
   user?: ReturnType<typeof toPublicUser>;
@@ -17,14 +18,20 @@ function resolveSession(token: string): UserRow | null {
   return row;
 }
 
-export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
+function requestToken(req: Request): string | null {
   const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
+  if (header?.startsWith('Bearer ')) return header.slice(7);
+  return getSessionCookie(req);
+}
+
+export function requireAuth(req: AuthedRequest, res: Response, next: NextFunction): void {
+  const token = requestToken(req);
+  if (!token) {
     res.status(401).json({ error: { code: 'NO_TOKEN', message: 'Thiếu token xác thực' } });
     return;
   }
   try {
-    const row = resolveSession(header.slice(7));
+    const row = resolveSession(token);
     if (!row) {
       res.status(401).json({ error: { code: 'INVALID_USER', message: 'Tài khoản không hợp lệ hoặc đã bị khóa' } });
       return;
@@ -41,8 +48,7 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
 }
 
 export function requireAuthFlexible(req: AuthedRequest, res: Response, next: NextFunction): void {
-  const header = req.headers.authorization;
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : typeof req.query.token === 'string' ? req.query.token : null;
+  const token = requestToken(req);
   if (!token) {
     res.status(401).json({ error: { code: 'NO_TOKEN', message: 'Thiếu token xác thực' } });
     return;

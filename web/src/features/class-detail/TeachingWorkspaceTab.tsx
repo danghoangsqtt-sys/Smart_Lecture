@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Label, Modal, Select, Spinner } from '../../components/ui';
 import { api } from '../../lib/api';
-import { useAuthStore } from '../../stores/authStore';
 import toast from '../../stores/toastStore';
 import type { ContentMode, CurriculumItem, PendingFile, TeachingLecture, TeachingPlan } from './CurriculumTab';
 import type { Subject } from './types';
@@ -390,7 +389,6 @@ interface TeachingMaterial {
 }
 
 function MaterialSection({ title, materials }: { title: string; materials: TeachingMaterial[] }) {
-  const token = useAuthStore((s) => s.token);
   return (
     <div className="space-y-2">
       <h6 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h6>
@@ -401,7 +399,7 @@ function MaterialSection({ title, materials }: { title: string; materials: Teach
           {materials.map((m) => (
             <li key={m.id} className="px-3 py-2 bg-white rounded border border-slate-200 hover:border-blue-300 transition">
               <a
-                href={m.type === 'link' ? (m.linkUrl ?? '#') : `/api/media/${m.id}/stream?token=${encodeURIComponent(token ?? '')}`}
+                href={m.type === 'link' ? (m.linkUrl ?? '#') : `/api/media/${m.id}/stream`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-2 text-sm text-slate-700 hover:text-blue-700"

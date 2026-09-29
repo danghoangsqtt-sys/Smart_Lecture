@@ -2,7 +2,6 @@
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner, Textarea } from '../components/ui';
 import toast from '../stores/toastStore';
-import { useAuthStore } from '../stores/authStore';
 
 interface Material {
   id: string;
@@ -41,7 +40,6 @@ export function useMyClasses() {
 
 export default function LecturesPage() {
   const classes = useMyClasses();
-  const token = useAuthStore((s) => s.token);
   const [selectedClassId, setSelectedClassId] = useState('');
   const classId = selectedClassId || classes[0]?.id || '';
   const [lectures, setLectures] = useState<Lecture[]>([]);
@@ -126,7 +124,7 @@ export default function LecturesPage() {
                           {m.type !== 'link' && m.sizeBytes > 0 && (
                             <span className="text-xs text-slate-500">{(m.sizeBytes / 1024 / 1024).toFixed(1)}MB</span>
                           )}
-                          <a href={`/api/media/${m.id}/stream?token=${encodeURIComponent(token ?? '')}`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:text-blue-900">Xem</a>
+                          <a href={`/api/media/${m.id}/stream`} target="_blank" rel="noreferrer" className="text-xs font-semibold text-blue-700 hover:text-blue-900">Xem</a>
                           <button
                             onClick={async () => {
                               try {
@@ -201,10 +199,8 @@ function UploadMaterialModal({ lectureId, onClose, onUploaded }: { lectureId: st
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const token = (await import('../stores/authStore')).useAuthStore.getState().token;
       const res = await fetch(`/api/lectures/${lectureId}/materials`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
       if (!res.ok) {

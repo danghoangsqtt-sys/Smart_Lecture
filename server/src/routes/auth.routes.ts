@@ -1,17 +1,26 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import { JWT_EXPIRES_IN, JWT_SECRET } from '../config.js';
-import { db, findUserByUsername, toPublicUser } from '../db/connection.js';
+import { db, findUserByUsername, toPublicUser, type UserRow } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
+import { clearSessionCookie, setSessionCookie } from '../auth/sessionCookie.js';
+import { rejectCrossHostOriginWhenPresent } from '../middleware/csrf.js';
 
 const MAX_FAILED_ATTEMPTS = 10;
 const BAD_CREDENTIALS = { error: { code: 'BAD_CREDENTIALS', message: 'Sai tên đăng nhập hoặc mật khẩu' } } as const;
 
 const router = Router();
+
+function sendSession(req: Request, res: Response, row: UserRow): void {
+  const token = jwt.sign({ sub: row.id, sv: row.session_version }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  setSessionCookie(res, token);
+  const response = req.headers.origin ? { user: toPublicUser(row) } : { token, user: toPublicUser(row) };
+  res.json(response);
+}
 
 // Per-account lockout (MAX_FAILED_ATTEMPTS) only stops repeated guesses against
 // ONE username. Nothing else stopped a single LAN device from cycling through
@@ -34,7 +43,7 @@ const loginSchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-router.post('/login', loginRateLimit, (req, res) => {
+router.post('/login', rejectCrossHostOriginWhenPresent, loginRateLimit, (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: { code: 'BAD_INPUT', message: 'Dữ liệu không hợp lệ' } });
@@ -66,8 +75,12 @@ router.post('/login', loginRateLimit, (req, res) => {
     return;
   }
   db.prepare('UPDATE users SET failed_attempts = 0 WHERE id = ?').run(row.id);
-  const token = jwt.sign({ sub: row.id, sv: row.session_version }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-  res.json({ token, user: toPublicUser(row) });
+  sendSession(req, res, row);
+});
+
+router.post('/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
 });
 
 router.get('/me', requireAuth, (req, res) => {
@@ -96,8 +109,7 @@ router.post('/change-password', requireAuth, (req, res) => {
     SET password_hash = ?, must_change_password = 0, failed_attempts = 0, session_version = session_version + 1
     WHERE id = ?`).run(hash, row.id);
   const updated = findUserByUsername(row.username)!;
-  const token = jwt.sign({ sub: updated.id, sv: updated.session_version }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-  res.json({ ok: true, token, user: toPublicUser(updated) });
+  sendSession(req, res, updated);
 });
 
 const createUserSchema = z.object({

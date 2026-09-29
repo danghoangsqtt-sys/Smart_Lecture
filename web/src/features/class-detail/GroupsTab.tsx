@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, EmptyState, Input, Label, Modal, Spinner } from '../../components/ui';
 import { api } from '../../lib/api';
 import toast from '../../stores/toastStore';
-import { useAuthStore } from '../../stores/authStore';
 import { GroupScoresSection } from './CurriculumTab';
 import type { Group, StudentProfile } from './types';
 
@@ -188,8 +187,7 @@ function ImportGroupsModal({ classId, onClose, onImported }: { classId: string; 
   async function downloadTemplate() {
     setDownloadingTemplate(true);
     try {
-      const token = useAuthStore.getState().token;
-      const res = await fetch(`/api/classes/${classId}/groups-template.xlsx`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/classes/${classId}/groups-template.xlsx`);
       if (!res.ok) throw new Error('Tải file mẫu thất bại');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -211,10 +209,8 @@ function ImportGroupsModal({ classId, onClose, onImported }: { classId: string; 
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = useAuthStore.getState().token;
       const res = await fetch(`/api/classes/${classId}/import-groups`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (!res.ok) throw new Error('Import failed');

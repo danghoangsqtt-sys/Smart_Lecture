@@ -68,10 +68,8 @@ export default function RagPage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const token = (await import('../stores/authStore')).useAuthStore.getState().token;
       const res = await fetch('/api/rag/documents', {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: fd,
       });
       if (!res.ok) {

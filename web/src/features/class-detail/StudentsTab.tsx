@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal } from '../../components/ui';
 import { StudentProfileModal } from '../../components/StudentProfileFields';
 import { api } from '../../lib/api';
-import { useAuthStore } from '../../stores/authStore';
 import toast from '../../stores/toastStore';
 import type { StudentLite, StudentProfile } from './types';
 
@@ -138,8 +137,7 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
   async function downloadTemplate() {
     setDownloadingTemplate(true);
     try {
-      const token = useAuthStore.getState().token;
-      const res = await fetch(`/api/classes/${classId}/import-template.xlsx`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/classes/${classId}/import-template.xlsx`);
       if (!res.ok) throw new Error('Tải file mẫu thất bại');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -161,10 +159,8 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const token = useAuthStore.getState().token;
       const res = await fetch(`/api/classes/${classId}/import-students`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (!res.ok) throw new Error('Import failed');

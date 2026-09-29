@@ -9,6 +9,7 @@ Remove long-lived bearer credentials from JavaScript-readable storage while pres
 - `server/src/config.ts` — expose explicit secure-cookie configuration.
 - `server/src/auth/sessionCookie.ts` — centralize cookie parsing, attributes and clearing.
 - `server/src/middleware/csrf.ts` — enforce same-host Origin for cookie-authenticated mutations.
+- `server/src/middleware/securityHeaders.ts` — define the explicit offline/LAN-safe Helmet CSP.
 - `server/src/index.ts` — mount CSRF protection and keep a self-only Helmet CSP.
 - `server/src/routes/auth.routes.ts` — set/renew/clear HttpOnly cookies and add logout.
 - `server/src/middleware/auth.ts` — accept Bearer integrations or the session cookie; remove query tokens.
@@ -23,6 +24,7 @@ Remove long-lived bearer credentials from JavaScript-readable storage while pres
 - `scripts/curriculum-test.mjs` — replace query-token expectations with the cookie/no-query contract.
 - `scripts/browser-auth-security-test.mjs` — focused cookie, CSRF, logout and CSP assertions.
 - `tests/browser/login.spec.ts` — assert reload continuity and absence of tokens in storage, DOM and URLs.
+- `README.md` — document the HTTPS-only secure-cookie deployment flag.
 
 ## File-Level Plan
 
@@ -46,4 +48,12 @@ Remove long-lived bearer credentials from JavaScript-readable storage while pres
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Result
+
+- Browser login, reload, logout, password renewal, media and Socket.IO now use a 12-hour `HttpOnly`, `SameSite=Strict` session cookie; `Secure` is opt-in for HTTPS deployments.
+- Public browser responses contain no bearer token, Zustand authentication is memory-only, and legacy `smart-lecture-auth` storage is removed defensively.
+- Unsafe cookie-authenticated requests require a same-host Origin; no-Origin/Bearer local API integrations remain compatible and query-string tokens are rejected.
+- Font Awesome is bundled locally, remote fonts/styles were removed, and an explicit CSP permits only local/data/blob/socket sources without breaking direct HTTP LAN access.
+- Focused browser-security regression passed 9/9, session revocation passed 7/7, Browser E2E passed 6/6, and typecheck/lint/build/release gates passed.

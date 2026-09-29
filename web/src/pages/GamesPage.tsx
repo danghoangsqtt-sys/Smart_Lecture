@@ -6,7 +6,6 @@ import { createSocketEventScope, getSocket, disconnectSocket } from '../realtime
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
 import CircuitCanvas, { type CircuitData } from '../components/CircuitCanvas';
 import toast from '../stores/toastStore';
-import { useAuthStore } from '../stores/authStore';
 import { useMyClasses } from './LecturesPage';
 import { useFieldReducer, type StateUpdate } from '../hooks/useFieldReducer';
 
@@ -824,10 +823,7 @@ function CircuitDebriefExportActions({ sessionId }: { sessionId: string }) {
   async function download(format: 'csv' | 'xlsx') {
     setExporting(format);
     try {
-      const token = useAuthStore.getState().token;
-      const response = await fetch(`/api/games/${encodeURIComponent(sessionId)}/circuit-debrief/export?format=${format}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await fetch(`/api/games/${encodeURIComponent(sessionId)}/circuit-debrief/export?format=${format}`);
       if (!response.ok) throw new Error('Không thể xuất tổng kết mạch');
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
@@ -1287,10 +1283,8 @@ function useHostConsoleEffects(
   }, [phase, setField]);
 
   useEffect(() => {
-    const token = useAuthStore.getState().token;
-    if (!token) return;
     const pendingTimers = pendingTimersRef.current;
-    const socket = getSocket(token);
+    const socket = getSocket();
     socketRef.current = socket;
     const socketEvents = createSocketEventScope(socket);
     const on = socketEvents.on;

@@ -13,7 +13,7 @@ import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.j
 const router = Router();
 
 // Registered before the blanket requireAuth below so <iframe>/<video>/<a> embeds can
-// authenticate via ?token= — they can't attach an Authorization header.
+// authenticate through the same-origin HttpOnly session cookie.
 router.get(
   '/media/:materialId/stream',
   requireAuthFlexible,

@@ -6,6 +6,8 @@
 - Hoàn thành migration backup-first từ data legacy: xác minh SHA-256, publish nguyên tử, từ chối collision và giữ nguyên nguồn để rollback.
 - Thêm khôi phục admin offline có backup, mật khẩu tạm bắt đổi và xoay JWT secret để thu hồi phiên cũ; không mở reset endpoint trên LAN.
 - Thêm `session_version` vào JWT/SQLite; REST, media và Socket.IO từ chối token cũ sau đổi/reset mật khẩu hoặc lock/unlock tài khoản.
+- Chuyển xác thực trình duyệt sang cookie HttpOnly/SameSite, bỏ token khỏi storage/URL, thêm bảo vệ Origin cho mutation và logout tường minh.
+- Bundle Font Awesome nội bộ, loại bỏ CDN/font runtime và áp dụng CSP tường minh phù hợp truy cập HTTP LAN.
 - Lập kế hoạch session revocation, credential bootstrap, multipart/mDNS hardening, bộ icon mới và focused tests.
 
 ## 2026-09-09 — Media & backup integrity hardening v0.10.2

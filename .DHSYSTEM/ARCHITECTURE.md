@@ -180,7 +180,9 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 
 ## 7. Bảo mật
 
-- HTTP security headers dùng Helmet CSP mặc định; asset, PDF worker, media và Socket.IO được phục vụ cùng origin.
+- HTTP security headers dùng Helmet với CSP tường minh: script/style/font mặc định cùng origin, chỉ bổ sung data/blob/socket khi runtime cần; không có CDN và không tự nâng HTTP LAN thành HTTPS.
+- Trình duyệt nhận JWT trong cookie `smartlecture_session` 12 giờ, `HttpOnly`, `SameSite=Strict`, path `/`; `Secure` chỉ bật bằng `SESSION_COOKIE_SECURE=true` khi thực sự triển khai HTTPS. JavaScript chỉ giữ public user trong bộ nhớ và hydrate lại qua `/api/auth/me`.
+- Mutation dùng cookie bắt buộc Origin cùng hostname; Bearer/no-Origin dành cho local integration. Login từ Origin khác bị chặn, logout xóa cookie và query-string token không được chấp nhận.
 - Direct-LAN deployment không trust proxy headers mặc định. `TRUST_PROXY` chỉ được bật explicit khi ứng dụng thực sự đứng sau reverse proxy do đơn vị triển khai kiểm soát.
 
 - JWT HS256, secret random 64 bytes sinh 1 lần lưu `data/secret.key` (0600)
@@ -199,5 +201,5 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - `DATA_DIR` và `DB_PATH` có thể override bằng biến môi trường; CI/E2E bắt buộc dùng thư mục tạm.
 - Bản cài Windows luôn truyền `DATA_DIR=%LOCALAPPDATA%\SmartLecture\data`. Dữ liệu legacy trong cây ứng dụng chỉ được sao chép qua staging cùng ổ đích, kiểm tra manifest SHA-256 và publish nguyên tử; không tự gộp hai data root đã có nội dung.
 - Restore xác minh ZIP/manifest, stage `restore-pending.db` cùng `restore-pending-media/`; lần boot kế tiếp tạo bản DB/media rollback, phục hồi media đóng gói rồi thay DB trước khi mở kết nối SQLite. Media lớn chỉ có trong manifest và media ngoài manifest được giữ nguyên.
-- Native media viewer dùng URL query-token đã encode vì `<video>`, `<img>` và `<object>` không gắn được Bearer header; response đặt `Cache-Control: private, no-store` và `Referrer-Policy: no-referrer`.
+- Native media viewer dùng HttpOnly cookie cùng origin cho `<video>`, `<img>` và `<object>`; query-token bị từ chối để tránh lộ credential qua URL. Response đặt `Cache-Control: private, no-store` và `Referrer-Policy: no-referrer`.
 - `game_sessions.class_id` là nguồn enrollment gate; mọi event điều khiển host so khớp `host_teacher_id` với JWT socket.

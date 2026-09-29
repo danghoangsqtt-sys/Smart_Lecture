@@ -170,9 +170,7 @@ function BankTab() {
       if (bloomFilter) params.set('bloom', bloomFilter);
       if (folderFilter) params.set('folderId', folderFilter);
       if (q) params.set('q', q);
-      const res = await fetch(`/api/questions/export/txt?${params}`, {
-        headers: { Authorization: `Bearer ${(await import('../stores/authStore')).useAuthStore.getState().token}` },
-      });
+      const res = await fetch(`/api/questions/export/txt?${params}`);
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -195,9 +193,7 @@ function BankTab() {
       if (bloomFilter) params.set('bloom', bloomFilter);
       if (folderFilter) params.set('folderId', folderFilter);
       if (q) params.set('q', q);
-      const res = await fetch(`/api/questions/export/docx?${params}`, {
-        headers: { Authorization: `Bearer ${(await import('../stores/authStore')).useAuthStore.getState().token}` },
-      });
+      const res = await fetch(`/api/questions/export/docx?${params}`);
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -543,10 +539,8 @@ function ImportTab() {
       formData.append('chapter', chapter);
       formData.append('lesson', lesson);
       formData.append('difficulty', difficulty);
-      const token = (await import('../stores/authStore')).useAuthStore.getState().token;
       const res = await fetch('/api/questions/import-file', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (!res.ok) throw new Error('Preview failed');

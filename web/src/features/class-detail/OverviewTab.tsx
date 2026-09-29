@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Card, Spinner } from '../../components/ui';
 import { api } from '../../lib/api';
-import { useAuthStore } from '../../stores/authStore';
 import toast from '../../stores/toastStore';
 import type { DashboardData } from './types';
 
@@ -20,8 +19,7 @@ export function OverviewTab({ classId }: { classId: string }) {
 
   async function exportExcel() {
     if (!dashboard) return;
-    const token = useAuthStore.getState().token;
-    const res = await fetch(`/api/classes/${classId}/export/xlsx`, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(`/api/classes/${classId}/export/xlsx`);
     if (!res.ok) throw new Error(`Không thể xuất Excel (${res.status})`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);

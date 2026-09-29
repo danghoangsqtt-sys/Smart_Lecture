@@ -43,7 +43,8 @@ export default function Layout() {
 
   const visibleNav = NAV.filter((item) => item.roles.includes(user.role));
 
-  function handleLogout() {
+  async function handleLogout() {
+    try { await api('/auth/logout', { method: 'POST' }); } catch { /* clear local state even if the cookie expired */ }
     disconnectSocket();
     clearAuth();
     navigate('/login', { replace: true });
@@ -121,11 +122,11 @@ function ChangePasswordModal({ open, required, onClose }: { open: boolean; requi
   async function submit() {
     setBusy(true);
     try {
-      const result = await api<{ token: string; user: PublicUser }>('/auth/change-password', {
+      const result = await api<{ user: PublicUser }>('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({ oldPassword, newPassword }),
       });
-      useAuthStore.getState().setAuth(result.token, result.user);
+      useAuthStore.getState().setAuth(result.user);
       toast.success('Đã đổi mật khẩu');
       onClose();
     } catch (e) {

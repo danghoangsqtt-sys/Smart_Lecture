@@ -217,7 +217,6 @@ export default function TeachingModePage() {
   const { id, subjectId } = useParams<{ id: string; subjectId: string }>();
   const classId = id ?? '';
   const navigate = useNavigate();
-  const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
 
   const [subject, setSubject] = useState<Subject | null>(null);
@@ -412,7 +411,6 @@ export default function TeachingModePage() {
             lecture={linkedLecture}
             materials={teachingMaterials}
             contentMode={contentMode}
-            token={token}
             onRefresh={loadData}
           />
           <TeachingControls
@@ -469,7 +467,7 @@ export default function TeachingModePage() {
           onGameLaunched={(gameId) => void recordTeachingAction('game', gameId)}
         />
       )}
-      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} token={token} minimized={videoDockMinimized} position={videoDockPosition} playback={videoPlayback} onPlaybackChange={setVideoPlayback} onPositionChange={setVideoDockPosition} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); }} />}
+      {videoDockMaterial && <TeachingVideoDock material={videoDockMaterial} minimized={videoDockMinimized} position={videoDockPosition} playback={videoPlayback} onPlaybackChange={setVideoPlayback} onPositionChange={setVideoDockPosition} onToggleMinimized={() => setVideoDockMinimized((value) => !value)} onClose={() => { setVideoDockMaterial(null); setVideoDockMinimized(false); setVideoPlayback(DEFAULT_VIDEO_PLAYBACK_CHECKPOINT); }} />}
       {finishModalOpen && activeLog && (
         <FinishSessionModal
           log={activeLog}
@@ -571,14 +569,12 @@ function TeachingContentViewer({
   lecture,
   materials,
   contentMode,
-  token,
   onRefresh,
 }: {
   selectedItem: CurriculumItem | null;
   lecture: TeachingLecture | null;
   materials: TeachingMaterial[];
   contentMode: ContentMode;
-  token: string | null;
   onRefresh: () => Promise<void>;
 }) {
   if (!selectedItem || !lecture) {
@@ -594,14 +590,14 @@ function TeachingContentViewer({
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-950 p-6">
       <div className="w-full max-w-4xl">
-        {contentMode === 'slides' && materials.length > 0 && <SlidesContent lecture={lecture} materials={materials} token={token} onRefresh={onRefresh} />}
+        {contentMode === 'slides' && materials.length > 0 && <SlidesContent lecture={lecture} materials={materials} onRefresh={onRefresh} />}
         {contentMode === 'video' && materials.length > 0 && (
           <div className="space-y-4">
             <h4 className="text-sm uppercase tracking-wide text-slate-400">Video</h4>
             {materials.map((material) => (
               <div key={material.id} className="rounded-lg border border-slate-700 bg-slate-800 p-4">
                 <h5 className="mb-2 font-medium text-white">{material.title}</h5>
-                <video src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls className="w-full rounded bg-black" />
+                <video src={`/api/media/${material.id}/stream`} controls className="w-full rounded bg-black" />
               </div>
             ))}
           </div>
@@ -610,7 +606,7 @@ function TeachingContentViewer({
           <div className="space-y-2">
             <h4 className="text-sm uppercase tracking-wide text-slate-400">Liên kết & Tài liệu</h4>
             {materials.map((material) => (
-              <a key={material.id} href={material.linkUrl ?? `/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 transition hover:border-blue-500">
+              <a key={material.id} href={material.linkUrl ?? `/api/media/${material.id}/stream`} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800 px-4 py-3 transition hover:border-blue-500">
                 <i className={`fas ${material.type === 'link' ? 'fa-external-link-alt' : 'fa-file'} text-blue-400`} />
                 <span className="flex-1 truncate text-white">{material.title}</span>
                 <i className="fas fa-arrow-up-right-from-square text-xs text-slate-500" />
@@ -626,7 +622,7 @@ function TeachingContentViewer({
   );
 }
 
-function SlidesContent({ lecture, materials, token, onRefresh }: { lecture: TeachingLecture; materials: TeachingMaterial[]; token: string | null; onRefresh: () => Promise<void> }) {
+function SlidesContent({ lecture, materials, onRefresh }: { lecture: TeachingLecture; materials: TeachingMaterial[]; onRefresh: () => Promise<void> }) {
   const [convertingMaterialId, setConvertingMaterialId] = useState<string | null>(null);
   async function convertPowerPoint(material: TeachingMaterial) {
     setConvertingMaterialId(material.id);
@@ -643,13 +639,13 @@ function SlidesContent({ lecture, materials, token, onRefresh }: { lecture: Teac
       {materials.map((material) => {
         const sibling = material.type === 'pptx' ? getConvertedSibling(lecture, material.id) : null;
         const inlineTarget = sibling ?? material;
-        const streamUrl = `/api/media/${inlineTarget.id}/stream?token=${encodeURIComponent(token ?? '')}`;
+        const streamUrl = `/api/media/${inlineTarget.id}/stream`;
         return (
           <div key={material.id} className="rounded-lg border border-slate-700 bg-slate-800 p-4">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-medium text-white">{material.title}</span>
               <div className="flex items-center gap-3">
-                {sibling && <a href={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300">Mở bản gốc PowerPoint</a>}
+                {sibling && <a href={`/api/media/${material.id}/stream`} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300">Mở bản gốc PowerPoint</a>}
                 <a href={streamUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:text-blue-300">Mở toàn màn hình →</a>
               </div>
             </div>
@@ -744,7 +740,7 @@ function formatPlaybackTime(seconds: number): string {
   return `${Math.floor(wholeSeconds / 60)}:${String(wholeSeconds % 60).padStart(2, '0')}`;
 }
 
-function TeachingVideoDock({ material, token, minimized, position, playback, onPlaybackChange, onPositionChange, onToggleMinimized, onClose }: { material: TeachingMaterial; token: string | null; minimized: boolean; position: DockPosition; playback: VideoPlaybackCheckpoint; onPlaybackChange: (checkpoint: VideoPlaybackCheckpoint) => void; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void }) {
+function TeachingVideoDock({ material, minimized, position, playback, onPlaybackChange, onPositionChange, onToggleMinimized, onClose }: { material: TeachingMaterial; minimized: boolean; position: DockPosition; playback: VideoPlaybackCheckpoint; onPlaybackChange: (checkpoint: VideoPlaybackCheckpoint) => void; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [resumeNeedsGesture, setResumeNeedsGesture] = useState(false);
@@ -779,7 +775,7 @@ function TeachingVideoDock({ material, token, minimized, position, playback, onP
   };
   return <div aria-label="Trình phát video nổi" style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-rose-400 bg-black shadow-2xl ${minimized ? 'w-64' : 'w-[min(92vw,560px)]'}`}>
     <div aria-label="Kéo khung video" onPointerDown={(event) => { if (!(event.target as HTMLElement).closest('button')) { dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y }; event.currentTarget.setPointerCapture(event.pointerId); } }} onPointerMove={(event) => { const drag = dragRef.current; if (drag) onPositionChange(clampDockPosition({ x: event.clientX - drag.x, y: event.clientY - drag.y }, 40)); }} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex h-10 cursor-move touch-none items-center justify-between bg-rose-900 px-3 text-sm text-white"><span className="truncate">🎬 {material.title}{minimized && <span className="ml-2 text-[10px] text-rose-100">{isPlaying ? 'Đang phát nền' : resumeNeedsGesture ? `Tiếp tục từ ${formatPlaybackTime(playback.positionSeconds)}` : 'Đã thu nhỏ'}</span>}</span><div className="flex gap-1"><button type="button" onClick={onToggleMinimized} aria-label={minimized ? 'Mở rộng video' : 'Thu nhỏ video'} className="rounded px-2 hover:bg-white/15">{minimized ? '+' : '−'}</button>{resumeNeedsGesture && <button type="button" onClick={() => void continuePlayback()} aria-label="Tiếp tục video đã khôi phục" className="rounded px-2 text-xs hover:bg-white/15">Tiếp tục</button>}<button type="button" onClick={() => void requestPiP()} aria-label="Picture in Picture" className="rounded px-2 hover:bg-white/15">PiP</button><button type="button" onClick={onClose} aria-label="Đóng video" className="rounded px-2 hover:bg-white/15">×</button></div></div>
-    <video ref={videoRef} src={`/api/media/${material.id}/stream?token=${encodeURIComponent(token ?? '')}`} controls autoPlay onLoadedMetadata={restorePlayback} onPlay={() => { setIsPlaying(true); checkpoint(true, true); }} onPause={() => { setIsPlaying(false); checkpoint(false, true); }} onTimeUpdate={() => checkpoint(true)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
+    <video ref={videoRef} src={`/api/media/${material.id}/stream`} controls autoPlay onLoadedMetadata={restorePlayback} onPlay={() => { setIsPlaying(true); checkpoint(true, true); }} onPause={() => { setIsPlaying(false); checkpoint(false, true); }} onTimeUpdate={() => checkpoint(true)} className={`w-full bg-black ${minimized ? 'pointer-events-none absolute left-0 top-10 h-px w-px opacity-0' : ''}`} />
   </div>;
 }
 

@@ -134,12 +134,12 @@ try {
   check('stream: no token -> 401 NO_TOKEN', noToken.status === 401 && noToken.data.error?.code === 'NO_TOKEN');
 
   const badQueryToken = await fetch(`${BASE}/api/media/does-not-exist/stream?token=garbage`).then((r) => r.json().then((data) => ({ status: r.status, data })));
-  check('stream: bad ?token= -> 401 BAD_TOKEN', badQueryToken.status === 401 && badQueryToken.data.error?.code === 'BAD_TOKEN');
+  check('stream: query token is ignored -> 401 NO_TOKEN', badQueryToken.status === 401 && badQueryToken.data.error?.code === 'NO_TOKEN');
 
   const validQueryToken = await fetch(`${BASE}/api/media/does-not-exist/stream?token=${encodeURIComponent(adminToken)}`).then((r) =>
     r.json().then((data) => ({ status: r.status, data }))
   );
-  check('stream: valid ?token= passes auth -> 404 NOT_FOUND (not 401)', validQueryToken.status === 404 && validQueryToken.data.error?.code === 'NOT_FOUND');
+  check('stream: even a valid query token is rejected -> 401 NO_TOKEN', validQueryToken.status === 401 && validQueryToken.data.error?.code === 'NO_TOKEN');
 
   const validBearer = await api('GET', '/media/does-not-exist/stream', adminToken);
   check('stream: valid Bearer header still works -> 404 NOT_FOUND', validBearer.status === 404 && validBearer.data.error?.code === 'NOT_FOUND');

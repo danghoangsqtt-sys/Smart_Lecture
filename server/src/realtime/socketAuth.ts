@@ -2,11 +2,15 @@ import type { Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config.js';
 import { getUserById } from '../db/connection.js';
+import { getSessionCookieFromHeader } from '../auth/sessionCookie.js';
 
 export interface SocketPayload { userId: string; role: string }
 
 export function authenticateSocket(socket: Socket): SocketPayload | null {
-  const token = socket.handshake.auth?.token as string | undefined;
+  const bearerToken = socket.handshake.auth?.token;
+  const token = typeof bearerToken === 'string'
+    ? bearerToken
+    : getSessionCookieFromHeader(socket.request.headers.cookie) ?? undefined;
   if (!token) return null;
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { sub?: string; sv?: number };

@@ -12,14 +12,11 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = useAuthStore.getState().token;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> | undefined),
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const res = await fetch(`/api${path}`, { ...options, headers, credentials: 'same-origin' });
 
   if (!res.ok) {
     let code = 'UNKNOWN';

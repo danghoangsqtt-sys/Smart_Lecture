@@ -2,8 +2,8 @@
 
 ## Milestone v0.11.0 — Recovery, Security & Release Reliability (planned)
 
-- P75: installed-data migration and offline owner recovery.
-- P76: REST/Socket session revocation and safer browser authentication.
+- P75: installed-data migration and offline owner recovery. ✅
+- P76: REST/Socket session revocation and safer browser authentication. ✅
 - P77: one-time imported credentials with forced first change.
 - P78: multipart, direct-LAN perimeter and dependency advisory hardening.
 - P79: mDNS lifecycle and reliable isolated E2E.

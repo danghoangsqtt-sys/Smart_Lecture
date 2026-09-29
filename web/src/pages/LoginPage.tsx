@@ -5,7 +5,6 @@ import { api } from '../lib/api';
 import type { PublicUser } from '../types';
 
 interface LoginResponse {
-  token: string;
   user: PublicUser;
 }
 
@@ -27,7 +26,7 @@ export default function LoginPage() {
         method: 'POST',
         body: JSON.stringify({ username, password }),
       });
-      setAuth(res.token, res.user);
+      setAuth(res.user);
       const from = (location.state as { from?: string } | null)?.from ?? '/';
       navigate(from, { replace: true });
     } catch (err) {

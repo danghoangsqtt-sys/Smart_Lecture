@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, EmptyState, Input, Label, Modal, Select, Spinner, Textarea } from '../../components/ui';
 import { api } from '../../lib/api';
 import toast from '../../stores/toastStore';
-import { useAuthStore } from '../../stores/authStore';
 import { RemarkModal } from './GradebookTab';
 import { downloadExcelWorkbook } from './excelExport';
 import type { Lecture, Subject } from './types';
@@ -292,8 +291,7 @@ function ImportCurriculumModal({ classId, subjectId, onClose, onImported }: { cl
   async function downloadTemplate() {
     setDownloadingTemplate(true);
     try {
-      const token = useAuthStore.getState().token;
-      const res = await fetch(`/api/classes/${classId}/teaching-plans/template.xlsx`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`/api/classes/${classId}/teaching-plans/template.xlsx`);
       if (!res.ok) throw new Error('Tải file mẫu thất bại');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -316,10 +314,8 @@ function ImportCurriculumModal({ classId, subjectId, onClose, onImported }: { cl
       const formData = new FormData();
       formData.append('file', file);
       formData.append('subjectId', subjectId);
-      const token = useAuthStore.getState().token;
       const res = await fetch(`/api/classes/${classId}/teaching-plans/import-curriculum`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (!res.ok) throw new Error('Import failed');

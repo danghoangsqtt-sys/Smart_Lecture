@@ -20,6 +20,7 @@ export const RESTORE_PENDING_MEDIA_DIR = path.join(DATA_DIR, 'restore-pending-me
 export const WEB_DIST_DIR = path.resolve(__dirname, '../../web/dist');
 
 export const PORT = Number(process.env.PORT ?? 4000);
+export const SESSION_COOKIE_SECURE = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase() === 'true';
 
 export const TRUST_PROXY: boolean | number | string = (() => {
   const raw = process.env.TRUST_PROXY?.trim();

@@ -37,6 +37,21 @@ test('admin can change the initial password and log in through the browser', asy
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText('SmartLecture').first()).toBeVisible();
+
+  const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'smartlecture_session');
+  expect(sessionCookie?.httpOnly).toBe(true);
+  expect(sessionCookie?.sameSite).toBe('Strict');
+  expect(await page.evaluate(() => ({
+    local: localStorage.getItem('smart-lecture-auth'),
+    session: sessionStorage.getItem('smart-lecture-auth'),
+    tokenInStorage: [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => /eyJ[A-Za-z0-9_-]+\./.test(value)),
+    tokenInDom: /eyJ[A-Za-z0-9_-]+\./.test(document.documentElement.innerHTML),
+    tokenInUrl: /[?&]token=/.test(location.href),
+  }))).toEqual({ local: null, session: null, tokenInStorage: false, tokenInDom: false, tokenInUrl: false });
+
+  await page.reload();
+  await expect(page.getByText('SmartLecture').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('teacher can open Teaching Mode and minimize the persistent game dock', async ({ page, request }) => {
@@ -45,8 +60,11 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   const teacher = await request.post('/api/users', { headers: { Authorization: `Bearer ${adminToken}` }, data: { username: 'browser.teacher', password: 'Teacher@123', role: 'teacher', displayName: 'Browser Teacher' } });
   expect(teacher.ok()).toBeTruthy();
   const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@123' } });
-  const teacherToken = (await teacherLogin.json() as { token: string }).token;
-  await request.post('/api/auth/change-password', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' } });
+  const initialTeacherToken = (await teacherLogin.json() as { token: string }).token;
+  const changedTeacherPassword = await request.post('/api/auth/change-password', { headers: { Authorization: `Bearer ${initialTeacherToken}` }, data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' } });
+  const changedTeacherBody = await changedTeacherPassword.json() as { token?: string; error?: unknown };
+  expect(changedTeacherPassword.ok(), JSON.stringify(changedTeacherBody)).toBeTruthy();
+  const teacherToken = changedTeacherBody.token!;
   const created = await request.post('/api/classes', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { name: 'Browser Class', subject: 'Browser Subject', academicYear: '2026-2027' } });
   const classId = (await created.json() as { class: { id: string } }).class.id;
   const subjects = await request.get(`/api/classes/${classId}/subjects`, { headers: { Authorization: `Bearer ${teacherToken}` } });
@@ -656,8 +674,11 @@ test('student can join a game room from the dashboard button', async ({ page, re
   const teacher = await request.post('/api/users', { headers: { Authorization: `Bearer ${adminToken}` }, data: { username: 'browser.dash.teacher', password: 'Teacher@123', role: 'teacher', displayName: 'Dash Teacher' } });
   expect(teacher.ok()).toBeTruthy();
   const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.dash.teacher', password: 'Teacher@123' } });
-  const teacherToken = (await teacherLogin.json() as { token: string }).token;
-  await request.post('/api/auth/change-password', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' } });
+  const initialTeacherToken = (await teacherLogin.json() as { token: string }).token;
+  const changedTeacherPassword = await request.post('/api/auth/change-password', { headers: { Authorization: `Bearer ${initialTeacherToken}` }, data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' } });
+  const changedTeacherBody = await changedTeacherPassword.json() as { token?: string; error?: unknown };
+  expect(changedTeacherPassword.ok(), JSON.stringify(changedTeacherBody)).toBeTruthy();
+  const teacherToken = changedTeacherBody.token!;
   const created = await request.post('/api/classes', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { name: 'Dash Class', subject: 'Dash Subject', academicYear: '2026-2027' } });
   const classId = (await created.json() as { class: { id: string } }).class.id;
   const student = await request.post('/api/users', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { username: 'browser.dash.student', password: 'Student@123', role: 'student', displayName: 'Dash Student' } });
@@ -695,11 +716,14 @@ test('student can download authenticated learning media', async ({ page, request
   });
   expect(teacher.ok()).toBeTruthy();
   const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.media.teacher', password: 'Teacher@123' } });
-  const teacherToken = (await teacherLogin.json() as { token: string }).token;
-  await request.post('/api/auth/change-password', {
-    headers: { Authorization: `Bearer ${teacherToken}` },
+  const initialTeacherToken = (await teacherLogin.json() as { token: string }).token;
+  const changedTeacherPassword = await request.post('/api/auth/change-password', {
+    headers: { Authorization: `Bearer ${initialTeacherToken}` },
     data: { oldPassword: 'Teacher@123', newPassword: 'Teacher@1234' },
   });
+  const changedTeacherBody = await changedTeacherPassword.json() as { token?: string; error?: unknown };
+  expect(changedTeacherPassword.ok(), JSON.stringify(changedTeacherBody)).toBeTruthy();
+  const teacherToken = changedTeacherBody.token!;
   const created = await request.post('/api/classes', {
     headers: { Authorization: `Bearer ${teacherToken}` },
     data: { name: 'Media Class', subject: 'Media Subject', academicYear: '2026-2027' },
@@ -725,7 +749,8 @@ test('student can download authenticated learning media', async ({ page, request
     multipart: { file: { name: 'learner-material.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: fixture } },
   });
   const materialId = (await material.json() as { id: string }).id;
-  expect((await request.get(`/api/media/${materialId}/stream`)).status()).toBe(401);
+  const anonymousMedia = await fetch(`${process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:4300'}/api/media/${materialId}/stream`);
+  expect(anonymousMedia.status).toBe(401);
 
   await page.goto('/login');
   await page.locator('#username').fill('browser.media.student');

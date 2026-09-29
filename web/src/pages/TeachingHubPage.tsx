@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
-import { useAuthStore } from '../stores/authStore';
 import toast from '../stores/toastStore';
 
 interface ClassInfo { id: string; name: string; subject: string; academicYear: string; studentCount: number; }
@@ -97,11 +96,8 @@ export default function TeachingHubPage() {
     if (!classId) return;
     setExporting(true);
     try {
-      const token = useAuthStore.getState().token;
       const subjectQuery = insightSubjectId ? `&subjectId=${encodeURIComponent(insightSubjectId)}` : '';
-      const response = await fetch(`/api/classes/${classId}/teaching-logs/export?format=${format}${subjectQuery}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const response = await fetch(`/api/classes/${classId}/teaching-logs/export?format=${format}${subjectQuery}`);
       if (!response.ok) throw new Error('Không thể xuất báo cáo sau tiết');
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');

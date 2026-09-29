@@ -2,7 +2,6 @@ import express from 'express';
 import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { NETWORK_INTERFACES, PORT, TRUST_PROXY, WEB_DIST_DIR } from './config.js';
 import { migrate } from './db/connection.js';
@@ -31,6 +30,8 @@ import settingsRoutes from './routes/settings.routes.js';
 import { initGameEngine } from './realtime/gameRoom.js';
 import { startBackupScheduler } from './services/backup.js';
 import { errorHandler } from './utils/errors.js';
+import { requireSameHostCookieOrigin } from './middleware/csrf.js';
+import { securityHeaders } from './middleware/securityHeaders.js';
 
 migrate();
 seedAdmin();
@@ -38,8 +39,9 @@ ensureAllDropFolders();
 
 const app = express();
 if (TRUST_PROXY !== false) app.set('trust proxy', TRUST_PROXY);
-app.use(helmet());
+app.use(securityHeaders);
 app.use(express.json({ limit: '4mb' }));
+app.use('/api', requireSameHostCookieOrigin);
 app.use(
   rateLimit({
     windowMs: 60_000,
@@ -57,8 +59,8 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 // lecturesRoutes must be mounted before any router with an unscoped router.use(requireAuth)
 // (e.g. usersRoutes) — its /media/:materialId/stream route runs requireAuthFlexible ahead of
-// its own blanket auth specifically so <img>/<video>/<a> embeds can authenticate via ?token=
-// instead of a Bearer header. An earlier blanket requireAuth would otherwise intercept and
+// its own blanket auth so <img>/<video>/<a> embeds can authenticate through the same-origin
+// HttpOnly cookie. An earlier blanket requireAuth would otherwise intercept and
 // 401 those requests before this route is ever reached, since Express runs a path-less
 // router.use() for every request that enters that router, matching route or not.
 app.use('/api', lecturesRoutes);

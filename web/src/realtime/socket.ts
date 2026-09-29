@@ -10,12 +10,12 @@ export interface SocketEventScope {
 
 let socket: Socket | null = null;
 
-export function getSocket(token: string): Socket {
+export function getSocket(): Socket {
   if (!socket || !socket.connected) {
     if (socket) socket.disconnect();
     socket = io('/', {
-      auth: { token },
       transports: ['websocket', 'polling'],
+      withCredentials: true,
     });
   }
   return socket;
