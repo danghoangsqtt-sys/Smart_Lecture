@@ -1,5 +1,10 @@
 # Changelog
 
+## Planned — Giảng dạy đồng thời 2–4 lớp v0.12.0
+
+- Đã lập kế hoạch P83–P85 cho một buổi học cùng môn/bài, một luồng trình chiếu và một phòng game; điểm danh, kết quả và KTTX tách theo lớp.
+- Đây là kế hoạch, chưa có trong ứng dụng/bộ cài v0.11.0 hiện tại; phiên bản chạy sẽ chỉ tăng khi triển khai và phát hành.
+
 ## Unreleased — Recovery, security & release reliability v0.11.0
 
 - Bắt đầu P75 với di chuyển dữ liệu cài đặt ra `%LOCALAPPDATA%\SmartLecture\data` và cơ chế khôi phục admin offline.

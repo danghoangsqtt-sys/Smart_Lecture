@@ -1,5 +1,54 @@
 # ROADMAP — Smart_Lecture
 
+## Milestone v0.12.0 — Một buổi giảng dạy cho nhiều lớp (planned, sau v0.11.0)
+
+> Kế hoạch tính năng mới, chưa triển khai. Giữ nguyên gói ứng dụng và release gate v0.11.0; chỉ nâng phiên bản chạy khi triển khai/phát hành v0.12.0.
+
+**Ước lượng:** XL — thay đổi mô hình dữ liệu, quyền truy cập, realtime và nhiều luồng UI; 10 task qua 3 phase.
+
+### Phase 83 — Nền tảng phiên dạy đa lớp
+
+**Goal:** Một nhật ký/buổi dạy cho 2–4 lớp cùng môn/bài; một lớp nguồn cung cấp học liệu, các lớp tham gia được ghi rõ và xác thực đầy đủ.
+**Dependencies:** Hoàn tất P82 và tận dụng phần tách module P81.
+**Estimated tasks:** 3.
+
+| Task | Mô tả | Điều kiện nghiệm thu |
+|---|---|---|
+| T-8301 | Migration quan hệ phiên dạy–lớp, giữ nguyên bản ghi một lớp cũ | Backup/migration trên DB cũ không mất dữ liệu; 2–4 lớp duy nhất, lớp nguồn luôn thuộc nhóm |
+| T-8302 | API lifecycle tạo/khôi phục/kết thúc một phiên đa lớp | Kiểm tra quyền trên mọi lớp; chống phiên mở chồng/lặp request; không thể đổi danh sách lớp sau khi bắt đầu |
+| T-8303 | Quyền truy cập học liệu nguồn cho thành viên các lớp tham gia | Cùng bài/PDF/video cho nhóm; lớp ngoài nhóm không được xem; luồng một lớp giữ nguyên |
+
+**Verification:** migration từ DB thật sao chép cô lập, REST authorization/transaction tests, typecheck/lint/build và hồi quy một lớp.
+
+### Phase 84 — Điểm danh và game chung, điểm số riêng
+
+**Goal:** Một phòng game cho hội trường; mỗi người chơi có lớp đã xác thực, điểm danh và KTTX ghi đúng lớp.
+**Dependencies:** P83.
+**Estimated tasks:** 3.
+
+| Task | Mô tả | Điều kiện nghiệm thu |
+|---|---|---|
+| T-8401 | Liên kết một buổi chung với điểm danh riêng từng lớp | Mỗi lớp có danh sách/phiên điểm danh riêng; không sửa điểm danh lớp khác; xử lý trùng ngày rõ ràng |
+| T-8402 | Một phòng game cho tất cả lớp, lưu lớp của người chơi | Học viên đúng một lớp tham gia; trường hợp ghi danh nhiều lớp phải chọn một lớp; reload/restart giữ ánh xạ |
+| T-8403 | Ghi kết quả, bonus/KTTX, leaderboard theo lớp | Một kết quả/người chơi, cộng điểm đúng lớp đúng một lần; xem tổng phòng và lọc lớp; không rò dữ liệu lớp khác |
+
+**Verification:** Socket/restart/idempotency tests với 2–4 lớp và học viên ghi danh chồng, regressions game hiện có.
+
+### Phase 85 — Workspace, báo cáo và nghiệm thu
+
+**Goal:** Giáo viên bắt đầu, dạy và tổng kết buổi đa lớp trong một workspace mà không phải mở nhiều tab.
+**Dependencies:** P84.
+**Estimated tasks:** 4.
+
+| Task | Mô tả | Điều kiện nghiệm thu |
+|---|---|---|
+| T-8501 | Teaching Hub chọn 2–4 lớp, môn/bài chung và xem preflight | Hiển thị lớp nguồn, tổng học viên duy nhất, quyền/lớp thiếu dữ liệu; không cho mở nhóm sai |
+| T-8502 | Teaching Mode một luồng trình chiếu/video/game và điểm danh theo lớp | Reload khôi phục đúng phiên nhóm, không nhân đôi game/telemetry; trạng thái lớp rõ ràng |
+| T-8503 | Tổng quan và xuất báo cáo chung/theo lớp | Một hoạt động live không bị cộng 2–4 lần; số điểm danh/điểm số đúng từng lớp; CSV/XLSX nhất quán |
+| T-8504 | Browser E2E, kiểm thử nâng cấp và phát hành v0.12.0 | Dạy đủ vòng với 2–4 lớp, một lớp cũ vẫn chạy, rollback/backup an toàn, release gate đạt |
+
+**Verification:** typecheck, lint, build, React Doctor, REST/Socket/Browser E2E cô lập, kiểm thử restart và xuất báo cáo.
+
 ## Milestone v0.11.0 — Recovery, Security & Release Reliability (planned)
 
 - P75: installed-data migration and offline owner recovery. ✅

@@ -204,3 +204,20 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - Restore xác minh ZIP/manifest, stage `restore-pending.db` cùng `restore-pending-media/`; lần boot kế tiếp tạo bản DB/media rollback, phục hồi media đóng gói rồi thay DB trước khi mở kết nối SQLite. Media lớn chỉ có trong manifest và media ngoài manifest được giữ nguyên.
 - Native media viewer dùng HttpOnly cookie cùng origin cho `<video>`, `<img>` và `<object>`; query-token bị từ chối để tránh lộ credential qua URL. Response đặt `Cache-Control: private, no-store` và `Referrer-Policy: no-referrer`.
 - `game_sessions.class_id` là nguồn enrollment gate; mọi event điều khiển host so khớp `host_teacher_id` với JWT socket.
+
+## 9. Thiết kế dự kiến v0.12.0 — một buổi dạy cho nhiều lớp (chưa triển khai)
+
+Một buổi có 2–4 lớp tham gia, cùng môn/bài, một luồng trình chiếu/video và một phòng game. Điểm danh, KTTX và kết quả học tập vẫn thuộc lớp cụ thể. Luồng một lớp hiện tại phải tiếp tục chạy không đổi. Đây là đích thiết kế P83–P85, không mô tả tính năng đã phát hành.
+
+| Nguồn sự thật | Phạm vi | Quy tắc dự kiến |
+|---|---|---|
+| Nhật ký/telemetry buổi dạy | Một buổi chung | Không nhân bản slide/video/game action theo số lớp; liên kết nhóm lớp bằng quan hệ có khóa và index riêng. `teaching_logs.class_id` cũ tiếp tục là lớp nguồn cho bản ghi legacy. |
+| Môn/bài/học liệu | Một lớp nguồn | Giáo viên chọn môn và bài từ lớp nguồn; học viên lớp tham gia chỉ được quyền xem học liệu của buổi đang mở. Không mở quyền toàn bộ học liệu của lớp nguồn. |
+| Điểm danh | Từng lớp | Buổi chung liên kết một phiên điểm danh của mỗi lớp; danh sách sinh viên và quyền sửa dựa trên chính lớp đó. Giữ ràng buộc `UNIQUE(class_id, session_date)` hiện có và xử lý phiên cùng ngày bằng liên kết/từ chối rõ ràng, không ghi đè. |
+| Phòng game | Một phòng chung | Một `game_session` gắn với buổi chung; người chơi được xác minh là thành viên của một lớp tham gia và lớp được chọn được lưu bền vững trước khi chơi. |
+| Kết quả/KTTX | Từng lớp và sinh viên | Điểm game của sinh viên chỉ tính một lần; cập nhật `grades(class_id, student_id)` theo lớp đã xác minh, kể cả bonus/circuit/restart/retry. |
+| Báo cáo | Tổng buổi + từng lớp | Hoạt động live đếm một lần ở tổng buổi; học viên, điểm danh và điểm số lọc theo lớp, xuất CSV/XLSX cùng read model. |
+
+Thiết kế triển khai ưu tiên migration cộng thêm (quan hệ phiên–lớp, liên kết điểm danh và ánh xạ game–người chơi–lớp), không thay thế hàng loạt `class_id` hiện có hoặc copy dữ liệu học liệu. API tạo nhóm phải kiểm tra quyền quản lý **mọi** lớp, lớp nguồn nằm trong nhóm, số lớp 2–4, không trùng lớp và không có phiên đang mở xung đột; danh sách lớp được đóng băng khi phiên bắt đầu. Game join kiểm tra enrollment trong lớp tham gia; nếu học viên thuộc nhiều lớp trong nhóm, yêu cầu chọn đúng một lớp và không tự cộng điểm cho cả hai. Với dữ liệu cũ không có quan hệ nhóm, read model hiểu là phiên một lớp.
+
+Giới hạn game hiện được ghi là ≤60 kết nối/phòng; P85 phải đo tải hội trường nhiều lớp (giả định kiểm thử 4×60 = 240 học viên), xác định ngưỡng an toàn trước khi mở giới hạn. Các chi tiết chưa chốt với người dùng: nguồn học liệu lớp nào, cách chọn lớp cho học viên ghi danh chồng, nhu cầu QR điểm danh và ngưỡng quy mô thực tế mỗi lớp.

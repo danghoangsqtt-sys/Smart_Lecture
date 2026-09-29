@@ -2,6 +2,23 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
+## Milestone v0.12.0 — Multi-class teaching (planned after v0.11.0)
+
+> Chỉ là kế hoạch; `package.json` và bản cài hiện vẫn là v0.11.0. Không bắt đầu P83 trước khi chốt release gate P82.
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-8301 | Additive session–class schema and legacy compatibility | P83 | todo | migration + rollback/backup + single-class regression |
+| T-8302 | Multi-class teaching lifecycle and authorization | P83 | todo | REST 2–4 classes + conflict/idempotency cases |
+| T-8303 | Shared source-lesson access across participant classes | P83 | todo | source/member/non-member access matrix |
+| T-8401 | Per-class attendance links within one teaching session | P84 | todo | per-class records + same-day conflict regression |
+| T-8402 | Shared game room and durable player-class mapping | P84 | todo | Socket join/reconnect/restart + ambiguous enrollment |
+| T-8403 | Per-class result, bonus/KTTX and leaderboard | P84 | todo | score idempotency + privacy + existing game regression |
+| T-8501 | Teaching Hub multi-class setup and preflight | P85 | todo | Browser setup/validation + accessibility |
+| T-8502 | One Teaching Mode workspace with class-scoped attendance | P85 | todo | Browser reload, presentation/game continuity |
+| T-8503 | Aggregate and per-class post-lesson reports/exports | P85 | todo | API reconciliation + CSV/XLSX tests |
+| T-8504 | Full regression, upgrade rehearsal and v0.12.0 gate | P85 | todo | typecheck/lint/build/React Doctor + REST/Socket/Browser |
+
 ## Milestone v0.11.0 — Owner recovery, security & release reliability
 
 | ID | Task | Phase | Status | Verify |
