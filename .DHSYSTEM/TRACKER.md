@@ -32,7 +32,7 @@
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
 | T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
 | T-7901 | Bonjour ownership and graceful shutdown | P79 | done | mDNS + upgrade-path PASS; typecheck/lint/build PASS; full E2E later fails at smoke (T-7902) |
-| T-7902 | Focused and isolated E2E reliability | P79 | todo | full suite beside installed instance |
+| T-7902 | Focused and isolated E2E reliability | P79 | doing | focused gates + full suite beside installed instance |
 | T-8001 | Generate, integrate and validate icon family | P80 | todo | web/PWA/Windows inspection |
 | T-8101 | GamesPage decomposition | P81 | todo | React Doctor + game browser contracts |
 | T-8102 | Game player and circuit canvas decomposition | P81 | todo | React Doctor + circuit/game regression |

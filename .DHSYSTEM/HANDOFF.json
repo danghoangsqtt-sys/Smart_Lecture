@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-79-in-progress",
   "phase_current": "P79-mdns-quality-gates",
-  "workflow_state": "T-7901-done-T-7902-next",
+  "workflow_state": "T-7902-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "T-7901 is complete: mDNS ownership and Windows upgrade-path shutdown pass focused tests, typecheck, lint and build. Full E2E now reaches PowerShell smoke but fails teacher creation/import under the CSRF-era auth flow. Execute T-7902 to isolate E2E and update smoke, then rerun the full gate before resolving blocked T-8301. P78 and P80-P82 remain todo."
+  "next_action": "Execute T-7902: isolate focused/full E2E, update PowerShell smoke for rotated bearer tokens and one-time credentials, then verify the full gate before resolving blocked T-8301. P78 and P80-P82 remain todo."
 }

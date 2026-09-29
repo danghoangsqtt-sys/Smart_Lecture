@@ -8,12 +8,13 @@
 | Task | Status | Verification |
 | --- | --- | --- |
 | T-7901 Bonjour ownership and shutdown | done | mDNS regression PASS; upgrade-path clean exit PASS; typecheck/lint/build PASS |
-| T-7902 Focused and isolated E2E reliability | todo | full suite with installed instance running |
+| T-7902 Focused and isolated E2E reliability | in_progress | full suite with installed instance running |
 
 ## Notes
 
 - 2026-09-29: T-7901 contract refined before implementation. T-8301 remains blocked on the full-suite gate while P79 is repaired.
 - 2026-09-29: T-7901 implementation pushed as `6f47380`. Full E2E no longer aborts at Windows upgrade teardown; it reaches PowerShell smoke, then fails teacher creation/import due CSRF-era flow mismatch. T-7902 owns isolation/smoke repair; full E2E remains FAIL.
+- 2026-09-30: T-7902 contract refined before implementation. Global stack cache and DH-tools are unavailable; use repository SYSTEM-RULES.md and existing isolated-test patterns as preflight guidance.
 
 ## Files Changed — T-7901
 
