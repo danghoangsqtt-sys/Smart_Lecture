@@ -12,6 +12,7 @@ import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '../utils/access.js';
 import { insertUser } from './users.routes.js';
 import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
+import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
 
 function ensureDropFolder(subjectId: string): void {
   const dir = path.join(DROP_DIR, subjectId);
@@ -735,6 +736,7 @@ router.post(
     let enrolled = 0;
     let skipped = 0;
     const errors: string[] = [];
+    const credentials: OneTimeCredential[] = [];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i] as unknown[];
@@ -754,6 +756,11 @@ router.post(
       }
       if (username.length > 50 || displayName.length > 100) {
         errors.push(`Dòng ${i + headerRowIdx + 2}: tài khoản/họ tên quá dài`);
+        skipped++;
+        continue;
+      }
+      if (password && password.length < 6) {
+        errors.push(`Dòng ${i + headerRowIdx + 2}: mật khẩu tạm tối thiểu 6 ký tự`);
         skipped++;
         continue;
       }
@@ -779,10 +786,11 @@ router.post(
              gender = COALESCE(?, gender), hometown = COALESCE(?, hometown) WHERE id = ?`
           ).run(studentCode || null, dob ?? null, gender || null, hometown || null, studentId);
         } else {
+          const temporaryPassword = password || generateTemporaryPassword();
           studentId = insertUser(
             {
               username,
-              password: password || username,
+              password: temporaryPassword,
               role: 'student',
               displayName,
               studentCode: studentCode || undefined,
@@ -792,6 +800,7 @@ router.post(
             },
             (req as AuthedRequest).user!.id
           );
+          credentials.push({ id: studentId, username, temporaryPassword });
           created++;
         }
 
@@ -808,7 +817,8 @@ router.post(
       }
     }
 
-    res.json({ created, enrolled, skipped, errors });
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ created, enrolled, skipped, credentials, errors });
   })
 );
 

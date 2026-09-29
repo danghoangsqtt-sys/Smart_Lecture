@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { db, queryOne, toPublicUser } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
+import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -77,7 +78,7 @@ export function insertUser(input: z.infer<typeof createUserBody>, creatorId: str
     hashPassword(input.password),
     input.role,
     input.displayName,
-    input.role === 'student' ? 0 : 1,
+    1,
     creatorId,
     input.studentCode ?? null,
     input.dob ?? null,
@@ -124,15 +125,20 @@ router.post(
     const authed = req as AuthedRequest;
     const parsed = importUsersBody.parse(req.body);
     const ids: string[] = [];
+    const credentials: OneTimeCredential[] = [];
     const errors: { row: number; username: string; message: string }[] = [];
     parsed.rows.forEach((row, index) => {
       try {
-        ids.push(insertUser({ ...row, password: row.password ?? 'Hocvien@123', role: 'student' }, authed.user!.id));
+        const temporaryPassword = row.password ?? generateTemporaryPassword();
+        const id = insertUser({ ...row, password: temporaryPassword, role: 'student' }, authed.user!.id);
+        ids.push(id);
+        credentials.push({ id, username: row.username, temporaryPassword });
       } catch (error) {
         errors.push({ row: index + 1, username: row.username, message: error instanceof Error ? error.message : 'Không thể tạo học viên' });
       }
     });
-    res.status(ids.length > 0 ? 201 : 400).json({ createdCount: ids.length, ids, errors });
+    res.set('Cache-Control', 'private, no-store');
+    res.status(ids.length > 0 ? 201 : 400).json({ createdCount: ids.length, ids, credentials, errors });
   })
 );
 

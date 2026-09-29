@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal } from '../../components/ui';
 import { StudentProfileModal } from '../../components/StudentProfileFields';
 import { api } from '../../lib/api';
+import { downloadCredentialCsv, type OneTimeCredential } from '../../lib/credentialExport';
 import toast from '../../stores/toastStore';
 import type { StudentLite, StudentProfile } from './types';
 
@@ -133,6 +134,7 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [credentials, setCredentials] = useState<OneTimeCredential[]>([]);
 
   async function downloadTemplate() {
     setDownloadingTemplate(true);
@@ -164,11 +166,12 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
         body: formData,
       });
       if (!res.ok) throw new Error('Import failed');
-      const data = await res.json();
+      const data = await res.json() as { created: number; enrolled: number; skipped: number; credentials: OneTimeCredential[]; errors: string[] };
       toast.success(`Đã tạo ${data.created} tài khoản mới, thêm ${data.enrolled} vào lớp (bỏ qua ${data.skipped})`);
       if (data.errors.length) toast.error(data.errors.slice(0, 5).join('; '));
-      onClose();
       await onImported();
+      if (data.credentials.length > 0) setCredentials(data.credentials);
+      else onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lỗi import');
     } finally {
@@ -178,10 +181,29 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
 
   return (
     <Modal open onClose={onClose} title="Nhập học viên từ Excel/CSV" wide>
+      {credentials.length > 0 ? (
+        <div className="space-y-4">
+          <div className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            Đây là lần duy nhất hệ thống hiển thị các mật khẩu tạm. Hãy tải xuống và chuyển riêng cho từng học viên; tất cả học viên phải đổi mật khẩu ngay lần đăng nhập đầu tiên.
+          </div>
+          <div className="max-h-72 overflow-auto rounded-sm border border-slate-200">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Tài khoản</th><th className="px-3 py-2">Mật khẩu tạm</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {credentials.map((item) => <tr key={item.id}><td className="px-3 py-2 font-mono">{item.username}</td><td className="px-3 py-2 font-mono">{item.temporaryPassword}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => downloadCredentialCsv(credentials, `tai-khoan-tam-${Date.now()}.csv`)}><i className="fas fa-download" /> Tải CSV</Button>
+            <Button onClick={onClose}>Đã lưu, đóng</Button>
+          </div>
+        </div>
+      ) : <>
       <p className="mb-4 text-sm text-slate-500">
         File cần đủ 9 cột theo thứ tự: <strong>STT, Mã học viên, Họ và tên, Ngày tháng năm sinh, Giới tính, Lớp, Quê quán, Tài khoản user, Mật khẩu mặc định</strong>.
         Bắt buộc có <strong>Tài khoản user</strong> và <strong>Họ và tên</strong>; các cột còn lại có thể để trống.
-        Mật khẩu bỏ trống sẽ mặc định bằng tài khoản; học viên có thể tự đổi sau khi đăng nhập.
+        Mật khẩu bỏ trống sẽ được tạo ngẫu nhiên riêng cho từng học viên. Mật khẩu nhập sẵn cũng chỉ là mật khẩu tạm; học viên bắt buộc đổi ngay lần đăng nhập đầu tiên.
         Cột Lớp chỉ dùng để đối chiếu — nếu khác tên lớp hiện tại vẫn nhập bình thường nhưng sẽ có cảnh báo.
       </p>
       <div className="mb-4">
@@ -200,6 +222,7 @@ function ImportStudentsModal({ classId, onClose, onImported }: { classId: string
         <Button variant="ghost" onClick={onClose} disabled={busy}>Hủy</Button>
         <Button onClick={() => void submit()} disabled={busy || !file}>{busy ? 'Đang nhập…' : 'Nhập học viên'}</Button>
       </div>
+      </>}
     </Modal>
   );
 }

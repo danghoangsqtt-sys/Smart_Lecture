@@ -2,7 +2,7 @@
 
 - Type: BUG
 - Priority: high
-- Status: planned
+- Status: completed
 - Planned phase: P77 / T-7701
 - Audit tier: 3
 - Detected: 2026-09-29
@@ -23,3 +23,8 @@ Imported student accounts may receive a shared default password or their usernam
 - Set `must_change_password = 1` for all temporary credentials, including students.
 - Avoid returning or logging plaintext passwords after the one necessary handoff.
 - Add tests for blank-password imports and first-login enforcement.
+
+## Resolution
+
+- Completed in P77 / T-7701 with crypto-random per-account defaults, one-time no-store handoff, duplicate preservation and mandatory first replacement.
+- Verified by focused credential regression 11/11 and Browser first-login/media flows 3/3.

@@ -183,6 +183,7 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - HTTP security headers dùng Helmet với CSP tường minh: script/style/font mặc định cùng origin, chỉ bổ sung data/blob/socket khi runtime cần; không có CDN và không tự nâng HTTP LAN thành HTTPS.
 - Trình duyệt nhận JWT trong cookie `smartlecture_session` 12 giờ, `HttpOnly`, `SameSite=Strict`, path `/`; `Secure` chỉ bật bằng `SESSION_COOKIE_SECURE=true` khi thực sự triển khai HTTPS. JavaScript chỉ giữ public user trong bộ nhớ và hydrate lại qua `/api/auth/me`.
 - Mutation dùng cookie bắt buộc Origin cùng hostname; Bearer/no-Origin dành cho local integration. Login từ Origin khác bị chặn, logout xóa cookie và query-string token không được chấp nhận.
+- Tài khoản do nhân sự tạo/reset/import luôn bắt đổi mật khẩu lần đầu. Import bỏ trống mật khẩu sinh secret crypto-random riêng từng tài khoản; plaintext chỉ tồn tại trong bộ nhớ request và response tạo có `private, no-store`, không được lưu DB/log hay trả lại ở API đọc sau đó. Existing user chỉ được enroll, không đổi credential.
 - Direct-LAN deployment không trust proxy headers mặc định. `TRUST_PROXY` chỉ được bật explicit khi ứng dụng thực sự đứng sau reverse proxy do đơn vị triển khai kiểm soát.
 
 - JWT HS256, secret random 64 bytes sinh 1 lần lưu `data/secret.key` (0600)

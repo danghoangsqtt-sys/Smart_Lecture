@@ -16,6 +16,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<UserRow | null>(null);
+  const [resettingPassword, setResettingPassword] = useState<UserRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,7 +101,7 @@ export default function UsersPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => resetPassword(u)}
+                        onClick={() => setResettingPassword(u)}
                         className="rounded-sm px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-blue-900"
                       >
                         Đặt lại MK
@@ -115,6 +116,7 @@ export default function UsersPage() {
       </Card>
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
+      {resettingPassword && <ResetPasswordModal user={resettingPassword} onClose={() => setResettingPassword(null)} />}
       {editingProfile && (
         <StudentProfileModal
           student={editingProfile}
@@ -135,15 +137,32 @@ async function toggleLock(u: UserRow, reload: () => Promise<void>) {
   }
 }
 
-async function resetPassword(u: UserRow) {
-  const newPw = window.prompt(`Mật khẩu mới cho "${u.displayName}" (tối thiểu 6 ký tự):`);
-  if (!newPw || newPw.length < 6) return;
-  try {
-    await api(`/users/${u.id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword: newPw }) });
-    toast.success('Đã đặt lại mật khẩu');
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Lỗi');
+function ResetPasswordModal({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      await api(`/users/${user.id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) });
+      toast.success('Đã đặt lại mật khẩu; người dùng phải đổi mật khẩu khi đăng nhập');
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Lỗi');
+    } finally {
+      setBusy(false);
+    }
   }
+
+  return (
+    <Modal open onClose={onClose} title={`Đặt lại mật khẩu — ${user.displayName}`}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-500">Mật khẩu này chỉ dùng tạm thời. Người dùng sẽ bắt buộc đổi ngay lần đăng nhập tiếp theo.</p>
+        <div><Label>Mật khẩu tạm mới</Label><Input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></div>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose} disabled={busy}>Hủy</Button><Button onClick={() => void submit()} disabled={busy || newPassword.length < 6}>Đặt lại</Button></div>
+      </div>
+    </Modal>
+  );
 }
 
 function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => Promise<void> }) {
@@ -179,7 +198,8 @@ function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose:
         </div>
         <div><Label>Tên hiển thị</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
         <div><Label>Username (chữ/số/dấu chấm)</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} /></div>
-        <div><Label>Mật khẩu</Label><Input value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+        <div><Label>Mật khẩu tạm</Label><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+        <p className="text-xs text-slate-500">Người dùng bắt buộc đổi mật khẩu này ngay lần đăng nhập đầu tiên.</p>
         <div className="flex justify-end pt-2">
           <Button onClick={submit} disabled={busy || username.length < 3 || password.length < 6 || !displayName}>Tạo</Button>
         </div>

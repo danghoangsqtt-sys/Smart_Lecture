@@ -697,6 +697,12 @@ test('student can join a game room from the dashboard button', async ({ page, re
   await page.locator('#password').fill('Student@123');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/$/);
+  const firstChange = page.getByRole('dialog', { name: 'Đổi mật khẩu' });
+  await expect(firstChange).toBeVisible();
+  await firstChange.locator('input[type="password"]').nth(0).fill('Student@123');
+  await firstChange.locator('input[type="password"]').nth(1).fill('Student@1234');
+  await firstChange.getByRole('button', { name: 'Lưu' }).click();
+  await expect(firstChange).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Nhập mã phòng' }).first().click();
   await expect(page).toHaveURL(/\/games\/play$/);
@@ -756,6 +762,12 @@ test('student can download authenticated learning media', async ({ page, request
   await page.locator('#username').fill('browser.media.student');
   await page.locator('#password').fill('Student@123');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  const firstChange = page.getByRole('dialog', { name: 'Đổi mật khẩu' });
+  await expect(firstChange).toBeVisible();
+  await firstChange.locator('input[type="password"]').nth(0).fill('Student@123');
+  await firstChange.locator('input[type="password"]').nth(1).fill('Student@1234');
+  await firstChange.getByRole('button', { name: 'Lưu' }).click();
+  await expect(firstChange).toHaveCount(0);
   await page.goto('/learning');
   await page.getByRole('button', { name: /learner-material/ }).click();
   const downloadPromise = page.waitForEvent('download');

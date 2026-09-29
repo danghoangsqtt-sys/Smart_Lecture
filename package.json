@@ -26,6 +26,7 @@
     "test:admin-recovery": "npm run build -w server && node scripts/admin-recovery-test.mjs",
     "test:session-revocation": "npm run build -w server && node scripts/auth-session-revocation-test.mjs",
     "test:browser-auth": "npm run build -w server && node scripts/browser-auth-security-test.mjs",
+    "test:temporary-credentials": "npm run build -w server && node scripts/temporary-credentials-test.mjs",
     "bench:lan": "npm run build -w server && node scripts/lan-benchmark.mjs"
   },
   "devDependencies": {

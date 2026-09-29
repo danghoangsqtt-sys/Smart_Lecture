@@ -13,6 +13,7 @@ Generate unique temporary credentials for newly imported users and force secure 
 - `web/src/pages/UsersPage.tsx` — explain first-change semantics and replace password-reset `prompt()` with the project modal pattern.
 - `web/src/features/class-detail/StudentsTab.tsx` — show/download the one-time credential handoff before closing import results.
 - `scripts/temporary-credentials-test.mjs` — cover JSON/CSV blank and explicit credentials, duplicates, first-login and Socket enforcement.
+- `scripts/game-lifecycle-test.mjs` — make the lifecycle fixture complete its newly mandatory student first-login change.
 - `tests/browser/login.spec.ts` — update created-student fixtures to complete mandatory first login.
 - `package.json` — expose the focused credential-bootstrap regression command.
 - `.DHSYSTEM/ARCHITECTURE.md` — document the one-time plaintext boundary and non-persistence invariant.
@@ -32,7 +33,15 @@ Generate unique temporary credentials for newly imported users and force secure 
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Result
+
+- JSON and CSV/XLSX imports generate a unique crypto-random password when blank and treat supplied passwords as temporary.
+- Only accounts created by the current request appear in a one-time `Cache-Control: no-store` credential response; duplicates preserve the existing hash.
+- Manual creation, reset and imports all force first password replacement; REST and Socket.IO remain blocked until replacement succeeds.
+- Class import presents the handoff once and offers formula-safe CSV download from memory; reset no longer uses `window.prompt()`.
+- Focused regression passed 11/11, browser first-login/media flows passed 3/3, and typecheck/lint/build passed. Full E2E was blocked before feature cases by the existing Windows `UV_HANDLE_CLOSING`/mDNS isolation issue tracked in P79.
 
 ## Best Practices
 

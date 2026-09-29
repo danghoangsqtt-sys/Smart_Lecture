@@ -10,7 +10,7 @@
 | T-7502 | Offline owner administrator recovery | P75 | done | recovery 6/6 + typecheck/lint/build |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | done | session 7/7 + recovery 6/6 + typecheck/lint/build |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | done | browser auth 9/9 + Browser E2E 6/6 + typecheck/lint/build |
-| T-7701 | One-time imported credentials and forced first change | P77 | doing | import + first-login regression |
+| T-7701 | One-time imported credentials and forced first change | P77 | done | focused 11/11 + Browser 3/3 + typecheck/lint/build |
 | T-7801 | Upgrade and bound multipart parsers | P78 | todo | malicious multipart regression + audit |
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
 | T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
@@ -284,6 +284,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-29 (P77 T-7701 — one-time imported credentials)
+- Replaced shared/username-derived import passwords with unique crypto-random credentials and forced first replacement for all staff-created/reset/imported users.
+- Credential plaintext is request-local, returned once with `private, no-store`, omitted for existing accounts and exportable only from the in-memory class-import result through formula-safe CSV.
+- Focused regression passed 11/11, Browser first-login/media flows 3/3 and typecheck/lint/build passed. Full E2E stopped in the pre-existing Windows `UV_HANDLE_CLOSING` mDNS/upgrade-path isolation issue tracked by P79, before P77 feature cases.
+
 ### 2026-09-29 (P76 T-7602 — browser cookie authentication and CSP)
 - Replaced persisted browser bearer tokens with an HttpOnly SameSite cookie, memory-only public-user state and `/auth/me` hydration; logout clears the cookie and password change renews it after revoking the old version.
 - Cookie mutations require a same-host Origin, media and Socket.IO use the cookie, query-string tokens are rejected, and no-Origin/Bearer local integrations remain compatible.

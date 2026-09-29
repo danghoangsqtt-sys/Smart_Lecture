@@ -8,6 +8,7 @@
 - Thêm `session_version` vào JWT/SQLite; REST, media và Socket.IO từ chối token cũ sau đổi/reset mật khẩu hoặc lock/unlock tài khoản.
 - Chuyển xác thực trình duyệt sang cookie HttpOnly/SameSite, bỏ token khỏi storage/URL, thêm bảo vệ Origin cho mutation và logout tường minh.
 - Bundle Font Awesome nội bộ, loại bỏ CDN/font runtime và áp dụng CSP tường minh phù hợp truy cập HTTP LAN.
+- Loại bỏ mật khẩu import dùng chung/theo username; sinh mật khẩu tạm riêng từng tài khoản, trả đúng một lần và bắt buộc đổi trước khi dùng REST/Socket.IO.
 - Lập kế hoạch session revocation, credential bootstrap, multipart/mDNS hardening, bộ icon mới và focused tests.
 
 ## 2026-09-09 — Media & backup integrity hardening v0.10.2
