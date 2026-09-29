@@ -417,7 +417,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
   });
 
-  setInterval(() => {
+  const roomSweep = setInterval(() => {
     for (const [code, room] of rooms) {
       if (room.phase === 'finished' && Date.now() - room.questionEndsAt > 10 * 60_000) {
         rooms.delete(code);
@@ -425,6 +425,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
       }
     }
   }, 60_000);
+  roomSweep.unref();
 
   return io;
 }

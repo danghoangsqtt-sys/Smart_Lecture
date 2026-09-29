@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import os from 'node:os';
 import type { EventEmitter } from 'node:events';
 import { Router } from 'express';
-import { NETWORK_INTERFACES, PORT } from '../config.js';
+import { MDNS_ENABLED, NETWORK_INTERFACES, PORT } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { createBackup, deleteBackup, listBackups, stageRestore } from '../services/backup.js';
@@ -24,38 +24,101 @@ export const mdnsHostname = 'smart-lecture.local';
 // attach a handler and keep this from ever crashing. Exported standalone so the
 // crash-prevention itself can be regression-tested against a real Bonjour
 // instance without booting the whole server.
-export function attachMdnsSafetyNet(bonjour: unknown): void {
+type MdnsService = EventEmitter & { stop: (callback: () => void) => void; published?: boolean };
+type MdnsClient = {
+  server: { mdns: EventEmitter };
+  publish: (options: { name: string; type: string; host: string; port: number; txt: { app: string } }) => MdnsService;
+  destroy: (callback: () => void) => void;
+};
+
+export type MdnsController = { stop: () => Promise<void> };
+
+export function attachMdnsSafetyNet(bonjour: unknown, onError?: (err: Error) => void): void {
   const mdnsSocket = (bonjour as { server: { mdns: EventEmitter } }).server.mdns;
   mdnsSocket.on('error', (err: Error) => {
     console.log(`[mdns] lỗi mạng, bỏ qua quảng cáo hostname: ${err.message}`);
+    onError?.(err);
   });
 }
 
-export function advertiseMdns(): void {
-  try {
-    import('bonjour-service')
-      .then(({ Bonjour }) => {
-        const bonjour = new Bonjour();
-        attachMdnsSafetyNet(bonjour);
-        const service = bonjour.publish({ name: 'SmartLecture', type: 'http', host: mdnsHostname, port: PORT, txt: { app: 'smart-lecture' } });
-        const upTimeout = setTimeout(() => {
-          if (!mdnsAdvertised) {
-            console.log('[mdns] không xác nhận được quảng cáo hostname sau 5s (có thể trùng tên với máy khác trên LAN) — dùng địa chỉ IP LAN thay thế');
-          }
-        }, 5000);
+export function advertiseMdns(
+  createBonjour: () => Promise<MdnsClient> = async () => {
+    const { Bonjour } = await import('bonjour-service');
+    return new Bonjour() as unknown as MdnsClient;
+  },
+  confirmationTimeoutMs = 5000
+): MdnsController {
+  mdnsAdvertised = false;
+  if (!MDNS_ENABLED) return { stop: async () => { mdnsAdvertised = false; } };
+
+  let stopped = false;
+  let bonjour: MdnsClient | undefined;
+  let service: MdnsService | undefined;
+  let upTimeout: ReturnType<typeof setTimeout> | undefined;
+  let stopPromise: Promise<void> | undefined;
+
+  const started = (async () => {
+    try {
+      const instance = await createBonjour();
+      bonjour = instance;
+      attachMdnsSafetyNet(instance, () => { void stop(); });
+      if (stopped) return;
+      service = instance.publish({ name: 'SmartLecture', type: 'http', host: mdnsHostname, port: PORT, txt: { app: 'smart-lecture' } });
+      const onUp = () => {
+        if (stopped) return;
+        if (upTimeout) clearTimeout(upTimeout);
+        mdnsAdvertised = true;
+        console.log(`[mdns] advertised http://${mdnsHostname}:${PORT}`);
+      };
+      service.on('up', onUp);
+      if (service.published) onUp();
+      else {
+        upTimeout = setTimeout(() => {
+          if (stopped || mdnsAdvertised) return;
+          console.log('[mdns] không xác nhận được quảng cáo hostname (có thể trùng tên trên LAN) — dùng IP LAN');
+          void stop();
+        }, confirmationTimeoutMs);
         upTimeout.unref();
-        service.on('up', () => {
-          clearTimeout(upTimeout);
-          mdnsAdvertised = true;
-          console.log(`[mdns] advertised http://${mdnsHostname}:${PORT}`);
+      }
+    } catch (error) {
+      console.log(`[mdns] không quảng cáo được mDNS: ${error instanceof Error ? error.message : String(error)}`);
+      void stop();
+    }
+  })();
+
+  function stop(): Promise<void> {
+    if (stopPromise) return stopPromise;
+    stopped = true;
+    mdnsAdvertised = false;
+    if (upTimeout) clearTimeout(upTimeout);
+    stopPromise = (async () => {
+      await started;
+      if (!bonjour) return;
+      if (service) {
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 1000);
+          try {
+            service?.stop(() => { clearTimeout(timeout); resolve(); });
+          } catch {
+            clearTimeout(timeout);
+            resolve();
+          }
         });
-      })
-      .catch(() => {
-        console.log('[mdns] bonjour-service not available — hostname mDNS bị bỏ qua');
+      }
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(resolve, 1000);
+        try {
+          bonjour?.destroy(() => { clearTimeout(timeout); resolve(); });
+        } catch {
+          clearTimeout(timeout);
+          resolve();
+        }
       });
-  } catch {
-    console.log('[mdns] không quảng cáo được mDNS');
+    })();
+    return stopPromise;
   }
+
+  return { stop };
 }
 
 let doclingAvailable: boolean | null = null;

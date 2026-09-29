@@ -23,6 +23,7 @@ MÁY GIÁO VIÊN                                THIẾT BỊ HỌC VIÊN / GV KH
 
 - **Dev mode:** Vite dev server :5173 proxy `/api` + `/socket.io` → :4000
 - **Prod mode:** server phục vụ `web/dist` tĩnh → học viên chỉ cần 1 URL duy nhất
+- **mDNS:** `smart-lecture.local` chỉ được báo sẵn sàng sau sự kiện `up`; `MDNS_ENABLED=0` tắt quảng bá trong tiến trình kiểm thử cô lập. Lỗi socket/trùng tên làm giảm cấp về URL IP LAN, không dừng server. Bootstrap sở hữu Bonjour, Socket.IO và bộ hẹn giờ sao lưu; SIGINT/SIGTERM (hoặc IPC chỉ trong test mode) đóng các tài nguyên này trước khi thoát.
 - **Khởi động cùng Windows:** Task Scheduler chạy `npm start` trong thư mục server (roadmap P4)
 
 ## 2. Cấu trúc monorepo

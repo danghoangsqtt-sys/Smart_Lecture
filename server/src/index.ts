@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import rateLimit from 'express-rate-limit';
 import { NETWORK_INTERFACES, PORT, TRUST_PROXY, WEB_DIST_DIR } from './config.js';
-import { migrate } from './db/connection.js';
+import { db, migrate } from './db/connection.js';
 import { seedAdmin } from './db/seed.js';
 import authRoutes from './routes/auth.routes.js';
 import usersRoutes from './routes/users.routes.js';
@@ -29,6 +29,7 @@ import systemRoutes, { advertiseMdns, detectDocling, detectLibreOffice } from '.
 import settingsRoutes from './routes/settings.routes.js';
 import { initGameEngine } from './realtime/gameRoom.js';
 import { startBackupScheduler } from './services/backup.js';
+import { stopTunnel } from './services/tunnel.js';
 import { errorHandler } from './utils/errors.js';
 import { requireSameHostCookieOrigin } from './middleware/csrf.js';
 import { securityHeaders } from './middleware/securityHeaders.js';
@@ -93,11 +94,11 @@ if (existsSync(WEB_DIST_DIR)) {
 
 void detectDocling();
 void detectLibreOffice();
-advertiseMdns();
-startBackupScheduler();
+const mdns = advertiseMdns();
+const stopBackupScheduler = startBackupScheduler();
 
 const httpServer = createServer(app);
-initGameEngine(httpServer);
+const gameIo = initGameEngine(httpServer);
 
 app.use(errorHandler);
 
@@ -107,3 +108,46 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`[SmartLecture] Truy cap LAN: http://${iface.address}:${PORT}`);
   }
 });
+
+let shutdownPromise: Promise<void> | undefined;
+function shutdown(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    console.log('[SmartLecture] shutting down');
+    stopBackupScheduler();
+    stopTunnel();
+    await mdns.stop();
+    console.log('[SmartLecture] mDNS stopped');
+    await new Promise<void>((resolve) => gameIo.close(() => resolve()));
+    console.log('[SmartLecture] Socket.IO stopped');
+    if (httpServer.listening) {
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    }
+    db.close();
+    console.log('[SmartLecture] shutdown complete');
+    if (process.connected) process.disconnect();
+    process.exitCode = 0;
+  })();
+  return shutdownPromise;
+}
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+  process.once(signal, () => {
+    void shutdown().catch((error: unknown) => {
+      console.error('[SmartLecture] shutdown failed:', error);
+      process.exitCode = 1;
+    });
+  });
+}
+
+if (process.env.SMARTLECTURE_TEST_MODE === '1' && process.connected) {
+  process.on('message', (message: unknown) => {
+    if (message === 'smartlecture:test-shutdown') {
+      void shutdown().catch((error: unknown) => {
+        console.error('[SmartLecture] test shutdown failed:', error);
+        process.exitCode = 1;
+        if (process.connected) process.disconnect();
+      });
+    }
+  });
+}

@@ -49,10 +49,17 @@ db.exec(`
 `);
 db.close();
 
-const env = { ...process.env, PORT: String(port), DATA_DIR: dataDir, DB_PATH: dbPath };
+const env = {
+  ...process.env,
+  PORT: String(port),
+  DATA_DIR: dataDir,
+  DB_PATH: dbPath,
+  MDNS_ENABLED: '0',
+  SMARTLECTURE_TEST_MODE: '1',
+};
 
 function startServer() {
-  const child = spawn(process.execPath, ['server/dist/index.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['server/dist/index.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
@@ -77,12 +84,24 @@ const healthy = await waitForServer(child);
 
 if (healthy) {
   console.log('  PASS  server boots against a pre-v18 game_sessions table without crashing');
-  child.kill();
-  await new Promise((resolve) => { child.once('exit', resolve); setTimeout(resolve, 5_000); });
 } else {
   console.error('  FAIL  server did not become healthy against a pre-v18 database');
   console.error(getOutput());
 }
 
+const exitCode = await new Promise((resolve) => {
+  if (child.exitCode !== null) return resolve(child.exitCode);
+  const timeout = setTimeout(() => {
+    console.error('  FAIL  server did not exit after private shutdown message');
+    child.kill();
+  }, 8_000);
+  child.once('exit', (code) => {
+    clearTimeout(timeout);
+    resolve(code);
+  });
+  if (child.connected) child.send('smartlecture:test-shutdown');
+});
+if (exitCode !== 0) console.error(getOutput());
 rmSync(dataDir, { recursive: true, force: true });
-process.exit(healthy ? 0 : 1);
+if (healthy && exitCode === 0) console.log('  PASS  server exited cleanly after private shutdown message');
+process.exitCode = healthy && exitCode === 0 ? 0 : 1;

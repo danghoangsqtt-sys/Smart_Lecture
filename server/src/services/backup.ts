@@ -146,8 +146,8 @@ export async function stageRestore(name: string): Promise<void> {
 
 let lastBackupDay = '';
 
-export function startBackupScheduler(): void {
-  setInterval(() => {
+export function startBackupScheduler(): () => void {
+  const timer = setInterval(() => {
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     if (now.getHours() === BACKUP_HOUR && lastBackupDay !== today) {
@@ -159,4 +159,5 @@ export function startBackupScheduler(): void {
         .catch((err) => console.error('[backup] failed:', err));
     }
   }, 60_000);
+  return () => clearInterval(timer);
 }

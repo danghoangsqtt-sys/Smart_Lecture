@@ -83,5 +83,47 @@ if (!withFixSurvived) {
 }
 console.log('  PASS  attachMdnsSafetyNet prevents the crash on a simulated mdns socket error');
 
+const lifecycle = await runChild(`
+import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
+import { advertiseMdns } from './server/dist/routes/system.routes.js';
+
+function fakeBonjour() {
+  const socket = new EventEmitter();
+  const service = new EventEmitter();
+  let stopped = 0;
+  let destroyed = 0;
+  service.stop = (callback) => { stopped++; callback(); };
+  const client = {
+    server: { mdns: socket },
+    publish: () => service,
+    destroy: (callback) => { destroyed++; callback(); },
+  };
+  return { client, service, socket, counts: () => ({ stopped, destroyed }) };
+}
+
+const duplicate = fakeBonjour();
+const first = advertiseMdns(async () => duplicate.client, 20);
+await new Promise((resolve) => setTimeout(resolve, 80));
+await first.stop();
+await first.stop();
+assert.deepEqual(duplicate.counts(), { stopped: 1, destroyed: 1 });
+
+const failedSocket = fakeBonjour();
+const second = advertiseMdns(async () => failedSocket.client, 1000);
+await new Promise((resolve) => setTimeout(resolve, 10));
+failedSocket.service.emit('up');
+failedSocket.socket.emit('error', new Error('simulated EADDRINUSE'));
+await second.stop();
+await second.stop();
+failedSocket.service.emit('up');
+assert.deepEqual(failedSocket.counts(), { stopped: 1, destroyed: 1 });
+console.log('LIFECYCLE_PASS');
+`);
+if (lifecycle.code !== 0 || !lifecycle.output.includes('LIFECYCLE_PASS')) {
+  fail('duplicate/no-up, socket error, or idempotent shutdown failed', lifecycle.output);
+}
+console.log('  PASS  duplicate/no-up and socket error release mDNS once; repeated shutdown is safe');
+
 rmSync(isolatedDataDir, { recursive: true, force: true });
-process.exit(0);
+process.exitCode = 0;

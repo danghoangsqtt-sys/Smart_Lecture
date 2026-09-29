@@ -10,6 +10,7 @@ Make mDNS optional, non-fatal and cleanly stoppable on Windows.
 - `server/src/index.ts`
 - `server/src/config.ts`
 - `server/src/services/backup.ts`
+- `server/src/realtime/gameRoom.ts`
 - `scripts/mdns-resilience-test.mjs`
 - `scripts/upgrade-path-test.mjs`
 
@@ -19,6 +20,7 @@ Make mDNS optional, non-fatal and cleanly stoppable on Windows.
 - `server/src/routes/system.routes.ts`: make `advertiseMdns()` return one controller that owns Bonjour/service/timer, degrades when publish never reaches `up` or socket errors, and stops/unpublishes/destroys idempotently. Keep `mdnsUrl` null whenever not confirmed advertised.
 - `server/src/index.ts`: retain the controller and register SIGINT/SIGTERM plus test-only IPC shutdown; close HTTP/Socket and mDNS once, without touching another instance.
 - `server/src/services/backup.ts`: return a disposer for the backup interval so shutdown does not leave the process alive.
+- `server/src/realtime/gameRoom.ts`: unref the periodic idle-room sweep so it cannot retain an otherwise closed server process.
 - `scripts/mdns-resilience-test.mjs`: retain forced-socket-error regression and add deterministic duplicate/no-up/stop-twice checks without relying on LAN discovery timing.
 - `scripts/upgrade-path-test.mjs`: start the server with isolated data, disabled mDNS and a private IPC shutdown channel; await child exit instead of force-killing and deleting an open DB.
 
