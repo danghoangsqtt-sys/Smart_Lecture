@@ -59,6 +59,7 @@ try {
 
 Copy-Item -LiteralPath $node -Destination (Join-Path $stageRuntimeDir 'node.exe')
 Copy-Item -LiteralPath (Join-Path $projectDir 'installer\start-smartlecture-installed.ps1') -Destination (Join-Path $stageDir 'start-smartlecture.ps1')
+Copy-Item -LiteralPath (Join-Path $projectDir 'installer\prepare-smartlecture-data.ps1') -Destination (Join-Path $stageDir 'prepare-smartlecture-data.ps1')
 Copy-Item -LiteralPath (Join-Path $projectDir 'docs\HUONG-DAN-CAI-DAT.md') -Destination (Join-Path $stageDir 'HUONG-DAN-CAI-DAT.md')
 
 $smokeData = Join-Path $stageDir 'smoke-data'

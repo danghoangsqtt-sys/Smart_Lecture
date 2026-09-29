@@ -32,4 +32,11 @@ Make every bundled launch use the per-user SmartLecture data root and migrate le
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Result
+
+- Both launchers now export the resolved `DATA_DIR`; installed launches migrate only after health/port safety checks.
+- Migration uses target-local staging, SHA-256 manifests, an atomic directory publish and a durable completion marker while preserving the legacy source.
+- The installed launcher discovers the pre-P72 installer location and supports an explicit `SMARTLECTURE_LEGACY_DATA_DIR` fallback.
+- Focused regression passed 6/6; PowerShell syntax, typecheck, lint, build, release baseline and real installer staging/build all passed.

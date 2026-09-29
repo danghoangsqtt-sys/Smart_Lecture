@@ -74,6 +74,18 @@ $runtimeDir = if ($DataDir) {
 } else {
     Join-Path $projectDir 'data'
 }
+
+if (-not $DataDir -and (Test-Path -LiteralPath $bundledNode)) {
+    $prepareData = Join-Path $projectDir 'installer\prepare-smartlecture-data.ps1'
+    if (-not (Test-Path -LiteralPath $prepareData -PathType Leaf)) {
+        throw "Thieu bo chuan bi du lieu: $prepareData"
+    }
+    $migration = & $prepareData -TargetDataDir $runtimeDir -LegacyDataDirs (Join-Path $projectDir 'data')
+    if ($migration.status -eq 'migrated') {
+        Write-Host "[OK] Da sao chep du lieu cu sang $runtimeDir; thu muc cu duoc giu lai de khoi phuc." -ForegroundColor Green
+    }
+}
+
 $logDir = Join-Path $runtimeDir 'logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $stdoutLog = Join-Path $logDir 'smartlecture-server.out.log'
@@ -83,9 +95,7 @@ $previousPort = $env:PORT
 $previousDataDir = $env:DATA_DIR
 try {
     $env:PORT = "$Port"
-    if ($DataDir) {
-        $env:DATA_DIR = $runtimeDir
-    }
+    $env:DATA_DIR = $runtimeDir
 
     $server = Start-Process -FilePath $node -ArgumentList 'dist/index.js' -WorkingDirectory $serverDir -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru
 } finally {

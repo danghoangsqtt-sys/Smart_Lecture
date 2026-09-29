@@ -7,5 +7,5 @@
 
 | Task | Status | Verification |
 | --- | --- | --- |
-| T-7501 Installed data root and legacy migration | doing | focused migration regression + release gates |
+| T-7501 Installed data root and legacy migration | done | migration 6/6 + typecheck/lint/build + installer build |
 | T-7502 Offline owner recovery | todo | recovery CLI security/data regression |

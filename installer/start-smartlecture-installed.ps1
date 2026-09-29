@@ -15,6 +15,7 @@ $serverEntry = Join-Path $serverDir 'dist\index.js'
 $webEntry = Join-Path $appDir 'web\dist\index.html'
 $node = Join-Path $PSScriptRoot 'runtime\node.exe'
 $dataDir = Join-Path $env:LOCALAPPDATA 'SmartLecture\data'
+$prepareData = Join-Path $PSScriptRoot 'prepare-smartlecture-data.ps1'
 $url = "http://127.0.0.1:$Port"
 
 function Test-SmartLectureHealth {
@@ -32,7 +33,7 @@ function Open-SmartLecture {
     }
 }
 
-if (-not (Test-Path -LiteralPath $node) -or -not (Test-Path -LiteralPath $serverEntry) -or -not (Test-Path -LiteralPath $webEntry)) {
+if (-not (Test-Path -LiteralPath $node) -or -not (Test-Path -LiteralPath $serverEntry) -or -not (Test-Path -LiteralPath $webEntry) -or -not (Test-Path -LiteralPath $prepareData)) {
     throw 'Bo cai SmartLecture thieu runtime hoac production build. Hay cai dat lai ung dung.'
 }
 
@@ -44,6 +45,22 @@ if (Test-SmartLectureHealth) {
 $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
 if ($listeners.Count -gt 0) {
     throw "Cong $Port dang duoc mot ung dung khac su dung. SmartLecture se khong tu dung ung dung do."
+}
+
+$legacyDataDirs = @((Join-Path $appDir 'data'))
+if ($env:SMARTLECTURE_LEGACY_DATA_DIR) {
+    $legacyDataDirs += $env:SMARTLECTURE_LEGACY_DATA_DIR
+}
+$legacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{BD9F49AD-2D69-4D62-83B1-77C9EB043B17}_is1'
+if (Test-Path -LiteralPath $legacyUninstallKey) {
+    $legacyInstallLocation = (Get-ItemProperty -LiteralPath $legacyUninstallKey -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
+    if ($legacyInstallLocation) {
+        $legacyDataDirs += Join-Path $legacyInstallLocation 'app\data'
+    }
+}
+$migration = & $prepareData -TargetDataDir $dataDir -LegacyDataDirs $legacyDataDirs
+if ($migration.status -eq 'migrated') {
+    Write-Host "[OK] Da sao chep du lieu cu sang $dataDir. Du lieu cu van duoc giu lai de khoi phuc." -ForegroundColor Green
 }
 
 $logDir = Join-Path $dataDir 'logs'

@@ -25,6 +25,12 @@ Du lieu lop hoc, hoc lieu va ban sao luu duoc luu rieng tai:
 
 Go cai dat SmartLecture khong xoa thu muc nay. De sao luu thu cong, dung muc **Cai dat -> He thong & sao luu** trong ung dung.
 
+Khi nang cap tu ban cu tung luu du lieu trong thu muc cai dat, launcher chi di chuyen du lieu khi SmartLecture da dung. Du lieu duoc sao chep qua thu muc tam, doi chieu SHA-256 roi moi cong bo tai duong dan tren; thu muc cu van duoc giu lam ban khoi phuc.
+
+Launcher tu tim ban cai legacy cung tai khoan Windows. Neu ban cu la ban portable hoac da bi go, co the dat bien `SMARTLECTURE_LEGACY_DATA_DIR` thanh duong dan thu muc `data` cu truoc khi mo launcher moi.
+
+Neu ca thu muc cu va `%LOCALAPPDATA%\SmartLecture\data` deu co du lieu ma khong co dau xac nhan migration hop le, launcher se dung va hien hai duong dan. Khong xoa hoac tron hai thu muc. Hay sao luu ca hai truoc khi chon ban du lieu can giu.
+
 ## Cap nhat
 
 Khi nhan file `SmartLecture-Setup-<phien-ban-moi>.exe`, dong SmartLecture, chay file moi va cai de len ban cu. Du lieu lop hoc van duoc giu nguyen.
@@ -34,5 +40,6 @@ Khi nhan file `SmartLecture-Setup-<phien-ban-moi>.exe`, dong SmartLecture, chay 
 - Neu icon thong bao cong 4000 dang duoc su dung, khoi dong lai may tinh roi mo lai SmartLecture.
 - Neu trinh duyet khong tu mo, truy cap `http://localhost:4000`.
 - Nhat ky khoi dong nam trong `%LOCALAPPDATA%\SmartLecture\data\logs`.
+- Neu launcher bao du lieu cu da thay doi sau migration, hay dong SmartLecture, sao luu ca thu muc cu va thu muc LocalAppData, sau do lien he nguoi quan ly de doi chieu.
 
 > Windows co the hien canh bao voi phan mem chua ky so. Hay chi cai file nhan tu nguoi quan ly cua SmartLecture.

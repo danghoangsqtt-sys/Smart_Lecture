@@ -6,7 +6,7 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-7501 | Installed data root and legacy migration | P75 | doing | focused migration regression + release gates |
+| T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
 | T-7502 | Offline owner administrator recovery | P75 | todo | recovery CLI security/data regression |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | todo | auth/session regression |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
@@ -284,6 +284,12 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-09-29 (P75 T-7501 — installed data root and legacy migration)
+- Reconciled the local v0.11 plan with the newer remote v0.10.2/P74 baseline, preserving published P73–P74 history and moving the audit milestone to P75–P82.
+- Both launchers now export the resolved data root. Installed startup discovers legacy in-app data from the current tree, the pre-P72 uninstall registry entry, or `SMARTLECTURE_LEGACY_DATA_DIR`.
+- Added backup-first migration through target-local staging, SHA-256 manifest verification, atomic publish, completion marker, collision refusal and divergence detection; the legacy source remains as rollback evidence.
+- Verified migration 6/6 with a real SQLite sentinel row plus WAL/media, retry, collision, divergence and interrupted staging; PowerShell syntax, typecheck, lint, build, release baseline and installer 0.11.0 build all passed. The running installed v0.9-era process and its database were not modified.
+
 ### 2026-09-08 (rà soát reliability/security/QA toàn diện — không có TRACKER task mở, theo yêu cầu người dùng)
 - Yêu cầu: rà soát và sửa toàn ứng dụng cho pilot/production nội bộ — không lỗi chức năng đã biết, không lỗ hổng Critical/High, không regression, không mất dữ liệu. Baseline trước khi sửa: typecheck/lint/build/E2E/Browser đều xanh (86 REST, 10 Socket, 11/11 game lifecycle, 22 regression, Browser 4/4) — không có lỗi tiền tồn tại ở baseline.
 - **mDNS (Critical, đã sửa)**: `advertiseMdns()` tạo `new Bonjour()` nhưng không gắn listener cho sự kiện `'error'` cấp socket của `multicast-dns` — bonjour-service không có API public cho việc này. Viết script tái hiện độc lập xác nhận: khi socket đó phát `'error'` (EACCES/EADDRINUSE — chính xác là tình huống 2 instance cùng tranh cổng UDP 5353 mà người dùng báo), Node coi là uncaught exception và **crash toàn bộ server**. `mdnsAdvertised` cũng bị set `true` ngay sau khi gọi `publish()`, trước khi probe/announce thật sự chạy xong — API `/api/system` có thể báo mDNS hoạt động dù chưa hoặc không hoạt động. Sửa: tách `attachMdnsSafetyNet()` gắn handler qua truy cập `server.mdns` runtime (private chỉ ở `.d.ts`, có ghi chú rõ lý do), `mdnsAdvertised` chỉ set `true` khi nhận event `up` thật, thêm timeout 5s log rõ khi không xác nhận được (khả năng trùng tên LAN) thay vì im lặng. Regression: `scripts/mdns-resilience-test.mjs` (verify FAIL đúng trên code cũ qua git stash, PASS trên code mới) + xác nhận qua E2E thật: 3 lần restart server trong cùng phiên test tự nhiên tái hiện đúng "Service name is already in use" mà không crash.

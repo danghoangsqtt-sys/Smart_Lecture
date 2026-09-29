@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-75-in-progress",
   "phase_current": "P75-data-safety-owner-recovery",
-  "workflow_state": "T-7501-in-progress",
+  "workflow_state": "T-7501-completed-next-T-7502",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Complete T-7501 installed data-root migration without touching the running installed database."
+  "next_action": "Start T-7502 offline owner recovery against temporary database copies; do not mutate the running installed database."
 }

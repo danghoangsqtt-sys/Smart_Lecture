@@ -3,6 +3,7 @@
 ## Unreleased — Recovery, security & release reliability v0.11.0
 
 - Bắt đầu P75 với di chuyển dữ liệu cài đặt ra `%LOCALAPPDATA%\SmartLecture\data` và cơ chế khôi phục admin offline.
+- Hoàn thành migration backup-first từ data legacy: xác minh SHA-256, publish nguyên tử, từ chối collision và giữ nguyên nguồn để rollback.
 - Lập kế hoạch session revocation, credential bootstrap, multipart/mDNS hardening, bộ icon mới và focused tests.
 
 ## 2026-09-09 — Media & backup integrity hardening v0.10.2
