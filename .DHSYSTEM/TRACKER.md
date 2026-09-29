@@ -7,7 +7,7 @@
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
 | T-7501 | Installed data root and legacy migration | P75 | done | migration 6/6 + typecheck/lint/build + installer build |
-| T-7502 | Offline owner administrator recovery | P75 | todo | recovery CLI security/data regression |
+| T-7502 | Offline owner administrator recovery | P75 | doing | recovery CLI security/data regression |
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | todo | auth/session regression |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | todo | browser auth/media/CSP regression |
 | T-7701 | One-time imported credentials and forced first change | P77 | todo | import + first-login regression |
