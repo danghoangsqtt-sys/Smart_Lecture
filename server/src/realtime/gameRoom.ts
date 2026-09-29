@@ -31,6 +31,16 @@ const MAX_PLAYERS = 60;
 
 const rooms = new Map<string, RoomState>();
 let ioRef: IOServer | null = null;
+let roomSweep: ReturnType<typeof setInterval> | null = null;
+
+export function stopGameEngineTimers(): void {
+  if (roomSweep) clearInterval(roomSweep);
+  roomSweep = null;
+  for (const room of rooms.values()) {
+    if (room.timer) clearTimeout(room.timer);
+    room.timer = null;
+  }
+}
 const gameLifecycle = createGameLifecycle({
   getIo: () => ioRef,
   broadcastLeaderboard,
@@ -417,7 +427,7 @@ export function initGameEngine(httpServer: HttpServer): IOServer {
     });
   });
 
-  const roomSweep = setInterval(() => {
+  roomSweep = setInterval(() => {
     for (const [code, room] of rooms) {
       if (room.phase === 'finished' && Date.now() - room.questionEndsAt > 10 * 60_000) {
         rooms.delete(code);

@@ -30,6 +30,9 @@ jobs:
         run: npm run build
 
       - name: End-to-end tests (isolated SQLite)
+        run: npm run test:focused
+
+      - name: Complete end-to-end tests (isolated SQLite)
         run: node scripts/e2e-isolated.mjs
 
       - name: Install Chromium for browser E2E

@@ -113,7 +113,7 @@ export function createGameLifecycle({
     } catch (error) {
       console.error('[game] persist results failed', error);
     }
-    setTimeout(() => removeRoom(room.roomCode), 10 * 60_000);
+    setTimeout(() => removeRoom(room.roomCode), 10 * 60_000).unref();
   };
 
   const isAnswerCorrect = (question: GameQuestion, choiceIdx: number, text: string | undefined): boolean => {

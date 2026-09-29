@@ -35,16 +35,31 @@ if (!adminToken) {
   console.error('FATAL: không đăng nhập được admin');
   process.exit(1);
 }
-await api('POST', '/users', adminToken, {
-  username: 'teacher.hoa', password: 'Gv@123456', role: 'teacher', displayName: 'Co Hoa',
-}).catch(() => undefined);
-const teacherToken = await login('teacher.hoa', 'Gv@654321');
-await api('POST', '/users/import', teacherToken, {
-  rows: [
-    { displayName: 'Nguyen Van Anh', username: 'anh' },
-    { displayName: 'Tran Thi Binh', username: 'binh' },
-  ],
-}).catch(() => undefined);
+let teacherToken = await login('teacher.hoa', 'Gv@654321');
+if (!teacherToken) {
+  await api('POST', '/users', adminToken, {
+    username: 'teacher.hoa', password: 'Gv@123456', role: 'teacher', displayName: 'Co Hoa',
+  });
+  const initialToken = await login('teacher.hoa', 'Gv@123456');
+  teacherToken = (await api('POST', '/auth/change-password', initialToken, {
+    oldPassword: 'Gv@123456', newPassword: 'Gv@654321',
+  })).token;
+}
+
+async function ensureStudent(username, displayName) {
+  const changedPassword = 'Socket@456789';
+  const initialPassword = 'Socket@123456';
+  let token = await login(username, changedPassword);
+  if (token) return token;
+  await api('POST', '/users', teacherToken, {
+    username, password: initialPassword, role: 'student', displayName,
+  });
+  const initialToken = await login(username, initialPassword);
+  token = (await api('POST', '/auth/change-password', initialToken, {
+    oldPassword: initialPassword, newPassword: changedPassword,
+  })).token;
+  return token;
+}
 
 const mkQ = async (content) =>
   (
@@ -65,11 +80,9 @@ for (const content of ['So 1 + 1 = ?', 'So 2 x 3 = ?']) {
   qIds.push(await mkQ(content));
 }
 
-const anToken = await login('anh', 'Anh@123456');
-const binhToken = await login('binh', 'Hocvien@123');
-const dungToken = await login('dung', 'Hocvien@123');
-await api('POST', '/auth/change-password', binhToken, { oldPassword: 'Hocvien@123', newPassword: 'Binh@123456' });
-await api('POST', '/auth/change-password', dungToken, { oldPassword: 'Hocvien@123', newPassword: 'Dung@123456' });
+const studentAToken = await ensureStudent('socket_a', 'Socket Student A');
+const studentBToken = await ensureStudent('socket_b', 'Socket Student B');
+const outsiderToken = await ensureStudent('socket_outsider', 'Socket Outsider');
 const classResult = await api('POST', '/classes', teacherToken, {
   name: `Socket Test ${Date.now()}`,
   subject: 'Kiểm thử realtime',
@@ -78,10 +91,10 @@ const classResult = await api('POST', '/classes', teacherToken, {
 const classId = classResult.class?.id;
 const students = await api('GET', '/users?role=student', teacherToken);
 const socketStudentIds = (students.users ?? [])
-  .filter((user) => user.username === 'anh' || user.username === 'binh')
+  .filter((user) => user.username === 'socket_a' || user.username === 'socket_b')
   .map((user) => user.id);
 await api('POST', `/classes/${classId}/enroll`, teacherToken, { studentIds: socketStudentIds });
-check('tokens and enrollment ready', !!teacherToken && !!anToken && !!binhToken && qIds.length === 2 && socketStudentIds.length === 2);
+check('tokens and enrollment ready', !!teacherToken && !!studentAToken && !!studentBToken && !!outsiderToken && qIds.length === 2 && socketStudentIds.length === 2);
 const game = await api('POST', '/games', teacherToken, {
   gameType: 'quick_quiz',
   questionIds: qIds,
@@ -98,9 +111,9 @@ function connect(token) {
 }
 
 const host = connect(teacherToken);
-const sA = connect(anToken);
-const sB = connect(binhToken);
-const outsider = connect(dungToken);
+const sA = connect(studentAToken);
+const sB = connect(studentBToken);
+const outsider = connect(outsiderToken);
 const nonHost = connect(adminToken);
 
 let lobbyCount = 0;

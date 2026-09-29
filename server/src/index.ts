@@ -27,7 +27,7 @@ import aiRoutes from './routes/ai.routes.js';
 import ragRoutes from './routes/rag.routes.js';
 import systemRoutes, { advertiseMdns, detectDocling, detectLibreOffice } from './routes/system.routes.js';
 import settingsRoutes from './routes/settings.routes.js';
-import { initGameEngine } from './realtime/gameRoom.js';
+import { initGameEngine, stopGameEngineTimers } from './realtime/gameRoom.js';
 import { startBackupScheduler } from './services/backup.js';
 import { stopTunnel } from './services/tunnel.js';
 import { errorHandler } from './utils/errors.js';
@@ -120,6 +120,7 @@ function shutdown(): Promise<void> {
     console.log('[SmartLecture] mDNS stopped');
     await new Promise<void>((resolve) => gameIo.close(() => resolve()));
     console.log('[SmartLecture] Socket.IO stopped');
+    stopGameEngineTimers();
     if (httpServer.listening) {
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     }

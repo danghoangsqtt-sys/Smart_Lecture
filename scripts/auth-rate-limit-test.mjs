@@ -23,7 +23,11 @@ const root = path.resolve(import.meta.dirname, '..');
 const dataDir = mkdtempSync(path.join(tmpdir(), 'smart-lecture-ratelimit-'));
 const port = 4700;
 const base = `http://127.0.0.1:${port}`;
-const env = { ...process.env, PORT: String(port), DATA_DIR: dataDir, DB_PATH: path.join(dataDir, 'ratelimit.db') };
+const env = {
+  ...process.env,
+  PORT: String(port), DATA_DIR: dataDir, DB_PATH: path.join(dataDir, 'ratelimit.db'),
+  MDNS_ENABLED: '0', SMARTLECTURE_TEST_MODE: '1',
+};
 
 let passed = 0;
 let failed = 0;
@@ -33,7 +37,7 @@ function check(name, condition) {
 }
 
 function startServer() {
-  const child = spawn(process.execPath, ['server/dist/index.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['server/dist/index.js'], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk; });
   child.stderr.on('data', (chunk) => { output += chunk; });
@@ -99,12 +103,20 @@ if (healthy) {
     throttled > 0 && unauthorized < 30,
   );
 
-  child.kill();
-  await new Promise((resolve) => { child.once('exit', resolve); setTimeout(resolve, 5_000); });
 } else {
   console.error(getOutput());
 }
 
+const exitCode = await new Promise((resolve) => {
+  if (child.exitCode !== null) return resolve(child.exitCode);
+  const timeout = setTimeout(() => {
+    console.error('  FAIL  rate-limit server did not exit after private shutdown message');
+    child.kill();
+  }, 8_000);
+  child.once('exit', (code) => { clearTimeout(timeout); resolve(code); });
+  if (child.connected) child.send('smartlecture:test-shutdown');
+});
+check('isolated server exits cleanly', exitCode === 0);
 rmSync(dataDir, { recursive: true, force: true });
 console.log(`Rate-limit regression result: ${passed} passed, ${failed} failed`);
-process.exit(failed || !healthy ? 1 : 0);
+process.exitCode = failed || !healthy ? 1 : 0;

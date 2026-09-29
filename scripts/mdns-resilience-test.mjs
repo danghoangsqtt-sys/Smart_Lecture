@@ -28,7 +28,7 @@ const root = path.resolve(import.meta.dirname, '..');
 // time. Force an isolated DATA_DIR so that open can never touch the real project
 // database, no matter how this script itself was invoked.
 const isolatedDataDir = mkdtempSync(path.join(tmpdir(), 'smart-lecture-mdns-test-'));
-const childEnv = { ...process.env, DATA_DIR: isolatedDataDir, DB_PATH: path.join(isolatedDataDir, 'mdns-test.db') };
+const childEnv = { ...process.env, DATA_DIR: isolatedDataDir, DB_PATH: path.join(isolatedDataDir, 'mdns-test.db'), MDNS_ENABLED: '1' };
 
 function runChild(scriptBody) {
   return new Promise((resolve) => {

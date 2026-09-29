@@ -10,7 +10,9 @@ function Check($name, $cond) {
 }
 
 Add-Type -AssemblyName System.Net.Http
-$script:http = New-Object System.Net.Http.HttpClient
+$handler = [System.Net.Http.HttpClientHandler]::new()
+$handler.UseCookies = $false
+$script:http = [System.Net.Http.HttpClient]::new($handler)
 $script:http.BaseAddress = "http://localhost:4100"
 
 function Req($method, $url, $token, $body) {
@@ -51,7 +53,8 @@ Check "Admin login" ($admin.Length -gt 50)
 $adminBlocked = Req GET "/users" $admin
 Check "Default admin must change password" ($adminBlocked.ok -eq $false -and $adminBlocked.status -eq 403 -and $adminBlocked.code -eq "PASSWORD_CHANGE_REQUIRED")
 $adminPw = Req POST "/auth/change-password" $admin @{ oldPassword = "admin123"; newPassword = "Admin@123456" }
-Check "Admin changes default password" ($adminPw.ok)
+Check "Admin changes default password and rotates session" ($adminPw.ok -and $adminPw.data.token.Length -gt 50 -and $adminPw.data.token -ne $admin)
+$admin = $adminPw.data.token
 
 $badLogin = Req POST "/auth/login" $null @{ username = "admin"; password = "wrongpass" }
 Check ("Wrong password rejected (status={0})" -f $badLogin.status) ($badLogin.ok -eq $false -and $badLogin.status -eq 401)
@@ -64,7 +67,8 @@ $tLogin = Req POST "/auth/login" $null @{ username = "teacher.hoa"; password = "
 $teacherToken = $tLogin.data.token
 Check "Teacher login" ($teacherToken.Length -gt 50)
 $teacherPw = Req POST "/auth/change-password" $teacherToken @{ oldPassword = "Gv@123456"; newPassword = "Gv@654321" }
-Check "Teacher changes temporary password" ($teacherPw.ok)
+Check "Teacher changes temporary password and rotates session" ($teacherPw.ok -and $teacherPw.data.token.Length -gt 50 -and $teacherPw.data.token -ne $teacherToken)
+$teacherToken = $teacherPw.data.token
 
 $r2 = Req POST "/users" $teacherToken @{ username = "t2x"; password = "x1234567"; role = "teacher"; displayName = "GV2" }
 Check ("Teacher cannot create teacher (status={0} code={1})" -f $r2.status, $r2.code) ($r2.ok -eq $false -and $r2.status -eq 403)
@@ -79,6 +83,10 @@ $imp = Req POST "/users/import" $teacherToken @{
 }
 if (-not $imp.ok -or $imp.data.createdCount -ne 4) { Write-Host ("   DEBUG import: ok={0} created={1} errors={2}" -f $imp.ok, $imp.data.createdCount, ($imp.data.errors | ConvertTo-Json -Compress)) -ForegroundColor Yellow }
 Check "Import 4 students" ($imp.ok -and $imp.data.createdCount -eq 4)
+$credentialNames = @($imp.data.credentials | ForEach-Object { $_.username })
+Check "Import returns four distinct one-time credentials" ($credentialNames.Count -eq 4 -and (@($credentialNames | Select-Object -Unique)).Count -eq 4)
+$anhPassword = ($imp.data.credentials | Where-Object { $_.username -eq "anh" } | Select-Object -First 1).temporaryPassword
+$cuongPassword = ($imp.data.credentials | Where-Object { $_.username -eq "cuong" } | Select-Object -First 1).temporaryPassword
 
 $usersList = Req GET "/users?role=student" $teacherToken
 $sids = @($usersList.data.users | ForEach-Object { $_.id })
@@ -155,12 +163,13 @@ $eid = $examR.data.id
 Check "Create exam" ($eid.Length -gt 10)
 
 # --- Student flow ---
-$anLogin = Req POST "/auth/login" $null @{ username = "anh"; password = "Hocvien@123" }
+$anLogin = Req POST "/auth/login" $null @{ username = "anh"; password = $anhPassword }
 $anToken = $anLogin.data.token
 if (-not $anLogin.ok) { Write-Host ("   DEBUG student login: status={0} code={1} msg={2}" -f $anLogin.status, $anLogin.code, $anLogin.message) -ForegroundColor Yellow }
 Check "Student login temp password" ($anToken.Length -gt 50)
-$anPw = Req POST "/auth/change-password" $anToken @{ oldPassword = "Hocvien@123"; newPassword = "Anh@123456" }
-Check "Student changes temporary password" ($anPw.ok)
+$anPw = Req POST "/auth/change-password" $anToken @{ oldPassword = $anhPassword; newPassword = "Anh@123456" }
+Check "Student changes temporary password and rotates session" ($anPw.ok -and $anPw.data.token.Length -gt 50 -and $anPw.data.token -ne $anToken)
+$anToken = $anPw.data.token
 
 $avail = Req GET "/exams/available" $anToken
 if (-not $avail.ok -or $avail.data.exams.Count -lt 1) { Write-Host ("   DEBUG available: ok={0} status={1} count={2}" -f $avail.ok, $avail.status, $avail.data.exams.Count) -ForegroundColor Yellow }
@@ -399,7 +408,7 @@ $dup = Req POST "/games/$mathId/bonus" $teacherToken @{ first=1; second=0.5; thi
 Check ("Double-apply rejected ({0})" -f $dup.code) ($dup.ok -eq $false -and $dup.code -eq "ALREADY_APPLIED")
 # --- Lockout ---
 for ($i = 0; $i -lt 10; $i++) { Req POST "/auth/login" $null @{ username = "cuong"; password = "saibietnaodo" } | Out-Null }
-$cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = "Hocvien@123" }
+$cuongLocked = Req POST "/auth/login" $null @{ username = "cuong"; password = $cuongPassword }
 Check ("Lockout after 10 fails returns uniform credentials response (status={0})" -f $cuongLocked.status) ($cuongLocked.ok -eq $false -and $cuongLocked.status -eq 401 -and $cuongLocked.code -eq "BAD_CREDENTIALS")
 
 Write-Host ""
