@@ -594,6 +594,22 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       }
     },
   },
+  {
+    version: 26,
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS teaching_log_classes (
+          id TEXT PRIMARY KEY,
+          teaching_log_id TEXT NOT NULL REFERENCES teaching_logs(id) ON DELETE CASCADE,
+          class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE (teaching_log_id, class_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_teaching_log_classes_class
+          ON teaching_log_classes(class_id, teaching_log_id);
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

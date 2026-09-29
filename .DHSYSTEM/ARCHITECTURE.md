@@ -220,4 +220,6 @@ Một buổi có 2–4 lớp tham gia, cùng môn/bài, một luồng trình chi
 
 Thiết kế triển khai ưu tiên migration cộng thêm (quan hệ phiên–lớp, liên kết điểm danh và ánh xạ game–người chơi–lớp), không thay thế hàng loạt `class_id` hiện có hoặc copy dữ liệu học liệu. API tạo nhóm phải kiểm tra quyền quản lý **mọi** lớp, lớp nguồn nằm trong nhóm, số lớp 2–4, không trùng lớp và không có phiên đang mở xung đột; danh sách lớp được đóng băng khi phiên bắt đầu. Game join kiểm tra enrollment trong lớp tham gia; nếu học viên thuộc nhiều lớp trong nhóm, yêu cầu chọn đúng một lớp và không tự cộng điểm cho cả hai. Với dữ liệu cũ không có quan hệ nhóm, read model hiểu là phiên một lớp.
 
+P83 T-8301 đã thêm migration v26 tạo `teaching_log_classes(id, teaching_log_id, class_id, created_at)` với cặp `(teaching_log_id, class_id)` duy nhất, FK cascade và index theo lớp. Bảng này chưa được API/UI sử dụng; chưa có phiên đa lớp hoạt động. Dữ liệu cũ không bị backfill hoặc thay đổi.
+
 Giới hạn game hiện được ghi là ≤60 kết nối/phòng; P85 phải đo tải hội trường nhiều lớp (giả định kiểm thử 4×60 = 240 học viên), xác định ngưỡng an toàn trước khi mở giới hạn. Các chi tiết chưa chốt với người dùng: nguồn học liệu lớp nào, cách chọn lớp cho học viên ghi danh chồng, nhu cầu QR điểm danh và ngưỡng quy mô thực tế mỗi lớp.

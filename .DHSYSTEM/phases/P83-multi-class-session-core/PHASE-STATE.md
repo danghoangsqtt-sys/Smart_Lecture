@@ -14,3 +14,4 @@
 ## Notes
 
 - 2026-09-29: T-8301 contract refined with exact file plan, verification and isolated test. Started after `--from 83`; no current installed data will be touched.
+- 2026-09-29 control point: migration-focused test 6/6, typecheck, lint and full build pass; full isolated E2E fails on pending P79 Bonjour-name conflict and Windows `upgrade-path-test.mjs` libuv teardown. T-8301 remains `in_progress`, not PASS.

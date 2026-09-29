@@ -40,4 +40,12 @@ Biểu diễn 2–4 lớp thuộc một nhật ký/buổi dạy mà không nhân
 
 ## Status
 
-- `todo`
+- `in_progress`
+
+## Execution Notes — 2026-09-29
+
+- Stack cache `~/.DHSYSTEM/stacks/{node-express-ts,sqlite-node}/SUMMARY.md` và `.DHSYSTEM/STACKS.md` không có; áp dụng `.DHSYSTEM/SYSTEM-RULES.md` cùng pattern migration hiện tại.
+- Tạo v26 bằng DDL cố định trong transaction của `migrate()`, chỉ thêm bảng liên kết và index. Không sửa `schema.sql` vì `teaching_logs` xuất hiện ở v16.
+- Thử trên thư mục tạm: fixture v25 có log/attendance/game/result một lớp; kiểm tra 6/6 gồm dữ liệu legacy, unique/FK/index, idempotency, bản sao pre-upgrade và rollback/retry.
+- `npm run typecheck`, `npm run lint`, `npm run build` đều đạt. Hồi quy cũ `scripts/upgrade-path-test.mjs` in PASS cho health nhưng process exit 1 với assertion libuv Windows khi teardown; lỗi phụ của harness sẽ theo dõi ở P79, không phải migration assertion.
+- `npm run test:e2e` chưa đạt: server E2E port 4100 khởi động và áp dụng v26, sau đó Bonjour báo trùng service name; cùng run bị dừng do `upgrade-path-test.mjs` assertion libuv Windows (exit `3221226505`). Đây là hai gate P79 chưa xong, không phải assertion về dữ liệu v26. Không đánh dấu PASS cho đến khi có hướng xử lý/waiver rõ.

@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-77-completed",
-  "phase_current": "P78-perimeter-dependencies",
-  "workflow_state": "ready-for-T-7801",
+  "status": "phase-83-control-point",
+  "phase_current": "P83-multi-class-session-core",
+  "workflow_state": "T-8301-verification-control-point",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Start T-7801 multipart parser hardening and malicious multipart regression."
+  "next_action": "T-8301 migration is implemented with focused tests passing, but full E2E fails on pending P79 Bonjour name collision and Windows upgrade-path teardown. Decide whether to fix P79 first or explicitly waive the unrelated full-suite gate before T-8301 PASS. P78-P82 remain todo."
 }
