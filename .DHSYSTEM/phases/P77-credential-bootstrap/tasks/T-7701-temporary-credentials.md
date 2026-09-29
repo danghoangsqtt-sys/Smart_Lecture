@@ -6,14 +6,16 @@ Generate unique temporary credentials for newly imported users and force secure 
 
 ## Paths
 
-- `server/src/routes/users.routes.ts`
-- `server/src/routes/classes.routes.ts`
-- `server/src/routes/auth.routes.ts`
-- `web/src/pages/UsersPage.tsx`
-- `web/src/features/class-detail/StudentsTab.tsx`
-- `server/src/utils/spreadsheet.ts`
-- `scripts/e2e-regressions.mjs`
-- `tests/browser/login.spec.ts`
+- `server/src/auth/temporaryCredentials.ts` — generate cryptographically random per-account temporary passwords.
+- `server/src/routes/users.routes.ts` — force first change for manual/JSON-created users and return JSON import credentials once.
+- `server/src/routes/classes.routes.ts` — remove username fallback and return only credentials created by the current spreadsheet import.
+- `web/src/lib/credentialExport.ts` — create formula-safe, in-memory CSV credential handoffs.
+- `web/src/pages/UsersPage.tsx` — explain first-change semantics and replace password-reset `prompt()` with the project modal pattern.
+- `web/src/features/class-detail/StudentsTab.tsx` — show/download the one-time credential handoff before closing import results.
+- `scripts/temporary-credentials-test.mjs` — cover JSON/CSV blank and explicit credentials, duplicates, first-login and Socket enforcement.
+- `tests/browser/login.spec.ts` — update created-student fixtures to complete mandatory first login.
+- `package.json` — expose the focused credential-bootstrap regression command.
+- `.DHSYSTEM/ARCHITECTURE.md` — document the one-time plaintext boundary and non-persistence invariant.
 
 ## File-Level Plan
 
@@ -30,4 +32,11 @@ Generate unique temporary credentials for newly imported users and force secure 
 
 ## Status
 
-- `todo`
+- `in_progress`
+
+## Best Practices
+
+- Generate with `node:crypto`; never derive a password from username, student code or another account.
+- Keep plaintext credentials in request-local memory only and return them only for accounts actually created by that request.
+- Treat staff-supplied import/manual/reset passwords as temporary bootstrap secrets and always require the owner to replace them.
+- Escape spreadsheet-formula prefixes when exporting credential handoffs and never put a password in logs, URLs, durable tables or later read APIs.

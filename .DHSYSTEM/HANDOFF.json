@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-76-completed",
+  "status": "phase-77-in-progress",
   "phase_current": "P77-imported-credential-bootstrap",
-  "workflow_state": "ready-for-T-7701",
+  "workflow_state": "T-7701-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Start T-7701 one-time imported credentials and forced first password change."
+  "next_action": "Implement T-7701 one-time imported credentials and forced first password change."
 }
