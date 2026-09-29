@@ -7,20 +7,35 @@ Biểu diễn 2–4 lớp thuộc một nhật ký/buổi dạy mà không nhân
 ## Paths
 
 - `server/src/db/connection.ts`
-- `server/src/db/schema.sql`
-- `server/src/types.ts`
-- `scripts/e2e-regressions.mjs`
+- `scripts/multi-class-schema-test.mjs`
 
 ## Plan
 
-1. Dùng migration version tiếp theo tại thời điểm thực thi; thêm quan hệ `teaching_log_id`–`class_id` với khóa/index riêng, không sửa/xóa `teaching_logs.class_id` cũ.
-2. Kiểm tra lớp nguồn nằm trong nhóm, không trùng lớp và tối đa bốn lớp ở API/transaction; DB giữ uniqueness/FK. Dữ liệu cũ không cần backfill phá hủy: khi không có quan hệ nhóm, read model trả một lớp cũ.
-3. Chuẩn bị quan hệ liên kết điểm danh và người chơi–lớp ở task P84 theo cùng nguyên tắc migration cộng thêm.
+1. Dùng migration v26 (sau v25 hiện tại); thêm quan hệ `teaching_log_id`–`class_id` với khóa/index riêng, không sửa/xóa `teaching_logs.class_id` cũ.
+2. Bảng liên kết có `id TEXT PRIMARY KEY`, `created_at`, cặp `(teaching_log_id, class_id)` duy nhất, FK và index theo lớp. Giới hạn 2–4 lớp, lớp nguồn nằm trong nhóm và quyền quản lý mọi lớp do API task T-8302 kiểm tra; không cố gắng ép cardinality bằng SQLite trigger.
+3. Không thêm bảng vào `schema.sql`: bảng `teaching_logs` được tạo bởi migration v16; bảng liên kết mới thuộc migration v26 để bootstrap/nâng cấp chạy đúng thứ tự. Dữ liệu cũ không cần backfill phá hủy; read model T-8302 dùng lớp nguồn khi không có dòng liên kết.
+
+## File-Level Plan
+
+- `server/src/db/connection.ts`: thêm migration v26 tạo `teaching_log_classes` với ID UUID do API cấp, unique pair và index `(class_id, teaching_log_id)`, FK/cascade, không thay đổi bảng cũ. Đây là bước lưu quan hệ tối thiểu trước khi mở API.
+- `scripts/multi-class-schema-test.mjs`: dùng DB/temp directory cô lập; tạo fixture có log/điểm danh/game một lớp, mô phỏng trạng thái v25 bằng cách bỏ bảng mới và migration marker, chạy v26 hai lần, kiểm tra sentinel, uniqueness/FK/index và rollback/retry khi migration gặp schema xung đột.
+
+## Best Practices
+
+- Chỉ prepared statements cho dữ liệu động; schema DDL cố định trong migration transaction hiện có.
+- Không mở/copy/sửa DB đang cài trên máy người dùng; phép thử dùng temp directory và cleanup xác thực.
+- Không thay đổi hợp đồng API và hành vi một lớp ở task schema này.
+
+## Verification
+
+- `npm run build -w server` → exit 0.
+- `node scripts/multi-class-schema-test.mjs` → mọi assertion PASS, exit 0.
+- `npm run typecheck` và `npm run lint` → exit 0.
 
 ## Acceptance
 
-- Bản sao DB v0.11 nâng cấp một lần và khởi động lại nhiều lần không đổi số nhật ký/điểm danh/kết quả.
-- Xóa/rollback theo backup test không để DB ở trạng thái nửa migration.
+- Fixture DB v25 với bản ghi một lớp nâng cấp/retry không đổi số nhật ký/điểm danh/kết quả.
+- Migration lỗi giữa chừng rollback marker và retry được sau khi sửa nguyên nhân; bản sao trước migration vẫn đọc được.
 - Query nhóm không dùng JSON filter hoặc nối chuỗi input vào SQL.
 
 ## Status

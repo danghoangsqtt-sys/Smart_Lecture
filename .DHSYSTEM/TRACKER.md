@@ -8,7 +8,7 @@
 
 | ID | Task | Phase | Status | Verify |
 |---|---|---|---|---|
-| T-8301 | Additive session–class schema and legacy compatibility | P83 | todo | migration + rollback/backup + single-class regression |
+| T-8301 | Additive session–class schema and legacy compatibility | P83 | doing | migration + rollback/backup + single-class regression |
 | T-8302 | Multi-class teaching lifecycle and authorization | P83 | todo | REST 2–4 classes + conflict/idempotency cases |
 | T-8303 | Shared source-lesson access across participant classes | P83 | todo | source/member/non-member access matrix |
 | T-8401 | Per-class attendance links within one teaching session | P84 | todo | per-class records + same-day conflict regression |
