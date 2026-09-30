@@ -57,4 +57,4 @@ Separate focused regressions from the full process-level chain and restore a rel
 
 ## Status
 
-- `in_progress`
+- `done` (2026-09-30). `test:focused` PASS; complete E2E PASS on three consecutive runs after final server/test changes; Browser E2E 6/6 PASS; typecheck, lint and production build PASS. Port 4000 remained occupied by the installed SmartLecture while isolated tests used 4100/4300/4600/4700/4800.
