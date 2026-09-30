@@ -8,5 +8,5 @@
 | Task | Status | Verification |
 | --- | --- | --- |
 | T-7801 Multipart parser hardening | done | multipart security PASS; focused + E2E PASS; audit no Multer finding |
-| T-7802 Proxy/rate-limit trust boundary | todo | spoofed-header rate-limit regression |
+| T-7802 Proxy/rate-limit trust boundary | in_progress | spoofed-header login/global rate-limit regression |
 | T-7803 Moderate advisory triage | todo | audit evidence and risk record |
