@@ -4,8 +4,8 @@
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
   "status": "phase-78-release-in-progress;phase-86-roster-preflight-complete",
-  "phase_current": "P87-home-class-planned",
-  "workflow_state": "P86-T-8601-complete;P87-next;P78-T-7803-release-prerequisite",
+  "phase_current": "P87-home-class-in-progress",
+  "workflow_state": "P86-T-8601-complete;P87-T-8700-complete;P87-T-8701-next;P78-T-7803-release-prerequisite",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P86 roster preflight completed on 2026-09-30. Installed DB has 3 students without codes and 1 without class; obtain real mappings and rerun read-only audit before one-class/unique enforcement in P87. P78-T-7803 and P82 release gates still pending."
+  "next_action": "P87-T-8700 completed on 2026-09-30: the 3 explicitly identified test students were removed from installed DB after verified SQLite backup; installed roster is now ready with no integrity/FK issues. Proceed to P87-T-8701 staged schema and constraint gate. P78-T-7803 and P82 release gates still pending."
 }

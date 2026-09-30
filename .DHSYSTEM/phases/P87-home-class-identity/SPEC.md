@@ -12,6 +12,7 @@ Mỗi học viên có mã sinh viên duy nhất và một lớp biên chế hi�
 
 ## Tasks
 
+0. T-8700 — dọn đúng tài khoản học viên thử được người dùng chỉ định; backup và xem trước cascade trước khi xóa.
 1. T-8701 — migration cộng thêm, schema/history và enforcement gate; kiểm thử nâng cấp sạch/xung đột.
 2. T-8702 — tạo tài khoản có một lớp, username/mã SV chuẩn hóa, mọi writer cùng một transaction/validation.
 3. T-8703 — UI Người dùng và Excel một học viên/một lớp; import idempotent, báo xung đột từng dòng.

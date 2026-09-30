@@ -4,6 +4,7 @@
 
 - Thay kế hoạch P83–P85 dựa vào “lớp nguồn” bằng P86–P90: một lớp biên chế/học viên, kho môn/bài dùng chung, giảng dạy đa lớp và migration rehearsal. Chưa phát hành hay áp ràng buộc dữ liệu.
 - Thêm kiểm kê roster SQLite chỉ đọc, yêu cầu đường dẫn DB tường minh và báo cáo xung đột trước migration; bản cài hiện còn học viên thiếu mã/lớp, chưa được tự động sửa.
+- Theo xác nhận của người dùng, xóa đúng ba học viên thử thiếu mã trong DB bản cài sau khi kiểm tra tham chiếu và tạo backup SQLite nhất quán. Thêm CLI dọn dữ liệu có dry-run, khóa tập ID bằng SHA-256, chặn xóa nếu có lịch sử học tập và kiểm thử bằng fixture tạm; roster bản cài hiện không còn xung đột.
 
 ## Planned — Giảng dạy đồng thời 2–4 lớp v0.12.0
 
