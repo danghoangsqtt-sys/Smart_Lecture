@@ -1,5 +1,33 @@
 # ROADMAP — Smart_Lecture
 
+## Milestone v0.12.0 — Kế hoạch đã sửa theo REQ-20260930-013 (2026-09-30)
+
+> Nguồn: `docs/brainstorm/session-2026-09-30.md` và `.DHSYSTEM/requests/REQ-20260930-013-roster-curriculum-teaching.md`. Người dùng yêu cầu bắt đầu P86 ngay; phát hành vẫn đòi hỏi P78–P82 và P86–P90. P83–P85 bên dưới là kế hoạch cũ bị thay thế vì giả định “lớp nguồn”/học viên đa lớp; migration v26 đã có được giữ để tái sử dụng.
+
+| Phase | Mục tiêu | Công việc/điều kiện nghiệm thu |
+|---|---|---|
+| P86 — Roster preflight | Kiểm kê chỉ đọc trước ràng buộc dữ liệu | T-8601 CLI báo cáo xung đột trên DB chỉ định, fixture tests, không sửa DB |
+| P87 — Học viên và lớp biên chế | Một mã SV/một lớp hiện tại, tạo/nhập/chuyển/xử lý tài khoản | T-8701 schema + gate; T-8702 API; T-8703 Excel/UI; T-8704 chuyển/xóa/lưu trữ/tests |
+| P88 — Kho chương trình dùng chung | Môn→bài→slide/video/câu hỏi, lớp–môn, tiến độ riêng | T-8801 schema/mapping legacy; T-8802 API/snapshot; T-8803 UI; T-8804 tests |
+| P89 — Giảng dạy 1–4 lớp | Một nội dung/workspace/game, kết quả tách lớp | T-8901 lifecycle/v26; T-8902 attendance/game/results; T-8903 UI; T-8904 reports/tests |
+| P90 — Rehearsal/release | Di trú trên bản sao, UX/E2E, rollback | T-9001 upgrade/restore; T-9002 Browser/Socket/REST; T-9003 docs/release gate |
+
+**Thứ tự thực thi:** P86 → P87 → P88 → P89 → P90. Không đổi phiên bản app/bộ cài khỏi v0.11.0 trước release. UI chưa có prototype; giữ cấu trúc hiện tại và nghiệm thu UX ở P90.
+
+### Phase 86 — Kiểm kê và cổng di trú dữ liệu
+
+**Goal:** phát hiện dữ liệu không thể áp quy tắc một học viên–một lớp trước khi thêm ràng buộc. **Dependencies:** không bị P78–P82 chặn vì chỉ đọc, thử trên fixture; không mở DB cài đặt nếu không có đường dẫn tường minh.
+
+| Task | Mô tả | Điều kiện nghiệm thu |
+|---|---|---|
+| T-8601 | Công cụ kiểm kê roster chỉ đọc + test trên DB cô lập | Báo thiếu/trùng mã SV, username casefold, 0/>1 lớp, sai role/FK; không sửa DB; test PASS |
+
+**Verification:** `node --test scripts/roster-preflight.test.mjs`, `npm run typecheck`, `npm run lint`.
+
+## Kế hoạch cũ P83–P85 — đã bị thay thế, giữ để truy vết (2026-09-29)
+
+> Các task T-8302/T-8303/T-84xx/T-85xx không tiếp tục theo hợp đồng cũ. P89 sẽ tái dùng migration v26 sau P86–P88, không xóa bảng/dữ liệu đã tạo.
+
 ## Milestone v0.12.0 — Một buổi giảng dạy cho nhiều lớp (planned, sau v0.11.0)
 
 > Kế hoạch tính năng mới, chưa triển khai. Giữ nguyên gói ứng dụng và release gate v0.11.0; chỉ nâng phiên bản chạy khi triển khai/phát hành v0.12.0.

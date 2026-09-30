@@ -2,7 +2,21 @@
 
 > Cập nhật realtime khi làm việc. Trạng thái: `todo` · `doing` · `done` · `blocked`
 
-## Milestone v0.12.0 — Multi-class teaching (planned after v0.11.0)
+## Kế hoạch sửa đổi 2026-09-30 — REQ-20260930-013
+
+> Người dùng yêu cầu bắt đầu P86; đây là kiểm kê chỉ đọc, không ghi DB cài đặt. P83–P85 cũ bị thay thế vì giả định “lớp nguồn”/học viên nhiều lớp; migration v26 vẫn giữ. Release v0.11.0 còn P78–P82, không được xem là hoàn tất.
+
+| ID | Task | Phase | Status | Verify |
+|---|---|---|---|---|
+| T-8601 | Roster preflight read-only và fixture regression | P86 | doing | SQLite readOnly, test độc lập, typecheck/lint |
+| T-8701..04 | Định danh, một lớp biên chế, nhập Excel, chuyển lớp và tài khoản sai | P87 | todo | migration gate + REST/UI/backup tests |
+| T-8801..04 | Kho môn/bài/học liệu/câu hỏi dùng chung | P88 | todo | legacy mapping + curriculum/game tests |
+| T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
+| T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |
+
+## Kế hoạch cũ P83–P85 — đã bị thay thế, giữ để truy vết
+
+### Milestone v0.12.0 — Multi-class teaching (planned after v0.11.0)
 
 > Chỉ là kế hoạch; `package.json` và bản cài hiện vẫn là v0.11.0. Không bắt đầu P83 trước khi chốt release gate P82.
 

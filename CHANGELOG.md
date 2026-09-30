@@ -1,7 +1,13 @@
 # Changelog
 
+## Planned — Lớp biên chế và chương trình đào tạo dùng chung v0.12.0 (replanned 2026-09-30)
+
+- Thay kế hoạch P83–P85 dựa vào “lớp nguồn” bằng P86–P90: một lớp biên chế/học viên, kho môn/bài dùng chung, giảng dạy đa lớp và migration rehearsal. Chưa phát hành hay áp ràng buộc dữ liệu.
+- Thêm kiểm kê roster SQLite chỉ đọc, yêu cầu đường dẫn DB tường minh và báo cáo xung đột trước migration; bản cài hiện còn học viên thiếu mã/lớp, chưa được tự động sửa.
+
 ## Planned — Giảng dạy đồng thời 2–4 lớp v0.12.0
 
+- Kế hoạch lịch sử này đã bị thay thế bởi kế hoạch 2026-09-30 ở trên; migration v26 được giữ, các giả định “lớp nguồn”/học viên nhiều lớp không còn hiệu lực.
 - Đã lập kế hoạch P83–P85 cho một buổi học cùng môn/bài, một luồng trình chiếu và một phòng game; điểm danh, kết quả và KTTX tách theo lớp.
 - Đã bổ sung migration v26 cho quan hệ nhật ký dạy–lớp (nền tảng P83); API và giao diện đa lớp chưa triển khai.
 - Tính năng đa lớp chưa hoạt động trong ứng dụng/bộ cài v0.11.0 hiện tại; phiên bản phát hành sẽ chỉ tăng sau khi hoàn tất API, giao diện và các release gate.

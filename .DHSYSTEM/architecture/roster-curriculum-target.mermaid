@@ -1,0 +1,9 @@
+flowchart LR
+  Student[Học viên + mã SV duy nhất] -->|một lớp hiện tại| HomeClass[Lớp biên chế]
+  HomeClass -->|nhiều môn| ClassSubject[Phân công lớp–môn]
+  ClassSubject --> Subject[Môn dùng chung]
+  Subject --> Lesson[Bài học]
+  Lesson --> Materials[Slide và video chung]
+  Lesson --> Questions[Câu hỏi ngân hàng]
+  Lesson --> Session[Buổi dạy 1–4 lớp]
+  Session --> PerClass[Điểm danh và kết quả theo lớp]

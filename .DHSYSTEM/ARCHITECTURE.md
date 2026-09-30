@@ -1,5 +1,28 @@
 # ARCHITECTURE — Smart_Lecture
 
+## Thiết kế đích 2026-09-30 — lớp biên chế và nguồn chương trình dùng chung
+
+Nguồn chi tiết: `.DHSYSTEM/requests/REQ-20260930-013-roster-curriculum-teaching.md`. Schema phía dưới mô tả hiện trạng/legacy, không phải quan hệ nghiệp vụ đích. Không sửa dữ liệu legacy trước kiểm kê P86 và rehearsal trên bản sao.
+
+**Diagram source:** `.DHSYSTEM/architecture/roster-curriculum-target.mermaid`.
+
+```mermaid
+flowchart LR
+  Student[Học viên + mã SV duy nhất] -->|một lớp hiện tại| HomeClass[Lớp biên chế]
+  HomeClass -->|nhiều môn| ClassSubject[Phân công lớp–môn]
+  ClassSubject --> Subject[Môn dùng chung]
+  Subject --> Lesson[Bài học]
+  Lesson --> Materials[Slide và video chung]
+  Lesson --> Questions[Câu hỏi ngân hàng]
+  Lesson --> Session[Buổi dạy 1–4 lớp]
+  Session --> PerClass[Điểm danh và kết quả theo lớp]
+```
+
+- Ứng dụng cục bộ trên máy một giảng viên; không liên thông hồ sơ giữa nhiều giảng viên/máy. Một học viên có một lớp biên chế hiện tại; chuyển lớp ghi lịch sử và giữ `class_id` của điểm danh/kết quả cũ.
+- Môn/bài/học liệu độc lập lớp. Một lớp học nhiều môn, môn có thể dùng cho nhiều lớp; chỉ tiến độ/kết quả riêng. `teaching_logs.class_id` là fallback cho bản ghi cũ, không còn là “lớp nguồn học liệu”.
+- `teaching_log_classes` migration v26 được tái sử dụng ở P89 sau P86–P88. P83–P85 cũ bị thay thế trong ROADMAP; không mở quyền học liệu bằng lớp nguồn.
+- UI chưa có prototype: giữ bố cục hiện tại, kiểm thử các luồng Người dùng → Lớp → Chương trình → Giảng dạy ở P90.
+
 ## 1. Sơ đồ tổng thể
 
 ```

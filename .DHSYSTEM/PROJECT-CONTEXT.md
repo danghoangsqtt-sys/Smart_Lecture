@@ -1,5 +1,14 @@
 # PROJECT-CONTEXT — Smart_Lecture
 
+## Quyết định nghiệp vụ bổ sung 2026-09-30
+
+- Giai đoạn trước mắt là nhật ký/công cụ dạy học cục bộ của một giảng viên trên máy của họ. Mô hình nhiều giảng viên trong phần lịch sử bên dưới là bối cảnh trường học, không phải phạm vi điều phối hồ sơ/học liệu liên máy của milestone này.
+- Mỗi học viên có một mã sinh viên duy nhất và đúng một lớp biên chế hiện tại. Chuyển lớp giữ điểm danh/kết quả theo lớp cũ; dạy chung nhiều lớp không tạo học viên đa lớp.
+- Username không trùng khi chỉ khác hoa/thường; username học viên toàn chữ thường; tên hiển thị có thể trùng. Chỉ xóa hẳn tài khoản chưa có dữ liệu học tập; tài khoản đã có thì vô hiệu hóa/ẩn và giữ lịch sử. Giảng viên được xử lý học viên do mình tạo.
+- Chương trình đào tạo chứa môn→bài→slide/video/câu hỏi dùng chung nhiều lớp. Một lớp học nhiều môn; tiến độ theo lớp–môn, điểm danh/kết quả theo lớp; không tạo học liệu riêng từng lớp.
+- Giảng dạy chọn môn/bài đã chuẩn bị và 1–4 lớp; một workspace trình chiếu/video/game. Excel trang Người dùng có một lớp biên chế mỗi dòng; nhập lặp không tạo tài khoản/lớp thứ hai.
+- Chi tiết và cổng di trú: `.DHSYSTEM/requests/REQ-20260930-013-roster-curriculum-teaching.md`. Các quyết định này thay thế giả định lịch sử mâu thuẫn bên dưới, nhưng không xóa lịch sử tài liệu.
+
 ## Bối cảnh tổ chức
 - Người dùng cuối: giáo viên + học viên môi trường giảng dạy Việt Nam (quân đội/nhà nước — thể thức tài liệu in ấn chuẩn Quốc hiệu, Tiêu ngữ khi xuất đề).
 - Môi trường triển khai: máy tính xách tay/PC của giáo viên, Windows, WiFi phòng học (LAN nội bộ), KHÔNG dựa vào Internet trong giờ dạy.
