@@ -14,13 +14,13 @@
 
 **Thứ tự thực thi:** P86 → P87 → P88 → P89 → P90. Không đổi phiên bản app/bộ cài khỏi v0.11.0 trước release. UI chưa có prototype; giữ cấu trúc hiện tại và nghiệm thu UX ở P90.
 
-### Phase 86 — Kiểm kê và cổng di trú dữ liệu
+### Phase 86 — Kiểm kê và cổng di trú dữ liệu ✅
 
 **Goal:** phát hiện dữ liệu không thể áp quy tắc một học viên–một lớp trước khi thêm ràng buộc. **Dependencies:** không bị P78–P82 chặn vì chỉ đọc, thử trên fixture; không mở DB cài đặt nếu không có đường dẫn tường minh.
 
 | Task | Mô tả | Điều kiện nghiệm thu |
 |---|---|---|
-| T-8601 | Công cụ kiểm kê roster chỉ đọc + test trên DB cô lập | Báo thiếu/trùng mã SV, username casefold, 0/>1 lớp, sai role/FK; không sửa DB; test PASS |
+| T-8601 ✅ | Công cụ kiểm kê roster chỉ đọc + test trên DB cô lập | Báo thiếu/trùng mã SV, username casefold, 0/>1 lớp, sai role/FK; không sửa DB; 5/5 test PASS |
 
 **Verification:** `node --test scripts/roster-preflight.test.mjs`, `npm run typecheck`, `npm run lint`.
 

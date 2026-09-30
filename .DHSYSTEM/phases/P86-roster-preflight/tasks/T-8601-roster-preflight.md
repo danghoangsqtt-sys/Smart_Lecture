@@ -42,4 +42,10 @@ Cung cấp một báo cáo tái lập được về các xung đột dữ liệu
 
 ## Status
 
-- `in_progress` — 2026-09-30; đang triển khai và kiểm chứng trên fixture, chưa đánh dấu PASS.
+- `done` — 2026-09-30; 5/5 fixture tests, typecheck, lint, build và git persistence đạt. Chỉ kiểm kê read-only, không sửa DB thực.
+
+## Execution Notes — 2026-09-30
+
+- Repo DB: 62 học viên, 6 lớp, 62 ghi danh, không có xung đột kiểm kê.
+- DB bản cài: 3 học viên thiếu mã sinh viên, 1 học viên chưa có lớp; chưa đủ điều kiện áp unique/one-class constraint. Không xuất định danh hay tự điền mã/lớp.
+- Commit triển khai: `99e8607`; checkpoint tag `Smart_Lecture-main-0.11.0-DH-p86-t8601` đã đẩy lên upstream.
