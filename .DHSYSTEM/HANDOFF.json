@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-79-complete",
+  "status": "phase-78-in-progress",
   "phase_current": "P78-perimeter-dependencies",
-  "workflow_state": "P79-complete-T-7801-next",
+  "workflow_state": "P78-T-7801-in-progress",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P79 is complete: focused, repeated full E2E and Browser 6/6 pass beside the installed instance. Resume milestone order at T-7801 (multipart parser and bounded upload hardening), then P80-P82 release gates. T-8301 migration is implemented but remains blocked on P78-P82 prerequisites; its full E2E gate can now be rerun when the milestone is ready."
+  "next_action": "Execute T-7801 multipart parser hardening per task contract; keep tests isolated from the installed app. Then proceed to T-7802."
 }

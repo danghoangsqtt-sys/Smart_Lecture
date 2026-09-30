@@ -8,6 +8,9 @@ Upgrade Multer to a patched release and bound multipart resource use on every up
 
 - `server/package.json`
 - `package-lock.json`
+- `package.json`
+- `server/src/utils/uploadLimits.ts` (new)
+- `server/src/utils/errors.ts`
 - `server/src/routes/classes.routes.ts`
 - `server/src/routes/lectures.routes.ts`
 - `server/src/routes/questions.routes.ts`
@@ -15,19 +18,38 @@ Upgrade Multer to a patched release and bound multipart resource use on every up
 - `server/src/routes/teachingPlans.routes.ts`
 - `server/src/routes/curriculumDocuments.routes.ts`
 - `scripts/upload-security-test.mjs`
+- `.DHSYSTEM/ARCHITECTURE.md`
 
 ## File-Level Plan
 
-1. Upgrade Multer/types to a patched compatible release.
-2. Define route-specific `fileSize`, `files`, `fields`, `parts`, field-name, nesting and array-index limits.
-3. Standardize Multer error responses without reflecting unsafe field/file input.
-4. Verify aborted disk uploads do not leave orphaned files.
+1. `server/package.json`, `package-lock.json`: pin Multer at patched 2.4.0; retain compatible `@types/multer` and regenerate lockfile.
+2. `server/src/utils/uploadLimits.ts`: expose typed one-file limits builder with finite `fileSize`, `files`, `fields`, `parts`, `fieldNameSize`, `fieldSize`, `fieldNestingDepth`, `fieldArrayIndexLimit`, `headerPairs`.
+3. Six upload route files: replace ad-hoc limits with route-specific field counts/sizes while retaining existing MIME/extension checks and file-size contracts.
+4. `server/src/utils/errors.ts`: map `MulterError` to stable 400/413 JSON codes/messages; never reflect attacker-controlled field name or filename.
+5. `scripts/upload-security-test.mjs`, `package.json`: isolated server regression for benign upload, crafted fields/index/depth, fields/parts/file-size overflow, and aborted disk upload cleanup.
+6. `.DHSYSTEM/ARCHITECTURE.md`: document multipart boundary and limit/error behavior.
+
+## Best Practices
+
+- Set the minimum viable multipart limits per route, including `fieldNestingDepth` and `fieldArrayIndexLimit` supported by Multer 2.4.0.
+- Keep disk-storage cleanup inside patched Multer on parser failure/abort; do not fabricate filenames from client input.
+- Validate malicious cases through HTTP against an isolated data root, never the installed application.
 
 ## Verification Contract
 
 - Crafted field-name/index, excessive fields/parts, oversize and aborted-upload tests fail safely.
 - `npm audit --omit=dev` reports no Multer high/critical advisory.
 
+## Verification Commands
+
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+- `npm run test:upload-security`
+- `npm run test:focused`
+- `npm run test:e2e`
+- `npm audit --omit=dev --json` (inspect Multer finding separately; unrelated advisories belong to T-7803)
+
 ## Status
 
-- `todo`
+- `in_progress`
