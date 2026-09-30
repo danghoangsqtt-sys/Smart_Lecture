@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Modal } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { StudentProfileModal } from '../../components/StudentProfileFields';
+import { StudentImportModal } from '../../components/StudentImportModal';
 import { api } from '../../lib/api';
-import { downloadCredentialCsv, type OneTimeCredential } from '../../lib/credentialExport';
 import toast from '../../stores/toastStore';
 import type { StudentLite, StudentProfile } from './types';
 
@@ -37,16 +37,6 @@ export function StudentsTab({ classId, students, canManage, onChanged }: { class
     }
   }
 
-  async function removeStudent(sid: string) {
-    try {
-      await api(`/classes/${classId}/enroll/${sid}`, { method: 'DELETE' });
-      await onChanged();
-      await loadEligible();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lỗi');
-    }
-  }
-
   return (
     <div className="space-y-5">
       <section>
@@ -72,7 +62,6 @@ export function StudentsTab({ classId, students, canManage, onChanged }: { class
                 {canManage && (
                   <div className="flex items-center gap-3">
                     <button onClick={() => setEditingStudent(s)} className="text-xs font-semibold text-blue-700 hover:text-blue-900">Sửa hồ sơ</button>
-                    <button onClick={() => void removeStudent(s.id)} className="text-xs font-semibold text-red-600 hover:text-red-700">Xóa khỏi lớp</button>
                   </div>
                 )}
               </li>
@@ -82,7 +71,7 @@ export function StudentsTab({ classId, students, canManage, onChanged }: { class
       </section>
       {canManage && (
         <section>
-          <h4 className="mb-2 text-sm font-semibold text-slate-600">Thêm từ danh sách ({eligible.length})</h4>
+          <h4 className="mb-2 text-sm font-semibold text-slate-600">Học viên cũ chưa có lớp ({eligible.length})</h4>
           {eligible.length === 0 ? (
             <p className="text-sm text-slate-500">Tất cả học viên đã ở trong lớp.</p>
           ) : (
@@ -116,8 +105,8 @@ export function StudentsTab({ classId, students, canManage, onChanged }: { class
         </section>
       )}
       {importOpen && (
-        <ImportStudentsModal
-          classId={classId}
+        <StudentImportModal
+          fixedClassId={classId}
           onClose={() => setImportOpen(false)}
           onImported={async () => {
             await onChanged();
@@ -127,102 +116,5 @@ export function StudentsTab({ classId, students, canManage, onChanged }: { class
       )}
       {editingStudent && <StudentProfileModal student={editingStudent} onClose={() => setEditingStudent(null)} onSaved={() => void onChanged()} />}
     </div>
-  );
-}
-
-function ImportStudentsModal({ classId, onClose, onImported }: { classId: string; onClose: () => void; onImported: () => Promise<void> }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
-  const [credentials, setCredentials] = useState<OneTimeCredential[]>([]);
-
-  async function downloadTemplate() {
-    setDownloadingTemplate(true);
-    try {
-      const res = await fetch(`/api/classes/${classId}/import-template.xlsx`);
-      if (!res.ok) throw new Error('Tải file mẫu thất bại');
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `mau-nhap-hoc-vien-${Date.now()}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lỗi tải file mẫu');
-    } finally {
-      setDownloadingTemplate(false);
-    }
-  }
-
-  async function submit() {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch(`/api/classes/${classId}/import-students`, {
-        method: 'POST',
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Import failed');
-      const data = await res.json() as { created: number; enrolled: number; skipped: number; credentials: OneTimeCredential[]; errors: string[] };
-      toast.success(`Đã tạo ${data.created} tài khoản mới, thêm ${data.enrolled} vào lớp (bỏ qua ${data.skipped})`);
-      if (data.errors.length) toast.error(data.errors.slice(0, 5).join('; '));
-      await onImported();
-      if (data.credentials.length > 0) setCredentials(data.credentials);
-      else onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lỗi import');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal open onClose={onClose} title="Nhập học viên từ Excel/CSV" wide>
-      {credentials.length > 0 ? (
-        <div className="space-y-4">
-          <div className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Đây là lần duy nhất hệ thống hiển thị các mật khẩu tạm. Hãy tải xuống và chuyển riêng cho từng học viên; tất cả học viên phải đổi mật khẩu ngay lần đăng nhập đầu tiên.
-          </div>
-          <div className="max-h-72 overflow-auto rounded-sm border border-slate-200">
-            <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-3 py-2">Tài khoản</th><th className="px-3 py-2">Mật khẩu tạm</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {credentials.map((item) => <tr key={item.id}><td className="px-3 py-2 font-mono">{item.username}</td><td className="px-3 py-2 font-mono">{item.temporaryPassword}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => downloadCredentialCsv(credentials, `tai-khoan-tam-${Date.now()}.csv`)}><i className="fas fa-download" /> Tải CSV</Button>
-            <Button onClick={onClose}>Đã lưu, đóng</Button>
-          </div>
-        </div>
-      ) : <>
-      <p className="mb-4 text-sm text-slate-500">
-        File cần đủ 9 cột theo thứ tự: <strong>STT, Mã học viên, Họ và tên, Ngày tháng năm sinh, Giới tính, Lớp, Quê quán, Tài khoản user, Mật khẩu mặc định</strong>.
-        Bắt buộc có <strong>Tài khoản user</strong> và <strong>Họ và tên</strong>; các cột còn lại có thể để trống.
-        Mật khẩu bỏ trống sẽ được tạo ngẫu nhiên riêng cho từng học viên. Mật khẩu nhập sẵn cũng chỉ là mật khẩu tạm; học viên bắt buộc đổi ngay lần đăng nhập đầu tiên.
-        Cột Lớp chỉ dùng để đối chiếu — nếu khác tên lớp hiện tại vẫn nhập bình thường nhưng sẽ có cảnh báo.
-      </p>
-      <div className="mb-4">
-        <Button variant="secondary" onClick={() => void downloadTemplate()} disabled={downloadingTemplate}>
-          <i className="fas fa-file-excel" /> {downloadingTemplate ? 'Đang tải…' : 'Tải file mẫu Excel'}
-        </Button>
-      </div>
-      <input
-        aria-label="Chọn file danh sách học viên"
-        type="file"
-        accept=".csv,.xlsx"
-        onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
-        className="mb-4 block w-full text-sm text-slate-600 file:mr-3 file:rounded-sm file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:font-semibold file:text-slate-700"
-      />
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={onClose} disabled={busy}>Hủy</Button>
-        <Button onClick={() => void submit()} disabled={busy || !file}>{busy ? 'Đang nhập…' : 'Nhập học viên'}</Button>
-      </div>
-      </>}
-    </Modal>
   );
 }

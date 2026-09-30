@@ -12,7 +12,8 @@
 | T-8700 | Xóa đúng 3 học viên thử sau sao lưu và xác minh FK | P87 | done | 3 ID; backup verified; user 4→1; FK/integrity sạch; CLI 4/4 + typecheck/lint/build PASS |
 | T-8701 | Migration lớp biên chế, lịch sử và constraint gate | P87 | done | v27; 4 fixture cases + 2 real-DB backup rehearsals; focused + E2E 87/87 smoke, 10/10 Socket, 11/11 game, 26/26 API |
 | T-8702 | Tạo học viên có mã và lớp trong một transaction, khóa các đường ghi cũ | P87 | done | REST contract 8/8; focused + full E2E + Browser 7/7; React Doctor 100 |
-| T-8703..04 | Nhập Excel, chuyển lớp và tài khoản sai | P87 | todo | UI/backup tests |
+| T-8703 | Nhập Excel tại Người dùng, preview và một lớp biên chế | P87 | done | Excel contract 8/8; focused + full E2E + Browser 8/8; React Doctor 100 |
+| T-8704 | Chuyển lớp và xử lý tài khoản sai | P87 | todo | backup/auth/history tests |
 | T-8801..04 | Kho môn/bài/học liệu/câu hỏi dùng chung | P88 | todo | legacy mapping + curriculum/game tests |
 | T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
 | T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |

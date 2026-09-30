@@ -3,10 +3,12 @@ import { api } from '../lib/api';
 import type { PublicUser } from '../types';
 import { Badge, Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
 import { StudentProfileModal } from '../components/StudentProfileFields';
+import { StudentImportModal } from '../components/StudentImportModal';
 import toast from '../stores/toastStore';
 
 interface UserRow extends PublicUser {
   failedAttempts?: number;
+  homeClassName?: string | null;
 }
 
 export default function UsersPage() {
@@ -15,6 +17,7 @@ export default function UsersPage() {
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<UserRow | null>(null);
   const [resettingPassword, setResettingPassword] = useState<UserRow | null>(null);
 
@@ -42,7 +45,7 @@ export default function UsersPage() {
       <PageHeader
         title="Người dùng"
         subtitle="Quản lý tài khoản giáo viên và học viên"
-        actions={<Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button>}
+        actions={<div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => setImportOpen(true)}>Nhập Excel/CSV</Button><Button onClick={() => setCreateOpen(true)}>Tạo tài khoản</Button></div>}
       />
       <Card className="mb-4 flex flex-wrap gap-3 p-4">
         <Input placeholder="Tìm theo tên / username…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
@@ -66,6 +69,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3">Tên hiển thị</th>
                   <th className="px-4 py-3">Mã HV</th>
                   <th className="px-4 py-3">Username</th>
+                  <th className="px-4 py-3">Lớp biên chế</th>
                   <th className="px-4 py-3">Vai trò</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3 text-right">Thao tác</th>
@@ -77,6 +81,7 @@ export default function UsersPage() {
                     <td className="px-4 py-2.5">{u.displayName}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{u.studentCode || '—'}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{u.username}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600">{u.role === 'student' ? u.homeClassName || 'Chưa có lớp (dữ liệu cũ)' : '—'}</td>
                     <td className="px-4 py-2.5">{u.role === 'admin' ? 'Quản trị' : u.role === 'teacher' ? 'GV' : 'HV'}</td>
                     <td className="px-4 py-2.5">
                       <Badge tone={u.status === 'active' ? 'green' : 'red'}>
@@ -116,6 +121,7 @@ export default function UsersPage() {
       </Card>
 
       <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={load} />
+      {importOpen && <StudentImportModal onClose={() => setImportOpen(false)} onImported={load} />}
       {resettingPassword && <ResetPasswordModal user={resettingPassword} onClose={() => setResettingPassword(null)} />}
       {editingProfile && (
         <StudentProfileModal

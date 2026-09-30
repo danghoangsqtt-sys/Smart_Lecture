@@ -5,14 +5,14 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
-import { tx, db, queryAll, toPublicUser, findUserByUsername } from '../db/connection.js';
+import { tx, db, queryAll, toPublicUser } from '../db/connection.js';
 import { DROP_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '../utils/access.js';
-import { createStudentAccount, enrollExistingStudent, enrollExistingStudents } from '../services/studentAccounts.js';
+import { enrollExistingStudents } from '../services/studentAccounts.js';
+import { parseStudentRoster, previewStudentRoster, importStudentRoster } from '../services/studentRosterImport.js';
 import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
-import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
 import { singleFileLimits } from '../utils/uploadLimits.js';
 
 function ensureDropFolder(subjectId: string): void {
@@ -546,10 +546,10 @@ router.get(
     const instrRow = sheet.getRow(3);
     sheet.mergeCells(`A3:${lastCol}3`);
     instrRow.getCell(1).value =
-      'Hướng dẫn: Bắt buộc nhập "Tài khoản user" và "Họ và tên". Nếu để trống "Mật khẩu mặc định", hệ thống sẽ dùng chính "Tài khoản user" làm mật khẩu ban đầu. Cột "Lớp" nên khớp với tên lớp hiện tại. Xóa 2 dòng ví dụ (tô vàng) trước khi nhập dữ liệu thật, có thể xóa các dòng trống thừa hoặc thêm dòng nếu cần.';
+      'Hướng dẫn: Bắt buộc nhập Mã học viên, Họ và tên, Tài khoản user. Mỗi dòng thuộc lớp đã chọn; không đổi cột Lớp sang lớp khác. Để trống Mật khẩu mặc định để hệ thống sinh mật khẩu tạm riêng ngẫu nhiên. File không chứa tài khoản ví dụ; tối đa 500 dòng dữ liệu.';
     instrRow.getCell(1).font = { size: 9, color: { argb: 'FF64748B' } };
     instrRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
-    instrRow.height = 30;
+    instrRow.height = 38;
 
     sheet.getRow(4).height = 6;
 
@@ -564,24 +564,8 @@ router.get(
     });
     headerRow.height = 30;
 
-    const examples: (string | number)[][] = [
-      ['VD1', 'HV2024001', 'Nguyễn Văn A', '15/03/2005', 'Nam', cls.name, 'Hà Nội', 'hv2024001', 'matkhau123'],
-      ['VD2', 'HV2024002', 'Trần Thị B', '22/07/2005', 'Nữ', cls.name, 'Hải Phòng', 'hv2024002', ''],
-    ];
-    examples.forEach((ex, i) => {
-      const row = sheet.getRow(6 + i);
-      ex.forEach((val, idx) => {
-        const cell = row.getCell(idx + 1);
-        cell.value = val;
-        cell.font = { italic: true, color: { argb: 'FF92400E' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
-        cell.border = thinBorder('FFFDE68A');
-        cell.alignment = { vertical: 'middle' };
-      });
-    });
-
     const FILLER_ROWS = 45;
-    const dataStart = 8;
+    const dataStart = 6;
     for (let i = 0; i < FILLER_ROWS; i++) {
       const row = sheet.getRow(dataStart + i);
       const banded = i % 2 === 1;
@@ -591,6 +575,7 @@ router.get(
         if (banded) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
         if (c === 4) cell.numFmt = '@';
       }
+      sheet.getCell(`F${dataStart + i}`).value = cls.name;
       sheet.getCell(`E${dataStart + i}`).dataValidation = {
         type: 'list',
         allowBlank: true,
@@ -639,6 +624,7 @@ router.get(
     const rows = db
       .prepare(
         `SELECT id, username, display_name FROM users u WHERE role = 'student' AND status = 'active'
+         AND student_code IS NOT NULL AND trim(student_code) <> ''
          AND u.created_by = ?
          AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = u.id)
          ORDER BY display_name LIMIT 300`
@@ -660,36 +646,19 @@ function normalizeHeader(cell: unknown): string {
     .toLowerCase();
 }
 
-function computeHeaderIndices(headerRow: unknown[]) {
-  const headers = headerRow.map(normalizeHeader);
-  return {
-    studentCodeIdx: headers.findIndex((h) => h.includes('ma hoc vien') || h.includes('mshv') || h.includes('msv') || h === 'ma hv'),
-    displayNameIdx: headers.findIndex((h) => h.includes('ho va ten') || h.includes('ho ten') || h.includes('hoten') || h.includes('display')),
-    dobIdx: headers.findIndex((h) => h.includes('ngay sinh') || h.includes('ngay thang nam sinh') || h.includes('dob')),
-    genderIdx: headers.findIndex((h) => h.includes('gioi tinh') || h === 'gt'),
-    classNameIdx: headers.findIndex((h) => h === 'lop' || h.includes('lop hoc')),
-    hometownIdx: headers.findIndex((h) => h.includes('que quan') || h.includes('dia chi')),
-    usernameIdx: headers.findIndex((h) => h.includes('tai khoan') || h.includes('username') || h === 'tk' || h.includes('account')),
-    passwordIdx: headers.findIndex((h) => h.includes('mat khau') || h.includes('pass') || h === 'mk'),
-  };
-}
-
-function parseDobCell(cell: unknown): string | undefined {
-  if (cell instanceof Date) {
-    if (Number.isNaN(cell.getTime())) return undefined;
-    const y = cell.getFullYear();
-    const m = String(cell.getMonth() + 1).padStart(2, '0');
-    const d = String(cell.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }
-  const text = String(cell ?? '').trim();
-  if (!text) return undefined;
-  let m = text.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
-  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;
-  m = text.match(/^(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})$/);
-  if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
-  return undefined;
-}
+router.post(
+  '/classes/:id/import-students/preview',
+  requireRole('teacher', 'admin'),
+  upload.single('file'),
+  h(async (req, res) => {
+    const cls = getClassOrThrow(String(req.params.id));
+    if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem trước học viên');
+    if (!req.file) throw new HttpError(400, 'BAD_INPUT', 'Chưa chọn file Excel/CSV');
+    const rows = await parseStudentRoster(req.file.buffer, req.file.originalname);
+    res.set('Cache-Control', 'private, no-store');
+    res.json(previewStudentRoster(rows, cls, (req as AuthedRequest).user!));
+  })
+);
 
 router.post(
   '/classes/:id/import-students',
@@ -698,118 +667,10 @@ router.post(
   h(async (req, res) => {
     const cls = getClassOrThrow(String(req.params.id));
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền nhập học viên');
-    if (!req.file) throw new HttpError(400, 'BAD_INPUT', 'Không có file được tải lên');
-
-    let rows: unknown[][];
-    try {
-      rows = await readFirstWorksheetRows(req.file.buffer, req.file.originalname.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx');
-    } catch {
-      throw new HttpError(400, 'BAD_INPUT', 'Không thể đọc file; hãy dùng file .xlsx hoặc .csv hợp lệ');
-    }
-
-    if (rows.length < 2) throw new HttpError(400, 'BAD_INPUT', 'File phải có ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu');
-
-    let headerRowIdx = -1;
-    let headerIdx: ReturnType<typeof computeHeaderIndices> | null = null;
-    for (let r = 0; r < Math.min(10, rows.length); r++) {
-      const candidate = computeHeaderIndices(rows[r] ?? []);
-      if (candidate.usernameIdx !== -1 && candidate.displayNameIdx !== -1 && candidate.usernameIdx !== candidate.displayNameIdx) {
-        headerRowIdx = r;
-        headerIdx = candidate;
-        break;
-      }
-    }
-    if (headerRowIdx === -1 || !headerIdx) {
-      throw new HttpError(400, 'BAD_INPUT', 'File phải có cột "Tài khoản user" và "Họ và tên"');
-    }
-    const { studentCodeIdx, displayNameIdx, dobIdx, genderIdx, classNameIdx, hometownIdx, usernameIdx, passwordIdx } = headerIdx;
-    if (studentCodeIdx < 0) throw new HttpError(400, 'STUDENT_CODE_REQUIRED', 'File phải có cột Mã học viên');
-
-    const dataRows = rows.slice(headerRowIdx + 1).filter((r) => r.some((c) => String(c).trim()));
-    let created = 0;
-    let enrolled = 0;
-    let skipped = 0;
-    const errors: string[] = [];
-    const credentials: OneTimeCredential[] = [];
-
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i] as unknown[];
-      const username = String(row[usernameIdx] ?? '').trim();
-      const displayName = String(row[displayNameIdx] ?? '').trim();
-      const password = passwordIdx >= 0 ? String(row[passwordIdx] ?? '').trim() : '';
-      const studentCode = studentCodeIdx >= 0 ? String(row[studentCodeIdx] ?? '').trim() : '';
-      const gender = genderIdx >= 0 ? String(row[genderIdx] ?? '').trim() : '';
-      const hometown = hometownIdx >= 0 ? String(row[hometownIdx] ?? '').trim() : '';
-      const className = classNameIdx >= 0 ? String(row[classNameIdx] ?? '').trim() : '';
-      const dob = dobIdx >= 0 ? parseDobCell(row[dobIdx]) : undefined;
-
-      if (!username || !displayName) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: thiếu tài khoản hoặc họ tên`);
-        skipped++;
-        continue;
-      }
-      if (!studentCode) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: thiếu mã học viên`);
-        skipped++;
-        continue;
-      }
-      if (username.length > 50 || displayName.length > 100) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: tài khoản/họ tên quá dài`);
-        skipped++;
-        continue;
-      }
-      if (password && password.length < 6) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: mật khẩu tạm tối thiểu 6 ký tự`);
-        skipped++;
-        continue;
-      }
-      if (dobIdx >= 0 && row[dobIdx] && String(row[dobIdx]).trim() && !dob) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: không đọc được ngày sinh, đã bỏ qua trường này`);
-      }
-      if (className && className.toLowerCase() !== cls.name.trim().toLowerCase()) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: cột Lớp ghi "${className}" khác tên lớp hiện tại "${cls.name}" — vẫn nhập vào lớp này`);
-      }
-
-      try {
-        const existing = findUserByUsername(username);
-        if (existing) {
-          if (existing.role !== 'student') {
-            errors.push(`Dòng ${i + headerRowIdx + 2}: tài khoản ${username} đã tồn tại nhưng không phải học viên`);
-            skipped++;
-            continue;
-          }
-          if (!existing.student_code || existing.student_code.trim().toUpperCase() !== studentCode.toUpperCase()) {
-            throw new HttpError(409, 'STUDENT_CODE_MISMATCH', `Mã học viên của ${username} không khớp tài khoản đã có`);
-          }
-          if (enrollExistingStudent(existing.id, cls.id, (req as AuthedRequest).user!)) enrolled++;
-          else skipped++;
-        } else {
-          const temporaryPassword = password || generateTemporaryPassword();
-          const createdStudent = createStudentAccount(
-            {
-              username,
-              password: temporaryPassword,
-              displayName,
-              studentCode,
-              classId: cls.id,
-              dob: dob ?? undefined,
-              gender: gender || undefined,
-              hometown: hometown || undefined,
-            },
-            (req as AuthedRequest).user!
-          );
-          credentials.push({ id: createdStudent.id, username: createdStudent.username, temporaryPassword });
-          created++;
-          enrolled++;
-        }
-      } catch (e) {
-        errors.push(`Dòng ${i + headerRowIdx + 2}: ${e instanceof Error ? e.message : 'Lỗi không xác định'}`);
-        skipped++;
-      }
-    }
-
+    if (!req.file) throw new HttpError(400, 'BAD_INPUT', 'Chưa chọn file Excel/CSV');
+    const rows = await parseStudentRoster(req.file.buffer, req.file.originalname);
     res.set('Cache-Control', 'private, no-store');
-    res.json({ created, enrolled, skipped, credentials, errors });
+    res.json(importStudentRoster(rows, cls, (req as AuthedRequest).user!));
   })
 );
 

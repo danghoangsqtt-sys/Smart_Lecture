@@ -11,6 +11,22 @@ export interface PublicUser {
   hometown: string | null;
 }
 
+export interface RosterPreviewRow {
+  row: number;
+  username: string;
+  displayName: string;
+  studentCode: string;
+  action: 'create' | 'enroll' | 'skip' | 'conflict';
+  message: string;
+}
+
+export interface RosterPreview {
+  classId: string;
+  className: string;
+  summary: { create: number; enroll: number; skip: number; conflict: number };
+  rows: RosterPreviewRow[];
+}
+
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }

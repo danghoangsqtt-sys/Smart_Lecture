@@ -296,6 +296,33 @@ test('teacher creates a student with code and home class from Users', async ({ p
   expect(students.some((student) => student.username === 'browser.form.student' && student.studentCode === 'BROWSER-FORM-STUDENT')).toBeTruthy();
 });
 
+test('teacher previews and imports Excel roster from Users', async ({ page }) => {
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.teacher');
+  await page.locator('#password').fill('Teacher@1234');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto('/users');
+  await page.getByRole('button', { name: 'Nhập Excel/CSV' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nhập học viên từ Excel/CSV' });
+  await dialog.locator('#student-import-class').selectOption({ label: 'Browser Class' });
+  await dialog.locator('#student-import-file').setInputFiles({
+    name: 'browser-students.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('Mã học viên,Họ và tên,Tài khoản user,Lớp\r\nBROWSER-EXCEL-STUDENT,Browser Excel Student,BROWSER.EXCEL.STUDENT,Browser Class\r\nBROWSER-WRONG-CLASS,Wrong Class,wrong.class,Other Class\r\n'),
+  });
+  await dialog.getByRole('button', { name: 'Xem trước' }).click();
+  const preview = dialog.getByRole('region', { name: 'Kết quả xem trước' });
+  await expect(preview).toContainText('1 tạo mới');
+  await expect(preview).toContainText('1 xung đột');
+  await preview.getByRole('button', { name: 'Xác nhận nhập' }).click();
+  const result = dialog.getByRole('region', { name: 'Kết quả nhập học viên' });
+  await expect(result).toContainText('Đã tạo 1');
+  await expect(result).toContainText('Dòng 3');
+  await expect(result.getByRole('cell', { name: 'browser.excel.student' })).toBeVisible();
+  await result.getByRole('button', { name: 'Đã lưu, đóng' }).click();
+  await expect(page.getByRole('cell', { name: 'browser.excel.student' })).toBeVisible();
+});
+
 test('teacher can review the six default circuit challenges before creating a game', async ({ page }) => {
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');

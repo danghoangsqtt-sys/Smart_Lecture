@@ -27,6 +27,9 @@ interface UserRowFull {
   dob: string | null;
   gender: string | null;
   hometown: string | null;
+  home_class_id?: string | null;
+  home_class_name?: string | null;
+  home_class_count?: number;
 }
 
 router.get(
@@ -36,7 +39,11 @@ router.get(
     const authed = req as AuthedRequest;
     const role = req.query.role as string | undefined;
     const q = ((req.query.q as string) ?? '').trim();
-    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts, student_code, dob, gender, hometown FROM users WHERE 1=1`;
+    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts, student_code, dob, gender, hometown,
+      (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = users.id) AS home_class_count,
+      (SELECT e.class_id FROM enrollments e WHERE e.student_id = users.id LIMIT 1) AS home_class_id,
+      (SELECT c.name FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.student_id = users.id LIMIT 1) AS home_class_name
+      FROM users WHERE 1=1`;
     const params: (string | number | null)[] = [];
     if (authed.user?.role === 'teacher') {
       sql += ` AND role = 'student' AND (created_by = ? OR id IN (SELECT student_id FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE c.teacher_id = ?))`;
@@ -51,7 +58,11 @@ router.get(
     }
     sql += ' ORDER BY created_at DESC LIMIT 500';
     const rows = db.prepare(sql).all(...params) as unknown as UserRowFull[];
-    res.json({ users: rows.map((r) => ({ ...toPublicUser(r as never), failedAttempts: r.failed_attempts })) });
+    res.json({ users: rows.map((r) => ({
+      ...toPublicUser(r as never), failedAttempts: r.failed_attempts,
+      homeClassId: r.home_class_count === 1 ? r.home_class_id : null,
+      homeClassName: (r.home_class_count ?? 0) > 1 ? 'Nhiều lớp (dữ liệu cũ)' : r.home_class_name ?? null,
+    })) });
   })
 );
 

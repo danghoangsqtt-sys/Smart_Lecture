@@ -44,6 +44,9 @@ const studentFile = await makeWorkbook('Students', [
   ['Mã học viên', 'Họ và tên', 'Tài khoản', 'Mật khẩu'],
   [`HV${suffix}`, 'Excel Regression Student', `excel${suffix}`, 'Excel@123'],
 ]);
+const studentPreview = await upload(`/classes/${classId}/import-students/preview`, teacherToken, 'students.xlsx', studentFile);
+const previewResult = JSON.parse(new TextDecoder().decode(studentPreview.body));
+if (previewResult.summary.create !== 1 || previewResult.rows[0]?.action !== 'create') throw new Error(`Student XLSX preview mismatch: ${JSON.stringify(previewResult)}`);
 const studentUpload = await upload(`/classes/${classId}/import-students`, teacherToken, 'students.xlsx', studentFile);
 const studentResult = JSON.parse(new TextDecoder().decode(studentUpload.body));
 if (studentResult.created !== 1 || studentResult.enrolled !== 1) throw new Error(`Student XLSX import mismatch: ${JSON.stringify(studentResult)}`);
