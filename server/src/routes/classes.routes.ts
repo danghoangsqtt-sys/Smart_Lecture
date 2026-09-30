@@ -13,6 +13,7 @@ import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '..
 import { insertUser } from './users.routes.js';
 import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
 import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 
 function ensureDropFolder(subjectId: string): void {
   const dir = path.join(DROP_DIR, subjectId);
@@ -20,7 +21,7 @@ function ensureDropFolder(subjectId: string): void {
 }
 
 const upload = multer({
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: singleFileLimits(5 * 1024 * 1024, 0),
   fileFilter: (_req, file, cb) => {
     const allowed = ['.csv', '.xlsx'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));

@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-78-in-progress",
   "phase_current": "P78-perimeter-dependencies",
-  "workflow_state": "P78-T-7801-in-progress",
+  "workflow_state": "P78-T-7801-complete-T-7802-next",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Execute T-7801 multipart parser hardening per task contract; keep tests isolated from the installed app. Then proceed to T-7802."
+  "next_action": "T-7801 completed and verified: Multer 2.4.0, bounded upload forms, isolated malicious multipart/abort tests, focused and full E2E PASS, audit 0 high/critical (three unrelated moderate findings remain). Continue T-7802 proxy/rate-limit trust-boundary review; T-7803 will triage remaining advisories."
 }

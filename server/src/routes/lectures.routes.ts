@@ -9,6 +9,7 @@ import { MEDIA_DIR } from '../config.js';
 import { requireAuth, requireAuthFlexible, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 
 const router = Router();
 
@@ -65,7 +66,8 @@ export const ALLOWED_EXT: Record<string, { type: string; mime: string }> = {
   '.jpeg': { type: 'image', mime: 'image/jpeg' },
 };
 
-const MAX_SIZE: Record<string, number> = { video: 500 * 1024 * 1024, default: 50 * 1024 * 1024 };
+const MAX_VIDEO_SIZE = 500 * 1024 * 1024;
+const MAX_SIZE: Record<string, number> = { video: MAX_VIDEO_SIZE, default: 50 * 1024 * 1024 };
 
 function uuidFilename(originalname: string): string {
   return `${randomUUID()}${path.extname(originalname).toLowerCase()}`;
@@ -86,11 +88,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_SIZE.video },
+  limits: singleFileLimits(MAX_VIDEO_SIZE, 1),
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_EXT[ext]) {
-      cb(new Error(`Định dạng không hỗ trợ: ${ext}`));
+      cb(new HttpError(400, 'BAD_FORMAT', 'Định dạng tệp không hỗ trợ'));
       return;
     }
     cb(null, true);

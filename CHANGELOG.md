@@ -8,6 +8,7 @@
 
 ## Unreleased — Recovery, security & release reliability v0.11.0
 
+- Nâng Multer lên 2.4.0, giới hạn tài nguyên multipart theo từng route và chuẩn hóa lỗi upload không lộ tên trường/tệp; bổ sung kiểm thử payload độc hại và dọn tệp khi ngắt upload.
 - mDNS hiện sở hữu Bonjour và đóng sạch khi server dừng; trùng tên/lỗi socket dùng URL IP LAN thay thế. Kiểm thử nâng cấp dừng tiến trình con qua IPC riêng, hết lỗi libuv Windows.
 - Hoàn tất P79: tách focused gate cho nâng cấp, mDNS, upload, spreadsheet, xác thực và backup; cập nhật smoke theo phiên/token mới, mật khẩu tạm một lần và fixture Socket độc lập. Full E2E chạy lặp lại thành công cạnh bản cài đang mở; Browser E2E dùng thư mục kết quả riêng và đạt 6/6.
 - Bắt đầu P75 với di chuyển dữ liệu cài đặt ra `%LOCALAPPDATA%\SmartLecture\data` và cơ chế khôi phục admin offline.

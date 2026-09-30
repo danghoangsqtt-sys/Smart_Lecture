@@ -8,8 +8,9 @@ import { MEDIA_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { h, HttpError } from '../utils/errors.js';
 import { canManageClass, getClassOrThrow } from '../utils/access.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 const router = Router(); router.use(requireAuth);
-const upload = multer({ dest: MEDIA_DIR, limits: { fileSize: 30 * 1024 * 1024 } });
+const upload = multer({ dest: MEDIA_DIR, limits: singleFileLimits(30 * 1024 * 1024, 2) });
 const CURRICULUM_FILE_TYPES = {
   '.pdf': { mime: 'application/pdf', signature: Buffer.from('%PDF-') },
   '.docx': { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', signature: Buffer.from([0x50, 0x4b, 0x03, 0x04]) },

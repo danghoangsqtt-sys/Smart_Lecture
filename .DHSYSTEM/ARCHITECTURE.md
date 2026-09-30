@@ -125,6 +125,8 @@ erDiagram
 
 Quy tắc: mọi mutation có zod validate; lỗi chuẩn `{error: {code, message}}`; phân quyền middleware `requireRole('teacher')`.
 
+Multipart upload dùng Multer 2.4.0, chỉ một file mỗi request. Sáu router khai báo giới hạn riêng cho dung lượng file và số trường văn bản; giới hạn chung cho độ dài tên/giá trị trường, số phần, header, độ sâu tên trường và chỉ số mảng chặn yêu cầu tạo cây/mảng quá lớn. `MulterError` được trả về dưới mã `INVALID_UPLOAD` (400) hoặc `UPLOAD_TOO_LARGE` (413), không lặp lại tên trường/tệp do client cung cấp. Disk upload bị ngắt được Multer dọn trước khi request kết thúc.
+
 ## 5. Realtime events (Socket.IO)
 
 Namespace mặc định, phòng theo `game:{roomCode}` và `proctor:{examId}`:

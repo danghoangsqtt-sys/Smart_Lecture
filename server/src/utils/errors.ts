@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import multer from 'multer';
 
 export class HttpError extends Error {
   constructor(
@@ -20,6 +21,16 @@ export function h(fn: AsyncHandler) {
 }
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
+  if (err instanceof multer.MulterError) {
+    const oversized = err.code === 'LIMIT_FILE_SIZE';
+    res.status(oversized ? 413 : 400).json({
+      error: {
+        code: oversized ? 'UPLOAD_TOO_LARGE' : 'INVALID_UPLOAD',
+        message: oversized ? 'Tệp tải lên vượt quá giới hạn' : 'Dữ liệu tải lên không hợp lệ',
+      },
+    });
+    return;
+  }
   if (err instanceof HttpError) {
     res.status(err.status).json({ error: { code: err.code, message: err.message } });
     return;

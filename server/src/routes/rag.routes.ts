@@ -9,6 +9,7 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { HttpError, h } from '../utils/errors.js';
 import { deleteRagDocument, listRagChunkStats, processRagDocument, retrieveWithVectors } from '../services/rag.js';
 import { generateText } from '../services/ai.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -32,11 +33,11 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: singleFileLimits(50 * 1024 * 1024, 0),
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!RAG_EXT[ext]) {
-      cb(new Error(`RAG hỗ trợ: PDF, DOCX, PPTX, TXT, MD — không hỗ trợ ${ext}`));
+      cb(new HttpError(400, 'BAD_FORMAT', 'RAG chỉ hỗ trợ PDF, DOCX, PPTX, TXT, MD'));
       return;
     }
     cb(null, true);

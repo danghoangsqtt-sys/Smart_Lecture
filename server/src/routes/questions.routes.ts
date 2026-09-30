@@ -11,10 +11,11 @@ import { HttpError, h } from '../utils/errors.js';
 import { parseExamText } from '../services/textExamParser.js';
 import { parseDocument } from '../services/docparse.js';
 import { canManageClass, getClassOrThrow } from '../utils/access.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: singleFileLimits(10 * 1024 * 1024, 5),
   fileFilter: (_req, file, cb) => {
     const allowed = ['.txt', '.md', '.docx', '.pdf'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));

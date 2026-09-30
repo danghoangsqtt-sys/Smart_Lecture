@@ -28,7 +28,7 @@
 | T-7601 | Version REST/Socket sessions and revoke stale access | P76 | done | session 7/7 + recovery 6/6 + typecheck/lint/build |
 | T-7602 | Replace persistent browser bearer token and complete CSP hardening | P76 | done | browser auth 9/9 + Browser E2E 6/6 + typecheck/lint/build |
 | T-7701 | One-time imported credentials and forced first change | P77 | done | focused 11/11 + Browser 3/3 + typecheck/lint/build |
-| T-7801 | Upgrade and bound multipart parsers | P78 | doing | malicious multipart regression + audit |
+| T-7801 | Upgrade and bound multipart parsers | P78 | done | Multer 2.4.0; multipart security + focused + full E2E PASS; audit 0 high/critical |
 | T-7802 | Verify direct-LAN proxy/rate-limit trust boundary | P78 | todo | spoofed-header regression |
 | T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
 | T-7901 | Bonjour ownership and graceful shutdown | P79 | done | mDNS + upgrade-path PASS; typecheck/lint/build PASS; full E2E later fails at smoke (T-7902) |

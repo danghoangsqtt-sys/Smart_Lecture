@@ -23,7 +23,7 @@
     "test:upgrade-path": "node scripts/upgrade-path-test.mjs",
     "test:mdns": "node scripts/mdns-resilience-test.mjs",
     "test:spreadsheet-security": "node scripts/spreadsheet-formula-injection-test.mjs",
-    "test:upload-security": "node scripts/curriculum-upload-security-test.mjs",
+    "test:upload-security": "node scripts/curriculum-upload-security-test.mjs && node scripts/upload-security-test.mjs",
     "test:auth-focused": "node scripts/admin-recovery-test.mjs && node scripts/auth-session-revocation-test.mjs && node scripts/browser-auth-security-test.mjs && node scripts/temporary-credentials-test.mjs && node scripts/auth-rate-limit-test.mjs",
     "test:focused": "npm run build -w server && npm run test:upgrade-path && npm run test:mdns && npm run test:spreadsheet-security && npm run test:upload-security && npm run test:auth-focused && node scripts/backup-media-restore-test.mjs",
     "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs",

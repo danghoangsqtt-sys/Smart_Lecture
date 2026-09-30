@@ -7,12 +7,13 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow } from '../utils/access.js';
 import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
+import { singleFileLimits } from '../utils/uploadLimits.js';
 
 const router = Router();
 router.use(requireAuth);
 
 const upload = multer({
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: singleFileLimits(5 * 1024 * 1024, 1),
   fileFilter: (_req, file, cb) => {
     const allowed = ['.csv', '.xlsx'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
