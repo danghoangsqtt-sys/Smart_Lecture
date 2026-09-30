@@ -268,6 +268,34 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(restoredSurface.locator('polyline')).toHaveCount(0);
 });
 
+test('teacher creates a student with code and home class from Users', async ({ page, request }) => {
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.teacher');
+  await page.locator('#password').fill('Teacher@1234');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await page.goto('/users');
+  await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Tài khoản mới' });
+  await expect(dialog).toBeVisible();
+  await dialog.locator('input').nth(0).fill('Browser Form Student');
+  await dialog.locator('input').nth(1).fill('Browser.Form.Student');
+  await dialog.locator('input').nth(2).fill('BROWSER-FORM-STUDENT');
+  await dialog.locator('input[type=password]').fill('Student@123');
+  await expect(dialog.getByRole('button', { name: 'Tạo' })).toBeDisabled();
+  await dialog.locator('select').nth(1).selectOption({ label: 'Browser Class' });
+  await dialog.getByRole('button', { name: 'Tạo' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('cell', { name: 'browser.form.student' })).toBeVisible();
+  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
+  const teacherToken = (await teacherLogin.json() as { token: string }).token;
+  const classes = await request.get('/api/classes/mine', { headers: { Authorization: `Bearer ${teacherToken}` } });
+  const classId = (await classes.json() as { classes: { id: string; name: string }[] }).classes.find((item) => item.name === 'Browser Class')?.id;
+  const detail = await request.get(`/api/classes/${classId}`, { headers: { Authorization: `Bearer ${teacherToken}` } });
+  const students = (await detail.json() as { students: { username: string; studentCode: string }[] }).students;
+  expect(students.some((student) => student.username === 'browser.form.student' && student.studentCode === 'BROWSER-FORM-STUDENT')).toBeTruthy();
+});
+
 test('teacher can review the six default circuit challenges before creating a game', async ({ page }) => {
   await page.goto('/login');
   await page.locator('#username').fill('browser.teacher');
@@ -294,11 +322,16 @@ test('teacher can review the six default circuit challenges before creating a ga
 
 test('default circuit room restores host and learners without duplicate grading', async ({ page, request, browser }) => {
   test.setTimeout(135_000);
-  const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
-  const adminToken = (await adminLogin.json() as { token: string }).token;
+  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
+  expect(teacherLogin.ok()).toBeTruthy();
+  const teacherToken = (await teacherLogin.json() as { token: string }).token;
+  const teacherClasses = await request.get('/api/classes/mine', { headers: { Authorization: `Bearer ${teacherToken}` } });
+  expect(teacherClasses.ok()).toBeTruthy();
+  const classId = (await teacherClasses.json() as { classes: { id: string; name: string }[] }).classes.find((item) => item.name === 'Browser Class')?.id;
+  expect(classId).toBeTruthy();
   const createdStudent = await request.post('/api/users', {
-    headers: { Authorization: `Bearer ${adminToken}` },
-    data: { username: 'browser.circuit.student', password: 'Student@123', role: 'student', displayName: 'Circuit Student' },
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { username: 'browser.circuit.student', password: 'Student@123', role: 'student', displayName: 'Circuit Student', studentCode: 'BROWSER-CIRCUIT-STUDENT', classId },
   });
   expect(createdStudent.ok()).toBeTruthy();
   const studentId = (await createdStudent.json() as { user: { id: string } }).user.id;
@@ -310,8 +343,8 @@ test('default circuit room restores host and learners without duplicate grading'
   });
   expect(changedStudentPassword.ok()).toBeTruthy();
   const createdPeer = await request.post('/api/users', {
-    headers: { Authorization: `Bearer ${adminToken}` },
-    data: { username: 'browser.circuit.peer', password: 'Student@123', role: 'student', displayName: 'Circuit Peer' },
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { username: 'browser.circuit.peer', password: 'Student@123', role: 'student', displayName: 'Circuit Peer', studentCode: 'BROWSER-CIRCUIT-PEER', classId },
   });
   expect(createdPeer.ok()).toBeTruthy();
   const peerId = (await createdPeer.json() as { user: { id: string } }).user.id;
@@ -323,8 +356,8 @@ test('default circuit room restores host and learners without duplicate grading'
   });
   expect(changedPeerPassword.ok()).toBeTruthy();
   const createdLateLearner = await request.post('/api/users', {
-    headers: { Authorization: `Bearer ${adminToken}` },
-    data: { username: 'browser.circuit.late', password: 'Student@123', role: 'student', displayName: 'Circuit Late' },
+    headers: { Authorization: `Bearer ${teacherToken}` },
+    data: { username: 'browser.circuit.late', password: 'Student@123', role: 'student', displayName: 'Circuit Late', studentCode: 'BROWSER-CIRCUIT-LATE', classId },
   });
   expect(createdLateLearner.ok()).toBeTruthy();
   const lateLearnerId = (await createdLateLearner.json() as { user: { id: string } }).user.id;
@@ -336,13 +369,6 @@ test('default circuit room restores host and learners without duplicate grading'
   });
   expect(changedLateLearnerPassword.ok()).toBeTruthy();
 
-  const teacherLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
-  expect(teacherLogin.ok()).toBeTruthy();
-  const teacherToken = (await teacherLogin.json() as { token: string }).token;
-  const teacherClasses = await request.get('/api/classes/mine', { headers: { Authorization: `Bearer ${teacherToken}` } });
-  expect(teacherClasses.ok()).toBeTruthy();
-  const classId = (await teacherClasses.json() as { classes: { id: string; name: string }[] }).classes.find((item) => item.name === 'Browser Class')?.id;
-  expect(classId).toBeTruthy();
   const enrolled = await request.post(`/api/classes/${classId}/enroll`, {
     headers: { Authorization: `Bearer ${teacherToken}` },
     data: { studentIds: [studentId, peerId, lateLearnerId] },
@@ -681,7 +707,7 @@ test('student can join a game room from the dashboard button', async ({ page, re
   const teacherToken = changedTeacherBody.token!;
   const created = await request.post('/api/classes', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { name: 'Dash Class', subject: 'Dash Subject', academicYear: '2026-2027' } });
   const classId = (await created.json() as { class: { id: string } }).class.id;
-  const student = await request.post('/api/users', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { username: 'browser.dash.student', password: 'Student@123', role: 'student', displayName: 'Dash Student' } });
+  const student = await request.post('/api/users', { headers: { Authorization: `Bearer ${teacherToken}` }, data: { username: 'browser.dash.student', password: 'Student@123', role: 'student', displayName: 'Dash Student', studentCode: 'BROWSER-DASH-STUDENT', classId } });
   const studentId = (await student.json() as { user: { id: string } }).user.id;
   await request.post(`/api/classes/${classId}/enroll`, { headers: { Authorization: `Bearer ${teacherToken}` }, data: { studentIds: [studentId] } });
   const question = await request.post('/api/questions', {
@@ -737,7 +763,7 @@ test('student can download authenticated learning media', async ({ page, request
   const classId = (await created.json() as { class: { id: string } }).class.id;
   const student = await request.post('/api/users', {
     headers: { Authorization: `Bearer ${teacherToken}` },
-    data: { username: 'browser.media.student', password: 'Student@123', role: 'student', displayName: 'Media Student' },
+    data: { username: 'browser.media.student', password: 'Student@123', role: 'student', displayName: 'Media Student', studentCode: 'BROWSER-MEDIA-STUDENT', classId },
   });
   const studentId = (await student.json() as { user: { id: string } }).user.id;
   await request.post(`/api/classes/${classId}/enroll`, {

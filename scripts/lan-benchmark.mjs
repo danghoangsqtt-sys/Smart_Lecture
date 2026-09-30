@@ -71,6 +71,8 @@ async function runTier(studentCount, teacherToken, classId, questionIds) {
   const rows = Array.from({ length: studentCount }, (_, i) => ({
     displayName: `Bench Student ${i + 1}`,
     username: `bench_${studentCount}_${i + 1}`,
+    studentCode: `BENCH-${studentCount}-${i + 1}`,
+    classId,
   }));
   await api('POST', '/users/import', teacherToken, { rows });
   const usersRes = await api('GET', '/users?role=student', teacherToken);

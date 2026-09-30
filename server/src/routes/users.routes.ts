@@ -6,6 +6,7 @@ import { db, queryOne, toPublicUser } from '../db/connection.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
+import { createStudentAccount } from '../services/studentAccounts.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -60,19 +61,16 @@ const createUserBody = z.object({
   role: z.enum(['teacher', 'student']),
   displayName: z.string().min(1).max(100),
   studentCode: z.string().trim().max(50).optional(),
+  classId: z.string().trim().optional(),
   dob: z.string().trim().max(20).optional(),
   gender: z.string().trim().max(20).optional(),
   hometown: z.string().trim().max(200).optional(),
 });
 
-export function insertUser(input: z.infer<typeof createUserBody>, creatorId: string): string {
-  const username = input.role === 'student' ? input.username.toLowerCase() : input.username;
-  const studentCode = input.studentCode?.trim() || null;
+function insertTeacher(input: z.infer<typeof createUserBody>, creatorId: string): string {
+  const username = input.username;
   const exists = db.prepare('SELECT 1 FROM users WHERE lower(trim(username)) = lower(trim(?))').get(username);
   if (exists) throw new HttpError(409, 'USERNAME_EXISTS', `Tên đăng nhập "${input.username}" đã tồn tại`);
-  if (input.role === 'student' && studentCode && db.prepare("SELECT 1 FROM users WHERE role = 'student' AND upper(trim(student_code)) = upper(trim(?))").get(studentCode)) {
-    throw new HttpError(409, 'STUDENT_CODE_EXISTS', `Mã học viên "${studentCode}" đã tồn tại`);
-  }
   const id = randomUUID();
   db.prepare(
     `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by, student_code, dob, gender, hometown)
@@ -85,7 +83,7 @@ export function insertUser(input: z.infer<typeof createUserBody>, creatorId: str
     input.displayName,
     1,
     creatorId,
-    studentCode,
+    null,
     input.dob ?? null,
     input.gender ?? null,
     input.hometown ?? null
@@ -105,7 +103,9 @@ router.post(
     if (authed.user.role === 'teacher' && parsed.data.role === 'teacher') {
       throw new HttpError(403, 'FORBIDDEN', 'Giáo viên chỉ được tạo tài khoản học viên');
     }
-    const id = insertUser(parsed.data, authed.user.id);
+    const id = parsed.data.role === 'student'
+      ? createStudentAccount({ ...parsed.data, studentCode: parsed.data.studentCode ?? '', classId: parsed.data.classId ?? '' }, authed.user).id
+      : insertTeacher(parsed.data, authed.user.id);
     const row = queryOne<UserRowFull>('SELECT * FROM users WHERE id = ?', id)!
     res.status(201).json({ user: toPublicUser(row as never) });
   })
@@ -117,6 +117,7 @@ const importUsersBody = z.object({
     displayName: z.string().min(1).max(100),
     password: z.string().min(6).max(200).optional(),
     studentCode: z.string().trim().max(50).optional(),
+    classId: z.string().trim().optional(),
     dob: z.string().trim().max(20).optional(),
     gender: z.string().trim().max(20).optional(),
     hometown: z.string().trim().max(200).optional(),
@@ -135,9 +136,10 @@ router.post(
     parsed.rows.forEach((row, index) => {
       try {
         const temporaryPassword = row.password ?? generateTemporaryPassword();
-        const id = insertUser({ ...row, password: temporaryPassword, role: 'student' }, authed.user!.id);
+        const created = createStudentAccount({ ...row, password: temporaryPassword, studentCode: row.studentCode ?? '', classId: row.classId ?? '' }, authed.user!);
+        const id = created.id;
         ids.push(id);
-        credentials.push({ id, username: row.username.toLowerCase(), temporaryPassword });
+        credentials.push({ id, username: created.username, temporaryPassword });
       } catch (error) {
         errors.push({ row: index + 1, username: row.username, message: error instanceof Error ? error.message : 'Không thể tạo học viên' });
       }
@@ -149,7 +151,7 @@ router.post(
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(100).optional(),
-  studentCode: z.string().trim().max(50).optional(),
+  studentCode: z.string().trim().min(1).max(50).optional(),
   dob: z.string().trim().max(20).optional(),
   gender: z.string().trim().max(20).optional(),
   hometown: z.string().trim().max(200).optional(),

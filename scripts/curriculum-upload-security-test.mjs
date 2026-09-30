@@ -91,8 +91,13 @@ try {
   const teacherToken = changedTeacher.data.token;
   check('teacher session rotates after first password change', changedTeacher.status === 200 && !!teacherToken);
 
+  const createdClass = await request('POST', '/classes', teacherToken, {
+    name: 'Upload Security', subject: 'Security', academicYear: '2026-2027',
+  });
+  const classId = createdClass.data.class?.id;
   const createdStudent = await request('POST', '/users', teacherToken, {
     username: 'upload.student', password: 'Student@123456', role: 'student', displayName: 'Upload Student',
+    studentCode: 'UPLOAD-STUDENT', classId,
   });
   check('student created', createdStudent.status === 201);
   const studentLogin = await request('POST', '/auth/login', '', { username: 'upload.student', password: 'Student@123456' });
@@ -102,10 +107,6 @@ try {
   const studentToken = changedStudent.data.token;
   check('student session rotates after first password change', changedStudent.status === 200 && !!studentToken);
 
-  const createdClass = await request('POST', '/classes', teacherToken, {
-    name: 'Upload Security', subject: 'Security', academicYear: '2026-2027',
-  });
-  const classId = createdClass.data.class?.id;
   const subjects = await request('GET', `/classes/${classId}/subjects`, teacherToken);
   const subjectId = subjects.data.subjects?.[0]?.id;
   check('class and subject ready', createdClass.status === 201 && !!classId && !!subjectId);

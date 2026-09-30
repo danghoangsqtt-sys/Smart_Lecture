@@ -170,14 +170,26 @@ function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose:
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'student' | 'teacher'>('student');
+  const [studentCode, setStudentCode] = useState('');
+  const [classId, setClassId] = useState('');
+  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    void api<{ classes: { id: string; name: string }[] }>('/classes/mine').then((result) => {
+      setClasses(result.classes);
+    }).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Không tải được danh sách lớp');
+    });
+  }, [open]);
 
   async function submit() {
     setBusy(true);
     try {
-      await api('/users', { method: 'POST', body: JSON.stringify({ username, displayName, password, role }) });
+      await api('/users', { method: 'POST', body: JSON.stringify({ username, displayName, password, role, ...(role === 'student' ? { studentCode, classId } : {}) }) });
       toast.success(`Đã tạo tài khoản ${username}`);
-      setUsername(''); setDisplayName(''); setPassword('');
+      setUsername(''); setDisplayName(''); setPassword(''); setStudentCode(''); setClassId('');
       onClose();
       await onCreated();
     } catch (e) {
@@ -198,10 +210,21 @@ function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose:
         </div>
         <div><Label>Tên hiển thị</Label><Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></div>
         <div><Label>Username (chữ/số/dấu chấm)</Label><Input value={username} onChange={(e) => setUsername(e.target.value)} /></div>
+        {role === 'student' && (
+          <>
+            <div><Label>Mã học viên</Label><Input value={studentCode} onChange={(e) => setStudentCode(e.target.value)} /></div>
+            <div><Label>Lớp biên chế</Label>
+              <Select value={classId} onChange={(e) => setClassId(e.target.value)}>
+                <option value="">Chọn lớp</option>
+                {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+              </Select>
+            </div>
+          </>
+        )}
         <div><Label>Mật khẩu tạm</Label><Input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
         <p className="text-xs text-slate-500">Người dùng bắt buộc đổi mật khẩu này ngay lần đăng nhập đầu tiên.</p>
         <div className="flex justify-end pt-2">
-          <Button onClick={submit} disabled={busy || username.length < 3 || password.length < 6 || !displayName}>Tạo</Button>
+          <Button onClick={submit} disabled={busy || username.length < 3 || password.length < 6 || !displayName.trim() || (role === 'student' && (!studentCode.trim() || !classId))}>Tạo</Button>
         </div>
       </div>
     </Modal>

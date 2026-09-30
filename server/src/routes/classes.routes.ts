@@ -5,12 +5,12 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
-import { tx, db, queryAll, toPublicUser, findUserByUsername, recordHomeClassStart } from '../db/connection.js';
+import { tx, db, queryAll, toPublicUser, findUserByUsername } from '../db/connection.js';
 import { DROP_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
 import { canManageClass, canViewClass, getClassOrThrow, type ClassRow } from '../utils/access.js';
-import { insertUser } from './users.routes.js';
+import { createStudentAccount, enrollExistingStudent, enrollExistingStudents } from '../services/studentAccounts.js';
 import { createXlsxBuffer, readFirstWorksheetRows } from '../utils/spreadsheet.js';
 import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
 import { singleFileLimits } from '../utils/uploadLimits.js';
@@ -170,6 +170,9 @@ router.delete(
   h(async (req, res) => {
     const cls = getClassOrThrow(String(req.params.id));
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xóa lớp này');
+    if (db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? LIMIT 1').get(cls.id)) {
+      throw new HttpError(409, 'CLASS_HAS_STUDENTS', 'Không thể xóa lớp đang có học viên; hãy chuyển hoặc xử lý học viên trước');
+    }
     db.prepare('DELETE FROM classes WHERE id = ?').run(cls.id);
     res.json({ ok: true });
   })
@@ -612,21 +615,7 @@ router.post(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền thêm học viên vào lớp này');
     const parsed = enrollSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Danh sách học viên không hợp lệ');
-    const stmt = db.prepare('INSERT INTO enrollments (class_id, student_id) VALUES (?, ?)');
-    let added = 0;
-    tx(() => {
-      for (const sid of parsed.data.studentIds) {
-        const isStudent = db.prepare("SELECT 1 FROM users WHERE id = ? AND role = 'student'").get(sid);
-        if (isStudent) {
-          const current = db.prepare('SELECT class_id FROM enrollments WHERE student_id = ?').get(sid) as { class_id: string } | undefined;
-          if (current?.class_id === cls.id) continue;
-          if (current) throw new HttpError(409, 'STUDENT_ALREADY_IN_CLASS', 'Học viên đã thuộc lớp biên chế khác');
-          stmt.run(cls.id, sid);
-          recordHomeClassStart(sid, cls.id);
-          added++;
-        }
-      }
-    });
+    const added = enrollExistingStudents(parsed.data.studentIds, cls.id, (req as AuthedRequest).user!);
     res.json({ added });
   })
 );
@@ -634,11 +623,10 @@ router.post(
 router.delete(
   '/classes/:id/enroll/:studentId',
   requireRole('teacher', 'admin'),
-  h(async (req, res) => {
+  h(async (req) => {
     const cls = getClassOrThrow(String(req.params.id));
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
-    db.prepare('DELETE FROM enrollments WHERE class_id = ? AND student_id = ?').run(cls.id, String(req.params.studentId));
-    res.json({ ok: true });
+    throw new HttpError(409, 'TRANSFER_REQUIRED', 'Không thể bỏ học viên khỏi lớp biên chế; dùng chức năng chuyển lớp khi được triển khai');
   })
 );
 
@@ -735,6 +723,7 @@ router.post(
       throw new HttpError(400, 'BAD_INPUT', 'File phải có cột "Tài khoản user" và "Họ và tên"');
     }
     const { studentCodeIdx, displayNameIdx, dobIdx, genderIdx, classNameIdx, hometownIdx, usernameIdx, passwordIdx } = headerIdx;
+    if (studentCodeIdx < 0) throw new HttpError(400, 'STUDENT_CODE_REQUIRED', 'File phải có cột Mã học viên');
 
     const dataRows = rows.slice(headerRowIdx + 1).filter((r) => r.some((c) => String(c).trim()));
     let created = 0;
@@ -759,6 +748,11 @@ router.post(
         skipped++;
         continue;
       }
+      if (!studentCode) {
+        errors.push(`Dòng ${i + headerRowIdx + 2}: thiếu mã học viên`);
+        skipped++;
+        continue;
+      }
       if (username.length > 50 || displayName.length > 100) {
         errors.push(`Dòng ${i + headerRowIdx + 2}: tài khoản/họ tên quá dài`);
         skipped++;
@@ -777,7 +771,6 @@ router.post(
       }
 
       try {
-        let studentId: string;
         const existing = findUserByUsername(username);
         if (existing) {
           if (existing.role !== 'student') {
@@ -785,43 +778,29 @@ router.post(
             skipped++;
             continue;
           }
-          studentId = existing.id;
-          const current = db.prepare('SELECT class_id FROM enrollments WHERE student_id = ?').get(studentId) as { class_id: string } | undefined;
-          if (current && current.class_id !== cls.id) {
-            errors.push(`Dòng ${i + headerRowIdx + 2}: học viên đã thuộc lớp biên chế khác`);
-            skipped++;
-            continue;
+          if (!existing.student_code || existing.student_code.trim().toUpperCase() !== studentCode.toUpperCase()) {
+            throw new HttpError(409, 'STUDENT_CODE_MISMATCH', `Mã học viên của ${username} không khớp tài khoản đã có`);
           }
-          db.prepare(
-            `UPDATE users SET student_code = COALESCE(?, student_code), dob = COALESCE(?, dob),
-             gender = COALESCE(?, gender), hometown = COALESCE(?, hometown) WHERE id = ?`
-          ).run(studentCode || null, dob ?? null, gender || null, hometown || null, studentId);
+          if (enrollExistingStudent(existing.id, cls.id, (req as AuthedRequest).user!)) enrolled++;
+          else skipped++;
         } else {
           const temporaryPassword = password || generateTemporaryPassword();
-          studentId = insertUser(
+          const createdStudent = createStudentAccount(
             {
               username,
               password: temporaryPassword,
-              role: 'student',
               displayName,
-              studentCode: studentCode || undefined,
+              studentCode,
+              classId: cls.id,
               dob: dob ?? undefined,
               gender: gender || undefined,
               hometown: hometown || undefined,
             },
-            (req as AuthedRequest).user!.id
+            (req as AuthedRequest).user!
           );
-          credentials.push({ id: studentId, username: username.toLowerCase(), temporaryPassword });
+          credentials.push({ id: createdStudent.id, username: createdStudent.username, temporaryPassword });
           created++;
-        }
-
-        const alreadyEnrolled = db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(cls.id, studentId);
-        if (!alreadyEnrolled) {
-          db.prepare('INSERT INTO enrollments (class_id, student_id) VALUES (?, ?)').run(cls.id, studentId);
-          recordHomeClassStart(studentId, cls.id);
           enrolled++;
-        } else {
-          skipped++;
         }
       } catch (e) {
         errors.push(`Dòng ${i + headerRowIdx + 2}: ${e instanceof Error ? e.message : 'Lỗi không xác định'}`);

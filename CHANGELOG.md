@@ -5,7 +5,8 @@
 - Thay kế hoạch P83–P85 dựa vào “lớp nguồn” bằng P86–P90: một lớp biên chế/học viên, kho môn/bài dùng chung, giảng dạy đa lớp và migration rehearsal. Chưa phát hành hay áp ràng buộc dữ liệu.
 - Thêm kiểm kê roster SQLite chỉ đọc, yêu cầu đường dẫn DB tường minh và báo cáo xung đột trước migration; bản cài hiện còn học viên thiếu mã/lớp, chưa được tự động sửa.
 - Theo xác nhận của người dùng, xóa đúng ba học viên thử thiếu mã trong DB bản cài sau khi kiểm tra tham chiếu và tạo backup SQLite nhất quán. Thêm CLI dọn dữ liệu có dry-run, khóa tập ID bằng SHA-256, chặn xóa nếu có lịch sử học tập và kiểm thử bằng fixture tạm; roster bản cài hiện không còn xung đột.
-- Thêm migration v27 theo giai đoạn cho lịch sử lớp biên chế và constraint gate: DB sạch có chỉ mục duy nhất cho username/mã SV/lớp hiện tại; DB legacy xung đột vẫn khởi động, báo vấn đề và áp lại sau khi xử lý. Chặn ghi danh học viên sang lớp thứ hai và tài khoản/mã trùng mới; rehearsal trên bản sao DB thật và full E2E đạt. Việc bắt buộc mã/lớp khi tạo thuộc các task P87 tiếp theo.
+- Thêm migration v27 theo giai đoạn cho lịch sử lớp biên chế và constraint gate: DB sạch có chỉ mục duy nhất cho username/mã SV/lớp hiện tại; DB legacy xung đột vẫn khởi động, báo vấn đề và áp lại sau khi xử lý. Chặn ghi danh học viên sang lớp thứ hai và tài khoản/mã trùng mới; rehearsal trên bản sao DB thật và full E2E đạt.
+- Hoàn tất T-8702 trong mã nguồn: tạo học viên từ Users/Auth API cũ/JSON import/Excel của lớp bắt buộc mã riêng và một lớp biên chế, username lưu chữ thường; user, ghi danh và lịch sử cùng một transaction. Form Người dùng cho chọn mã/lớp; import lớp không ghi đè tài khoản sẵn có. Tạm từ chối bỏ ghi danh hoặc xóa lớp còn học viên cho tới luồng chuyển/xóa T-8704. Kiểm thử REST, focused, full E2E và Browser 7/7 đạt trên dữ liệu cô lập; chưa nâng cấp DB/bộ cài đang dùng.
 
 ## Planned — Giảng dạy đồng thời 2–4 lớp v0.12.0
 

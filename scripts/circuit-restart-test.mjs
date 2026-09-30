@@ -172,11 +172,21 @@ async function prepare() {
   check('unrelated restart teacher password activated', outsiderChanged.ok);
   outsiderToken = await login(outsiderUsername, teacherPassword);
 
-  const studentCreated = await request('POST', '/users', adminToken, {
+  const classCreated = await request('POST', '/classes', teacherToken, {
+    name: `Circuit Restart ${suffix}`,
+    subject: 'Mạch logic',
+    academicYear: '2026-2027',
+  });
+  const classId = classCreated.data.class?.id;
+  check('restart class created', classCreated.status === 201 && typeof classId === 'string');
+
+  const studentCreated = await request('POST', '/users', teacherToken, {
     username: studentUsername,
     password: studentInitialPassword,
     role: 'student',
     displayName: 'Restart Student',
+    studentCode: `RESTART-${suffix}`,
+    classId,
   });
   check('restart student created', studentCreated.status === 201);
   const studentId = studentCreated.data.user?.id;
@@ -188,13 +198,6 @@ async function prepare() {
   check('restart student password activated', studentChanged.ok);
   studentToken = await login(studentUsername, studentPassword);
 
-  const classCreated = await request('POST', '/classes', teacherToken, {
-    name: `Circuit Restart ${suffix}`,
-    subject: 'Mạch logic',
-    academicYear: '2026-2027',
-  });
-  const classId = classCreated.data.class?.id;
-  check('restart class created', classCreated.status === 201 && typeof classId === 'string');
   const enrolled = await request('POST', `/classes/${classId}/enroll`, teacherToken, { studentIds: [studentId] });
   check('restart learner enrolled', enrolled.ok);
 

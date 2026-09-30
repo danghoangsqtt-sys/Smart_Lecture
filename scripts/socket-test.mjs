@@ -46,13 +46,13 @@ if (!teacherToken) {
   })).token;
 }
 
-async function ensureStudent(username, displayName) {
+async function ensureStudent(username, displayName, classId) {
   const changedPassword = 'Socket@456789';
   const initialPassword = 'Socket@123456';
   let token = await login(username, changedPassword);
   if (token) return token;
   await api('POST', '/users', teacherToken, {
-    username, password: initialPassword, role: 'student', displayName,
+    username, password: initialPassword, role: 'student', displayName, studentCode: `SOCKET-${username.toUpperCase()}`, classId,
   });
   const initialToken = await login(username, initialPassword);
   token = (await api('POST', '/auth/change-password', initialToken, {
@@ -80,15 +80,18 @@ for (const content of ['So 1 + 1 = ?', 'So 2 x 3 = ?']) {
   qIds.push(await mkQ(content));
 }
 
-const studentAToken = await ensureStudent('socket_a', 'Socket Student A');
-const studentBToken = await ensureStudent('socket_b', 'Socket Student B');
-const outsiderToken = await ensureStudent('socket_outsider', 'Socket Outsider');
 const classResult = await api('POST', '/classes', teacherToken, {
   name: `Socket Test ${Date.now()}`,
   subject: 'Kiểm thử realtime',
   academicYear: '2026-2027',
 });
 const classId = classResult.class?.id;
+const outsiderClass = await api('POST', '/classes', teacherToken, {
+  name: `Socket Outsider ${Date.now()}`, subject: 'Kiểm thử realtime', academicYear: '2026-2027',
+});
+const studentAToken = await ensureStudent('socket_a', 'Socket Student A', classId);
+const studentBToken = await ensureStudent('socket_b', 'Socket Student B', classId);
+const outsiderToken = await ensureStudent('socket_outsider', 'Socket Outsider', outsiderClass.class.id);
 const students = await api('GET', '/users?role=student', teacherToken);
 const socketStudentIds = (students.users ?? [])
   .filter((user) => user.username === 'socket_a' || user.username === 'socket_b')

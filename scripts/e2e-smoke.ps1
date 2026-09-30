@@ -73,12 +73,16 @@ $teacherToken = $teacherPw.data.token
 $r2 = Req POST "/users" $teacherToken @{ username = "t2x"; password = "x1234567"; role = "teacher"; displayName = "GV2" }
 Check ("Teacher cannot create teacher (status={0} code={1})" -f $r2.status, $r2.code) ($r2.ok -eq $false -and $r2.status -eq 403)
 
+$clsR = Req POST "/classes" $teacherToken @{ name = "Lop A1 Dien"; subject = "Nguon dien an toan"; academicYear = "2026-2027" }
+$cid = $clsR.data.class.id
+Check "Create class" ($cid.Length -gt 10)
+
 $imp = Req POST "/users/import" $teacherToken @{
   rows = @(
-    @{ displayName = "Nguyen Van Anh"; username = "anh" },
-    @{ displayName = "Tran Thi Binh"; username = "binh" },
-    @{ displayName = "Le Cuong"; username = "cuong" },
-    @{ displayName = "Pham Dung"; username = "dung" }
+    @{ displayName = "Nguyen Van Anh"; username = "anh"; studentCode = "SMOKE-ANH"; classId = $cid },
+    @{ displayName = "Tran Thi Binh"; username = "binh"; studentCode = "SMOKE-BINH"; classId = $cid },
+    @{ displayName = "Le Cuong"; username = "cuong"; studentCode = "SMOKE-CUONG"; classId = $cid },
+    @{ displayName = "Pham Dung"; username = "dung"; studentCode = "SMOKE-DUNG"; classId = $cid }
   )
 }
 if (-not $imp.ok -or $imp.data.createdCount -ne 4) { Write-Host ("   DEBUG import: ok={0} created={1} errors={2}" -f $imp.ok, $imp.data.createdCount, ($imp.data.errors | ConvertTo-Json -Compress)) -ForegroundColor Yellow }
@@ -93,9 +97,6 @@ $sids = @($usersList.data.users | ForEach-Object { $_.id })
 Check ("Teacher sees own students ({0})" -f $sids.Count) ($sids.Count -ge 4)
 
 # --- Classes & enroll ---
-$clsR = Req POST "/classes" $teacherToken @{ name = "Lop A1 Dien"; subject = "Nguon dien an toan"; academicYear = "2026-2027" }
-$cid = $clsR.data.class.id
-Check "Create class" ($cid.Length -gt 10)
 $subjectList = Req GET "/classes/$cid/subjects" $teacherToken
 $subjectId = $subjectList.data.subjects[0].id
 Check "Default subject created" ($subjectId.Length -gt 10)
@@ -103,7 +104,7 @@ $badReorder = Req PATCH "/subjects/reorder" $teacherToken @{ }
 Check "Invalid reorder returns Zod 400" ($badReorder.status -eq 400 -and $badReorder.code -eq "BAD_INPUT")
 
 $enroll = Req POST "/classes/$cid/enroll" $teacherToken @{ studentIds = $sids }
-Check ("Enroll students ({0})" -f $enroll.data.added) ($enroll.ok -and $enroll.data.added -eq $sids.Count)
+Check ("Existing home-class enrollment is idempotent ({0})" -f $enroll.data.added) ($enroll.ok -and $enroll.data.added -eq 0)
 
 $detail = Req GET "/classes/$cid" $teacherToken
 Check ("Class has {0} students" -f $detail.data.students.Count) ($detail.data.students.Count -ge 4)

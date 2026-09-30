@@ -42,6 +42,9 @@ await api('POST', '/auth/change-password', firstTeacher2, { oldPassword: 'GvMai@
 const teacher2 = await login('gv.mai', 'Mai@Demo2026');
 console.log('  2 teachers ready: gv.tuan / Tuan@Demo2026, gv.mai / Mai@Demo2026');
 
+const cls = await api('POST', '/classes', teacher, { name: 'DH31A', subject: 'Điện tử số', academicYear: '2026-2027' });
+const classId = cls.class?.id;
+
 const students = [
   { username: 'sv.anhnt', password: 'Sv@Demo123', displayName: 'Nguyễn Thị Anh' },
   { username: 'sv.binhvh', password: 'Sv@Demo123', displayName: 'Vũ Hoàng Bình' },
@@ -50,10 +53,7 @@ const students = [
   { username: 'sv.emtv', password: 'Sv@Demo123', displayName: 'Trịnh Văn Em' },
   { username: 'sv.giangnh', password: 'Sv@Demo123', displayName: 'Nguyễn Hoài Giang' },
 ];
-for (const s of students) await api('POST', '/users', teacher, { ...s, role: 'student' }).catch(() => {});
-
-const cls = await api('POST', '/classes', teacher, { name: 'DH31A', subject: 'Điện tử số', academicYear: '2026-2027' });
-const classId = cls.class?.id;
+for (const [index, s] of students.entries()) await api('POST', '/users', teacher, { ...s, role: 'student', studentCode: `DEMO-${String(index + 1).padStart(3, '0')}`, classId }).catch(() => {});
 const studentsRes = await api('GET', '/users?role=student', teacher);
 const studentIds = (studentsRes.users ?? []).filter((u) => u.username.startsWith('sv.')).map((u) => u.id);
 await api('POST', `/classes/${classId}/enroll`, teacher, { studentIds });

@@ -41,13 +41,13 @@ await api('POST', '/users', adminToken, { username: 'lifecycle_teacher', passwor
 const firstTeacherToken = await login('lifecycle_teacher', 'Gv@123456');
 await api('POST', '/auth/change-password', firstTeacherToken, { oldPassword: 'Gv@123456', newPassword: 'Gv@654321' });
 const teacher = await login('lifecycle_teacher', 'Gv@654321');
-await api('POST', '/users', teacher, { username: 'lifecycle_student', password: 'Hocvien@123', role: 'student', displayName: 'Lifecycle Student' }).catch(() => {});
+const cls = await api('POST', '/classes', teacher, { name: `Lifecycle ${Date.now()}`, subject: 'Lifecycle', academicYear: '2026-2027' });
+const classId = cls.class.id;
+await api('POST', '/users', teacher, { username: 'lifecycle_student', password: 'Hocvien@123', role: 'student', displayName: 'Lifecycle Student', studentCode: 'LIFECYCLE-STUDENT', classId }).catch(() => {});
 const firstStudentToken = await login('lifecycle_student', 'Hocvien@123');
 await api('POST', '/auth/change-password', firstStudentToken, { oldPassword: 'Hocvien@123', newPassword: 'Hocvien@456' });
 const student = await login('lifecycle_student', 'Hocvien@456');
 
-const cls = await api('POST', '/classes', teacher, { name: `Lifecycle ${Date.now()}`, subject: 'Lifecycle', academicYear: '2026-2027' });
-const classId = cls.class.id;
 const studentsRes = await api('GET', '/users?role=student', teacher);
 const studentId = (studentsRes.users ?? []).find((u) => u.username === 'lifecycle_student')?.id;
 await api('POST', `/classes/${classId}/enroll`, teacher, { studentIds: [studentId] });

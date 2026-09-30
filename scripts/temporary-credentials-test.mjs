@@ -51,13 +51,15 @@ try {
   const initialAdmin = await login('admin', 'admin123');
   const changedAdmin = await json('POST', '/auth/change-password', initialAdmin.body.token, { oldPassword: 'admin123', newPassword: 'Admin@123456' });
   const adminToken = changedAdmin.body.token;
+  const createdClass = await json('POST', '/classes', adminToken, { name: 'Credential Class', subject: 'Security', academicYear: '2026-2027' });
+  const classId = createdClass.body.class.id;
 
-  const manual = await json('POST', '/users', adminToken, { username: 'manual.student', password: 'Manual@123', role: 'student', displayName: 'Manual Student' });
+  const manual = await json('POST', '/users', adminToken, { username: 'manual.student', password: 'Manual@123', role: 'student', displayName: 'Manual Student', studentCode: 'CRED-MANUAL', classId });
   check(manual.response.status === 201 && manual.body.user.mustChangePassword === true, 'manual staff-created credential forces first password change');
 
   const imported = await json('POST', '/users/import', adminToken, { rows: [
-    { username: 'json.blank', displayName: 'JSON Blank' },
-    { username: 'json.explicit', displayName: 'JSON Explicit', password: 'Json@12345' },
+    { username: 'json.blank', displayName: 'JSON Blank', studentCode: 'CRED-BLANK', classId },
+    { username: 'json.explicit', displayName: 'JSON Explicit', password: 'Json@12345', studentCode: 'CRED-EXPLICIT', classId },
   ] });
   const blankCredential = imported.body.credentials.find((item) => item.username === 'json.blank');
   const explicitCredential = imported.body.credentials.find((item) => item.username === 'json.explicit');
@@ -70,16 +72,15 @@ try {
   check(blankRow.must_change_password === 1 && explicitRow.must_change_password === 1 && bcrypt.compareSync(blankCredential.temporaryPassword, blankRow.password_hash), 'JSON imports persist only hashes and require first change');
 
   const originalHash = blankRow.password_hash;
-  const duplicate = await json('POST', '/users/import', adminToken, { rows: [{ username: 'json.blank', displayName: 'Existing', password: 'Replace@123' }] });
+  const duplicate = await json('POST', '/users/import', adminToken, { rows: [{ username: 'json.blank', displayName: 'Existing', password: 'Replace@123', studentCode: 'CRED-BLANK', classId }] });
   const duplicateHash = db.prepare('SELECT password_hash FROM users WHERE username = ?').get('json.blank').password_hash;
   check(duplicate.response.status === 400 && duplicate.body.credentials.length === 0 && duplicateHash === originalHash, 'duplicate JSON import returns no credential and never replaces an existing password');
 
-  const createdClass = await json('POST', '/classes', adminToken, { name: 'Credential Class', subject: 'Security', academicYear: '2026-2027' });
   const csv = [
-    'Tài khoản user,Họ và tên,Mật khẩu mặc định',
-    'csv.blank,CSV Blank,',
-    'csv.explicit,CSV Explicit,Csv@12345',
-    'json.blank,Existing Student,Replace@456',
+    'Mã học viên,Tài khoản user,Họ và tên,Mật khẩu mặc định',
+    'CRED-CSV-BLANK,csv.blank,CSV Blank,',
+    'CRED-CSV-EXPLICIT,csv.explicit,CSV Explicit,Csv@12345',
+    'CRED-BLANK,json.blank,Existing Student,Replace@456',
   ].join('\r\n');
   const form = new FormData();
   form.append('file', new Blob([csv], { type: 'text/csv' }), 'students.csv');

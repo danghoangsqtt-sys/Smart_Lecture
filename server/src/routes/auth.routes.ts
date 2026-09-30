@@ -9,6 +9,8 @@ import { db, findUserByUsername, toPublicUser, type UserRow } from '../db/connec
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { clearSessionCookie, setSessionCookie } from '../auth/sessionCookie.js';
 import { rejectCrossHostOriginWhenPresent } from '../middleware/csrf.js';
+import { createStudentAccount } from '../services/studentAccounts.js';
+import { h, HttpError } from '../utils/errors.js';
 
 const MAX_FAILED_ATTEMPTS = 10;
 const BAD_CREDENTIALS = { error: { code: 'BAD_CREDENTIALS', message: 'Sai tên đăng nhập hoặc mật khẩu' } } as const;
@@ -119,32 +121,35 @@ const createUserSchema = z.object({
   password: z.string().min(6).max(200),
   role: z.enum(['teacher', 'student']),
   displayName: z.string().min(1).max(100),
+  studentCode: z.string().trim().optional(),
+  classId: z.string().trim().optional(),
 });
 
-router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) => {
+router.post('/users', requireAuth, requireRole('admin', 'teacher'), h(async (req, res) => {
   const authed = req as AuthedRequest;
   const parsed = createUserSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: { code: 'BAD_INPUT', message: parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ' } });
-    return;
-  }
-  const { username, password, role, displayName } = parsed.data;
+  if (!parsed.success || !authed.user) throw new HttpError(400, 'BAD_INPUT', parsed.success ? 'Dữ liệu không hợp lệ' : parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ');
+  const { username, password, role, displayName, studentCode, classId } = parsed.data;
   if (authed.user?.role === 'teacher' && role === 'teacher') {
-    res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Giáo viên chỉ được tạo tài khoản học viên' } });
+    throw new HttpError(403, 'FORBIDDEN', 'Giáo viên chỉ được tạo tài khoản học viên');
+  }
+  if (role === 'student') {
+    const created = createStudentAccount({ username, password, displayName, studentCode: studentCode ?? '', classId: classId ?? '' }, authed.user);
+    const row = db.prepare('SELECT * FROM users WHERE id = ?').get(created.id) as UserRow;
+    res.status(201).json({ user: toPublicUser(row) });
     return;
   }
   if (db.prepare('SELECT 1 FROM users WHERE lower(trim(username)) = lower(trim(?))').get(username)) {
-    res.status(409).json({ error: { code: 'USERNAME_EXISTS', message: 'Tên đăng nhập đã tồn tại' } });
-    return;
+    throw new HttpError(409, 'USERNAME_EXISTS', 'Tên đăng nhập đã tồn tại');
   }
   const hash = bcrypt.hashSync(password, 10);
   const id = randomUUID();
   db.prepare(
     `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by)
      VALUES (?, ?, ?, ?, ?, 1, ?)`
-  ).run(id, role === 'student' ? username.toLowerCase() : username, hash, role, displayName, authed.user?.id ?? null);
-  const created = findUserByUsername(role === 'student' ? username.toLowerCase() : username);
+  ).run(id, username, hash, role, displayName, authed.user.id);
+  const created = findUserByUsername(username);
   res.status(201).json({ user: created ? toPublicUser(created) : null });
-});
+}));
 
 export default router;
