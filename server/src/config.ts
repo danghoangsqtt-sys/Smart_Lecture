@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { isIP } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,12 +24,20 @@ export const PORT = Number(process.env.PORT ?? 4000);
 export const MDNS_ENABLED = process.env.MDNS_ENABLED?.trim() !== '0';
 export const SESSION_COOKIE_SECURE = process.env.SESSION_COOKIE_SECURE?.trim().toLowerCase() === 'true';
 
-export const TRUST_PROXY: boolean | number | string = (() => {
+export const TRUST_PROXY: false | string[] = (() => {
   const raw = process.env.TRUST_PROXY?.trim();
   if (!raw || raw.toLowerCase() === 'false') return false;
-  if (raw.toLowerCase() === 'true') return true;
-  if (/^\d+$/.test(raw)) return Number(raw);
-  return raw;
+  const proxies = raw.split(',').map((entry) => entry.trim());
+  for (const proxy of proxies) {
+    const [address, prefix, extra] = proxy.split('/');
+    const family = address ? isIP(address) : 0;
+    const maxPrefix = family === 4 ? 32 : 128;
+    if (!family || extra !== undefined ||
+        (prefix !== undefined && (!/^\d{1,3}$/.test(prefix) || Number(prefix) < 1 || Number(prefix) > maxPrefix))) {
+      throw new Error('TRUST_PROXY must be a comma-separated list of proxy IP addresses or bounded CIDR ranges');
+    }
+  }
+  return proxies;
 })();
 
 export const NETWORK_INTERFACES: { name: string; address: string }[] = (() => {

@@ -35,7 +35,7 @@ npm run dev          # API :4000 + Web :5173 (dev proxy sẵn)
 npm run build && npm start -w server    # học viên truy cập http://<ip-máy-GV>:4000
 ```
 
-Mặc định server chạy trực tiếp trong LAN và không tin header proxy. Chỉ khi triển khai sau reverse proxy do bạn kiểm soát, đặt `TRUST_PROXY=1` (hoặc danh sách subnet/IP theo cú pháp Express) trước khi khởi động server. Khi reverse proxy thực sự phục vụ HTTPS, đặt thêm `SESSION_COOKIE_SECURE=true`; không bật cờ này cho truy cập HTTP LAN trực tiếp vì trình duyệt sẽ không gửi cookie Secure qua HTTP.
+Mặc định server chạy trực tiếp trong LAN và bỏ qua `X-Forwarded-For`; launcher/bộ cài không cần `TRUST_PROXY`. Chỉ khi triển khai sau reverse proxy do bạn kiểm soát, đặt danh sách **IP/CIDR của chính proxy kết nối trực tiếp với ứng dụng**, ví dụ `TRUST_PROXY=127.0.0.1/32` hoặc `TRUST_PROXY=10.0.0.5,10.0.0.6`. Không dùng `true`, số hop (`1`) hoặc subnet bao phủ tất cả địa chỉ. Proxy phải ghi đè `X-Forwarded-For` do client gửi và chặn truy cập trực tiếp vào cổng backend ngoài proxy. Cấu hình sai làm server từ chối khởi động. Khi proxy thực sự phục vụ HTTPS, đặt thêm `SESSION_COOKIE_SECURE=true`; không bật cờ này cho truy cập HTTP LAN trực tiếp vì trình duyệt sẽ không gửi cookie Secure qua HTTP.
 
 Nếu cần kiểm tra bản production sau khi khởi động trên Windows:
 

@@ -39,6 +39,8 @@ seedAdmin();
 ensureAllDropFolders();
 
 const app = express();
+// Direct LAN remains untrusted. When enabled, only the configured immediate
+// proxy addresses may supply X-Forwarded-For for req.ip and both rate limiters.
 if (TRUST_PROXY !== false) app.set('trust proxy', TRUST_PROXY);
 app.use(securityHeaders);
 app.use(express.json({ limit: '4mb' }));

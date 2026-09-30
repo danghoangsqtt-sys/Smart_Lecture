@@ -8,6 +8,8 @@
 
 Sau khi cai dat, icon **SmartLecture** xuat hien tren Desktop va Start Menu.
 
+Ban cai mac dinh chay truc tiep trong LAN: khong can `TRUST_PROXY` va khong tin header `X-Forwarded-For` do thiet bi gui len. Neu don vi trien khai sau reverse proxy rieng, nhan vien ky thuat can dat `TRUST_PROXY` bang IP/CIDR cua proxy ket noi truc tiep (vi du `127.0.0.1/32`), cau hinh proxy ghi de `X-Forwarded-For` va khoa truy cap truc tiep vao cong backend. Khong dung `TRUST_PROXY=true` hoac so hop (`1`); gia tri khong hop le se khien server tu choi khoi dong. Neu proxy phuc vu HTTPS, dat them `SESSION_COOKIE_SECURE=true`.
+
 ## Su dung hang ngay
 
 1. Bam dup icon **SmartLecture** tren Desktop hoac Start Menu. Launcher se tu khoi dong dich vu neu can.

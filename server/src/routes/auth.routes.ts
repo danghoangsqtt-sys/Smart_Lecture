@@ -29,6 +29,8 @@ function sendSession(req: Request, res: Response, row: UserRow): void {
 // entire class right before an exam. This limits failed attempts per source IP;
 // successful logins never count against it, so normal classroom traffic (many
 // students logging in correctly from many devices) is unaffected.
+// The default limiter key is req.ip, which is socket-derived on direct LAN and
+// proxy-derived only from explicitly trusted immediate proxy addresses.
 const loginRateLimit = rateLimit({
   windowMs: 15 * 60_000,
   limit: 20,
