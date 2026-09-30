@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-78-in-progress",
   "phase_current": "P78-perimeter-dependencies",
-  "workflow_state": "P78-T-7802-in-progress",
+  "workflow_state": "P78-T-7802-complete-T-7803-next",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "Execute T-7802: validate explicit proxy IP/CIDR only, test direct/untrusted/trusted spoofed headers against login and global rate limits, update deployment guidance. Then continue T-7803."
+  "next_action": "T-7802 completed and verified: explicit trusted proxy IP/CIDR only; spoofed-header login/global regression 13/13; typecheck/lint/build/focused/full E2E PASS. Continue T-7803 moderate production advisory triage before closing P78."
 }

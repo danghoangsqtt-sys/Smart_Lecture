@@ -42,4 +42,11 @@ Prevent forwarded-header spoofing from changing rate-limit identity in the defau
 
 ## Status
 
-- `in_progress`
+- `done`
+
+## Verification Record — 2026-09-30
+
+- Default direct-LAN path continues to ignore forwarded headers. `TRUST_PROXY` now accepts only explicit, bounded IP/CIDR proxy addresses and rejects permissive true, numeric hop counts, aliases and invalid/wide CIDRs during startup.
+- Isolated rate-limit regression: 13/13 pass (direct LAN login/global, untrusted configured peer, trusted nearest-untrusted client login/global, invalid settings).
+- `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:focused` and `npm run test:e2e` pass. E2E smoke: 87/87; Socket: 10/10; game lifecycle: 11/11; API regression: 26/26.
+- Shipping change `d6ebccd` pushed to `origin/main`; clean worktree and 0 commits ahead of upstream before this state update.
