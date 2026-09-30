@@ -62,6 +62,71 @@ export function migrate(): void {
     });
     console.log(`[db] applied migration v${migration.version}`);
   }
+  reconcileRosterConstraints();
+}
+
+type RosterIssueCounts = {
+  blankUsernames: number;
+  duplicateUsernames: number;
+  missingStudentCodes: number;
+  duplicateStudentCodes: number;
+  uppercaseStudentUsernames: number;
+  unassignedStudents: number;
+  multiClassStudents: number;
+  foreignKeyViolations: number;
+};
+
+export function rosterConstraintStatus(): { ready: boolean; enforced: boolean; issues: RosterIssueCounts } {
+  const count = (sql: string): number => (db.prepare(sql).get() as { n: number }).n;
+  const issues: RosterIssueCounts = {
+    blankUsernames: count("SELECT COUNT(*) AS n FROM users WHERE trim(username) = ''"),
+    duplicateUsernames: count('SELECT COUNT(*) AS n FROM (SELECT 1 FROM users GROUP BY lower(trim(username)) HAVING COUNT(*) > 1)'),
+    missingStudentCodes: count("SELECT COUNT(*) AS n FROM users WHERE role = 'student' AND (student_code IS NULL OR trim(student_code) = '')"),
+    duplicateStudentCodes: count("SELECT COUNT(*) AS n FROM (SELECT 1 FROM users WHERE role = 'student' AND student_code IS NOT NULL AND trim(student_code) <> '' GROUP BY upper(trim(student_code)) HAVING COUNT(*) > 1)"),
+    uppercaseStudentUsernames: count("SELECT COUNT(*) AS n FROM users WHERE role = 'student' AND username <> lower(username)"),
+    unassignedStudents: count("SELECT COUNT(*) AS n FROM users u WHERE u.role = 'student' AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = u.id)"),
+    multiClassStudents: count('SELECT COUNT(*) AS n FROM (SELECT student_id FROM enrollments GROUP BY student_id HAVING COUNT(DISTINCT class_id) > 1)'),
+    foreignKeyViolations: db.prepare('PRAGMA foreign_key_check').all().length,
+  };
+  const enforced = (db.prepare("SELECT COUNT(*) AS n FROM sqlite_schema WHERE type = 'index' AND name IN ('ux_users_username_ci', 'ux_users_student_code_ci', 'ux_enrollments_one_class')").get() as { n: number }).n === 3;
+  return { ready: !Object.values(issues).some(Boolean), enforced, issues };
+}
+
+function backfillHomeClassHistory(): void {
+  db.prepare(`
+    UPDATE student_home_class_history AS h SET ended_at = datetime('now')
+    WHERE ended_at IS NULL AND NOT EXISTS (
+      SELECT 1 FROM enrollments e WHERE e.student_id = h.student_id AND e.class_id = h.class_id
+    )
+  `).run();
+  const rows = db.prepare(`
+    SELECT e.student_id, e.class_id, e.enrolled_at FROM enrollments e
+    JOIN users u ON u.id = e.student_id AND u.role = 'student'
+    WHERE NOT EXISTS (SELECT 1 FROM student_home_class_history h WHERE h.student_id = e.student_id AND h.ended_at IS NULL)
+      AND (SELECT COUNT(*) FROM enrollments e2 WHERE e2.student_id = e.student_id) = 1
+  `).all() as { student_id: string; class_id: string; enrolled_at: string }[];
+  const insert = db.prepare('INSERT INTO student_home_class_history (id, student_id, class_id, started_at) VALUES (?, ?, ?, ?)');
+  for (const row of rows) insert.run(randomUUID(), row.student_id, row.class_id, row.enrolled_at);
+}
+
+function reconcileRosterConstraints(): void {
+  tx(() => {
+    backfillHomeClassHistory();
+    const status = rosterConstraintStatus();
+    if (!status.ready) {
+      console.warn(`[db] roster constraints pending manual remediation: ${JSON.stringify(status.issues)}`);
+      return;
+    }
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username_ci ON users(lower(trim(username)));
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_users_student_code_ci ON users(upper(trim(student_code))) WHERE role = 'student';
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_enrollments_one_class ON enrollments(student_id);
+    `);
+  });
+}
+
+export function recordHomeClassStart(studentId: string, classId: string): void {
+  db.prepare('INSERT INTO student_home_class_history (id, student_id, class_id) VALUES (?, ?, ?)').run(randomUUID(), studentId, classId);
 }
 
 const MIGRATIONS: { version: number; up: () => void }[] = [
@@ -610,6 +675,48 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 27,
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS student_home_class_history (
+          id TEXT PRIMARY KEY,
+          student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          class_id TEXT NOT NULL,
+          started_at TEXT NOT NULL DEFAULT (datetime('now')),
+          ended_at TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_student_home_history_student ON student_home_class_history(student_id, started_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_student_home_open ON student_home_class_history(student_id) WHERE ended_at IS NULL;
+        CREATE TRIGGER IF NOT EXISTS roster_user_insert_username BEFORE INSERT ON users
+          WHEN EXISTS (SELECT 1 FROM users WHERE lower(trim(username)) = lower(trim(NEW.username)))
+          BEGIN SELECT RAISE(ABORT, 'roster_username_duplicate'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_user_update_username BEFORE UPDATE OF username ON users
+          WHEN EXISTS (SELECT 1 FROM users WHERE id <> OLD.id AND lower(trim(username)) = lower(trim(NEW.username)))
+          BEGIN SELECT RAISE(ABORT, 'roster_username_duplicate'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_user_insert_code BEFORE INSERT ON users
+          WHEN NEW.role = 'student' AND NEW.student_code IS NOT NULL AND trim(NEW.student_code) <> ''
+            AND EXISTS (SELECT 1 FROM users WHERE role = 'student' AND upper(trim(student_code)) = upper(trim(NEW.student_code)))
+          BEGIN SELECT RAISE(ABORT, 'roster_student_code_duplicate'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_user_update_code BEFORE UPDATE OF student_code, role ON users
+          WHEN NEW.role = 'student' AND NEW.student_code IS NOT NULL AND trim(NEW.student_code) <> ''
+            AND EXISTS (SELECT 1 FROM users WHERE id <> OLD.id AND role = 'student' AND upper(trim(student_code)) = upper(trim(NEW.student_code)))
+          BEGIN SELECT RAISE(ABORT, 'roster_student_code_duplicate'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_enrollment_one_class BEFORE INSERT ON enrollments
+          WHEN EXISTS (SELECT 1 FROM enrollments WHERE student_id = NEW.student_id AND class_id <> NEW.class_id)
+          BEGIN SELECT RAISE(ABORT, 'roster_student_already_in_class'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_enrollment_update_class BEFORE UPDATE OF class_id, student_id ON enrollments
+          WHEN NEW.class_id <> OLD.class_id OR NEW.student_id <> OLD.student_id
+          BEGIN SELECT RAISE(ABORT, 'roster_transfer_requires_delete_insert'); END;
+        CREATE TRIGGER IF NOT EXISTS roster_enrollment_close_history AFTER DELETE ON enrollments
+          BEGIN
+            UPDATE student_home_class_history SET ended_at = datetime('now')
+            WHERE student_id = OLD.student_id AND class_id = OLD.class_id AND ended_at IS NULL;
+          END;
+      `);
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;
@@ -654,7 +761,8 @@ export type UserRow = {
 };
 
 export function findUserByUsername(username: string): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
+  const rows = db.prepare('SELECT * FROM users WHERE lower(trim(username)) = lower(trim(?)) LIMIT 2').all(username) as UserRow[];
+  return rows.length === 1 ? rows[0] : undefined;
 }
 
 export function getUserById(id: string): UserRow | undefined {

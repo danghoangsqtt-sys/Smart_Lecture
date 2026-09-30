@@ -133,7 +133,7 @@ router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) =
     res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Giáo viên chỉ được tạo tài khoản học viên' } });
     return;
   }
-  if (findUserByUsername(username)) {
+  if (db.prepare('SELECT 1 FROM users WHERE lower(trim(username)) = lower(trim(?))').get(username)) {
     res.status(409).json({ error: { code: 'USERNAME_EXISTS', message: 'Tên đăng nhập đã tồn tại' } });
     return;
   }
@@ -142,8 +142,8 @@ router.post('/users', requireAuth, requireRole('admin', 'teacher'), (req, res) =
   db.prepare(
     `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by)
      VALUES (?, ?, ?, ?, ?, 1, ?)`
-  ).run(id, username, hash, role, displayName, authed.user?.id ?? null);
-  const created = findUserByUsername(username);
+  ).run(id, role === 'student' ? username.toLowerCase() : username, hash, role, displayName, authed.user?.id ?? null);
+  const created = findUserByUsername(role === 'student' ? username.toLowerCase() : username);
   res.status(201).json({ user: created ? toPublicUser(created) : null });
 });
 

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
 import ExcelJS from 'exceljs';
-import { tx, db, queryAll, toPublicUser, findUserByUsername } from '../db/connection.js';
+import { tx, db, queryAll, toPublicUser, findUserByUsername, recordHomeClassStart } from '../db/connection.js';
 import { DROP_DIR } from '../config.js';
 import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth.js';
 import { HttpError, h } from '../utils/errors.js';
@@ -612,13 +612,17 @@ router.post(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền thêm học viên vào lớp này');
     const parsed = enrollSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Danh sách học viên không hợp lệ');
-    const stmt = db.prepare('INSERT OR IGNORE INTO enrollments (class_id, student_id) VALUES (?, ?)');
+    const stmt = db.prepare('INSERT INTO enrollments (class_id, student_id) VALUES (?, ?)');
     let added = 0;
     tx(() => {
       for (const sid of parsed.data.studentIds) {
         const isStudent = db.prepare("SELECT 1 FROM users WHERE id = ? AND role = 'student'").get(sid);
         if (isStudent) {
+          const current = db.prepare('SELECT class_id FROM enrollments WHERE student_id = ?').get(sid) as { class_id: string } | undefined;
+          if (current?.class_id === cls.id) continue;
+          if (current) throw new HttpError(409, 'STUDENT_ALREADY_IN_CLASS', 'Học viên đã thuộc lớp biên chế khác');
           stmt.run(cls.id, sid);
+          recordHomeClassStart(sid, cls.id);
           added++;
         }
       }
@@ -647,11 +651,11 @@ router.get(
     const rows = db
       .prepare(
         `SELECT id, username, display_name FROM users u WHERE role = 'student' AND status = 'active'
-         AND (u.created_by = ? OR NOT EXISTS (SELECT 1))
-         AND id NOT IN (SELECT student_id FROM enrollments WHERE class_id = ?)
+         AND u.created_by = ?
+         AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = u.id)
          ORDER BY display_name LIMIT 300`
       )
-      .all(cls.teacher_id, cls.id) as { id: string; username: string; display_name: string }[];
+      .all(cls.teacher_id) as { id: string; username: string; display_name: string }[];
     void toPublicUser;
     res.json({
       students: rows.map((r) => ({ id: r.id, username: r.username, displayName: r.display_name })),
@@ -782,6 +786,12 @@ router.post(
             continue;
           }
           studentId = existing.id;
+          const current = db.prepare('SELECT class_id FROM enrollments WHERE student_id = ?').get(studentId) as { class_id: string } | undefined;
+          if (current && current.class_id !== cls.id) {
+            errors.push(`Dòng ${i + headerRowIdx + 2}: học viên đã thuộc lớp biên chế khác`);
+            skipped++;
+            continue;
+          }
           db.prepare(
             `UPDATE users SET student_code = COALESCE(?, student_code), dob = COALESCE(?, dob),
              gender = COALESCE(?, gender), hometown = COALESCE(?, hometown) WHERE id = ?`
@@ -801,13 +811,14 @@ router.post(
             },
             (req as AuthedRequest).user!.id
           );
-          credentials.push({ id: studentId, username, temporaryPassword });
+          credentials.push({ id: studentId, username: username.toLowerCase(), temporaryPassword });
           created++;
         }
 
         const alreadyEnrolled = db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ?').get(cls.id, studentId);
         if (!alreadyEnrolled) {
           db.prepare('INSERT INTO enrollments (class_id, student_id) VALUES (?, ?)').run(cls.id, studentId);
+          recordHomeClassStart(studentId, cls.id);
           enrolled++;
         } else {
           skipped++;

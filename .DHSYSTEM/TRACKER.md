@@ -10,7 +10,8 @@
 |---|---|---|---|---|
 | T-8601 | Roster preflight read-only và fixture regression | P86 | done | 5/5 test + typecheck/lint/build; commit/push `99e8607` |
 | T-8700 | Xóa đúng 3 học viên thử sau sao lưu và xác minh FK | P87 | done | 3 ID; backup verified; user 4→1; FK/integrity sạch; CLI 4/4 + typecheck/lint/build PASS |
-| T-8701..04 | Định danh, một lớp biên chế, nhập Excel, chuyển lớp và tài khoản sai | P87 | todo | migration gate + REST/UI/backup tests |
+| T-8701 | Migration lớp biên chế, lịch sử và constraint gate | P87 | done | v27; 4 fixture cases + 2 real-DB backup rehearsals; focused + E2E 87/87 smoke, 10/10 Socket, 11/11 game, 26/26 API |
+| T-8702..04 | Tạo tài khoản nguyên tử, nhập Excel, chuyển lớp và tài khoản sai | P87 | todo | REST/UI/backup tests |
 | T-8801..04 | Kho môn/bài/học liệu/câu hỏi dùng chung | P88 | todo | legacy mapping + curriculum/game tests |
 | T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
 | T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |

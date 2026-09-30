@@ -39,6 +39,19 @@ CREATE TABLE IF NOT EXISTS enrollments (
 );
 CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
 
+-- Current membership remains in enrollments. This append-only history records
+-- class transfers without rewriting grades or attendance tied to old classes.
+CREATE TABLE IF NOT EXISTS student_home_class_history (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  class_id TEXT NOT NULL,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  ended_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_student_home_history_student ON student_home_class_history(student_id, started_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_student_home_open ON student_home_class_history(student_id) WHERE ended_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS lectures (
   id TEXT PRIMARY KEY,
   class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,

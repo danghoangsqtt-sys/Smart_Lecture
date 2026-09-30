@@ -6,6 +6,13 @@ Nguồn chi tiết: `.DHSYSTEM/requests/REQ-20260930-013-roster-curriculum-teach
 
 **Diagram source:** `.DHSYSTEM/architecture/roster-curriculum-target.mermaid`.
 
+### P87 T-8701 — staged roster migration (đã triển khai trong source, chưa phát hành)
+
+- Migration v27 thêm `student_home_class_history(id, student_id, class_id, started_at, ended_at, created_at)`. `enrollments` vẫn là lớp biên chế hiện tại; chỉ backfill lịch sử khi một học viên có đúng một ghi danh rõ ràng. Xóa ghi danh đóng mốc lịch sử, không sửa `class_id` của điểm danh/điểm cũ. Trường hợp đa lớp legacy không bị đoán lớp hoặc tự gộp.
+- Mỗi lần boot kiểm tra trùng `lower(trim(username))`, trùng `upper(trim(student_code))`, mã trống, username học viên viết hoa, học viên không lớp/đa lớp và FK. DB sạch được thêm unique indexes username, mã học viên và một enrollment/học viên; DB xung đột vẫn khởi động, ghi cảnh báo và có thể thử lại sau khi dữ liệu được xử lý.
+- Trigger v27 chặn tạo thêm username/mã trùng không phân biệt hoa/thường và ghi danh sang lớp thứ hai ngay cả khi DB legacy chưa đủ sạch để tạo unique index. Các route tạo học viên hiện chuẩn hóa username về chữ thường; class enrollment/import tạo lịch sử khi ghi danh mới. Bắt buộc mã SV/lớp ở thời điểm tạo, gom mọi writer vào một transaction và chuyển lớp có phân quyền là T-8702–T-8704, chưa được coi là hoàn tất tại đây.
+- Migration được diễn tập trên SQLite backup nhất quán của cả DB repo và DB bản cài; không thay đổi hai DB nguồn. App/bộ cài v0.11.0 đang chạy chưa nhận migration này cho đến khi bản mới được triển khai.
+
 ```mermaid
 flowchart LR
   Student[Học viên + mã SV duy nhất] -->|một lớp hiện tại| HomeClass[Lớp biên chế]

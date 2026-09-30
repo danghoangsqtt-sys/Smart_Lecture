@@ -7,7 +7,7 @@
 | Task | Status | Verification |
 |---|---|---|
 | T-8700 Remove explicitly designated test students | done | 3 exact IDs removed; SQLite backup verified; FK/integrity clean; 4 CLI tests and project checks pass |
-| T-8701 Staged schema and legacy readiness gate | todo | upgrade fixture clean/conflicted + rollback/retry |
+| T-8701 Staged schema and legacy readiness gate | done | v27 + real-data backup rehearsal clean; fixture conflict/missing/rollback-retry; typecheck/lint/build/focused/full E2E PASS |
 | T-8702 Atomic student creation and writer consolidation | todo | REST race/duplicate/class validation |
 | T-8703 Users Excel and single-class UI | todo | template/preview/import Browser tests |
 | T-8704 Transfer, archive/delete and session revocation | todo | historical grade/attendance and auth tests |

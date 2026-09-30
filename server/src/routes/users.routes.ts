@@ -66,21 +66,26 @@ const createUserBody = z.object({
 });
 
 export function insertUser(input: z.infer<typeof createUserBody>, creatorId: string): string {
-  const exists = db.prepare('SELECT 1 FROM users WHERE username = ?').get(input.username);
+  const username = input.role === 'student' ? input.username.toLowerCase() : input.username;
+  const studentCode = input.studentCode?.trim() || null;
+  const exists = db.prepare('SELECT 1 FROM users WHERE lower(trim(username)) = lower(trim(?))').get(username);
   if (exists) throw new HttpError(409, 'USERNAME_EXISTS', `Tên đăng nhập "${input.username}" đã tồn tại`);
+  if (input.role === 'student' && studentCode && db.prepare("SELECT 1 FROM users WHERE role = 'student' AND upper(trim(student_code)) = upper(trim(?))").get(studentCode)) {
+    throw new HttpError(409, 'STUDENT_CODE_EXISTS', `Mã học viên "${studentCode}" đã tồn tại`);
+  }
   const id = randomUUID();
   db.prepare(
     `INSERT INTO users (id, username, password_hash, role, display_name, must_change_password, created_by, student_code, dob, gender, hometown)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
-    input.username,
+    username,
     hashPassword(input.password),
     input.role,
     input.displayName,
     1,
     creatorId,
-    input.studentCode ?? null,
+    studentCode,
     input.dob ?? null,
     input.gender ?? null,
     input.hometown ?? null
@@ -132,7 +137,7 @@ router.post(
         const temporaryPassword = row.password ?? generateTemporaryPassword();
         const id = insertUser({ ...row, password: temporaryPassword, role: 'student' }, authed.user!.id);
         ids.push(id);
-        credentials.push({ id, username: row.username, temporaryPassword });
+        credentials.push({ id, username: row.username.toLowerCase(), temporaryPassword });
       } catch (error) {
         errors.push({ row: index + 1, username: row.username, message: error instanceof Error ? error.message : 'Không thể tạo học viên' });
       }
@@ -161,6 +166,10 @@ router.patch(
     if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
     if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
       throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
+    }
+    const studentCode = parsed.data.studentCode?.trim();
+    if (target.role === 'student' && studentCode && db.prepare("SELECT 1 FROM users WHERE id <> ? AND role = 'student' AND upper(trim(student_code)) = upper(trim(?))").get(target.id, studentCode)) {
+      throw new HttpError(409, 'STUDENT_CODE_EXISTS', `Mã học viên "${studentCode}" đã tồn tại`);
     }
     db.prepare(
       `UPDATE users SET display_name = COALESCE(?, display_name), student_code = COALESCE(?, student_code),
