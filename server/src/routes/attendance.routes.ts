@@ -144,10 +144,12 @@ router.get(
     if (!canViewClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
     const students = db
       .prepare(
-        `SELECT u.id AS student_id, u.display_name FROM enrollments e JOIN users u ON u.id = e.student_id
-         WHERE e.class_id = ? ORDER BY u.display_name`
+        `SELECT u.id AS student_id, u.display_name FROM users u
+         WHERE (u.archived_at IS NULL AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = ? AND e.student_id = u.id))
+           OR EXISTS (SELECT 1 FROM attendance_records ar WHERE ar.session_id = ? AND ar.student_id = u.id)
+         ORDER BY u.display_name`
       )
-      .all(session.class_id) as { student_id: string; display_name: string }[];
+      .all(session.class_id, session.id) as { student_id: string; display_name: string }[];
     const records = db.prepare('SELECT * FROM attendance_records WHERE session_id = ?').all(session.id) as {
       student_id: string;
       status: string;
@@ -225,7 +227,10 @@ router.put(
     const parsed = recordsSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu điểm danh không hợp lệ');
     const enrolledStudentIds = new Set(
-      (db.prepare('SELECT student_id FROM enrollments WHERE class_id = ?').all(session.class_id) as { student_id: string }[])
+      (db.prepare(`SELECT u.id AS student_id FROM users u
+        WHERE (u.archived_at IS NULL AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = ? AND e.student_id = u.id))
+           OR EXISTS (SELECT 1 FROM attendance_records ar WHERE ar.session_id = ? AND ar.student_id = u.id)`)
+        .all(session.class_id, session.id) as { student_id: string }[])
         .map((row) => row.student_id)
     );
     const seen = new Set<string>();

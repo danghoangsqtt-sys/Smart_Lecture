@@ -44,10 +44,13 @@ router.get(
     if (!canManageClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem sổ điểm lớp này');
     const students = db
       .prepare(
-        `SELECT u.id AS student_id, u.display_name FROM enrollments e JOIN users u ON u.id = e.student_id
-         WHERE e.class_id = ? ORDER BY u.display_name`
+        `SELECT u.id AS student_id, u.display_name FROM users u
+         WHERE (u.archived_at IS NULL AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = ? AND e.student_id = u.id))
+           OR EXISTS (SELECT 1 FROM grades g WHERE g.class_id = ? AND g.student_id = u.id)
+           OR EXISTS (SELECT 1 FROM attendance_records ar JOIN attendance_sessions s ON s.id = ar.session_id WHERE s.class_id = ? AND ar.student_id = u.id)
+         ORDER BY u.display_name`
       )
-      .all(cls.id) as unknown as StudentBase[];
+      .all(cls.id, cls.id, cls.id) as unknown as StudentBase[];
     const grades = db.prepare('SELECT * FROM grades WHERE class_id = ?').all(cls.id) as unknown as GradeRow[];
     const gradeMap = new Map(grades.map((g) => [g.student_id, g]));
     const attendanceSummary = db
@@ -103,6 +106,12 @@ router.put(
     const existing = db
       .prepare('SELECT * FROM grades WHERE class_id = ? AND student_id = ?')
       .get(cls.id, String(req.params.studentId)) as GradeRow | undefined;
+    const eligible = db.prepare(`SELECT 1 FROM users u WHERE u.id = ? AND (
+      (u.archived_at IS NULL AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = ? AND e.student_id = u.id))
+      OR EXISTS (SELECT 1 FROM grades g WHERE g.class_id = ? AND g.student_id = u.id)
+      OR EXISTS (SELECT 1 FROM attendance_records ar JOIN attendance_sessions s ON s.id = ar.session_id WHERE s.class_id = ? AND ar.student_id = u.id)
+    )`).get(String(req.params.studentId), cls.id, cls.id, cls.id);
+    if (!eligible) throw new HttpError(409, 'STUDENT_NOT_IN_CLASS', 'Học viên không thuộc lớp hoặc không có dữ liệu lịch sử tại lớp này');
     const kttx = parsed.data.kttx !== undefined ? parsed.data.kttx : (existing?.kttx ?? null);
     const p1 = parsed.data.process1 !== undefined ? parsed.data.process1 : (existing?.process_1 ?? null);
     const fe = parsed.data.finalExam !== undefined ? parsed.data.finalExam : (existing?.final_exam ?? null);

@@ -33,6 +33,12 @@ const rooms = new Map<string, RoomState>();
 let ioRef: IOServer | null = null;
 let roomSweep: ReturnType<typeof setInterval> | null = null;
 
+export function disconnectUserSockets(userId: string): void {
+  for (const socket of ioRef?.sockets.sockets.values() ?? []) {
+    if (socket.data.userId === userId) socket.disconnect(true);
+  }
+}
+
 export function stopGameEngineTimers(): void {
   if (roomSweep) clearInterval(roomSweep);
   roomSweep = null;

@@ -50,7 +50,7 @@ function classWithMeta(cls: ClassRow) {
   const counts = db
     .prepare(
       `SELECT
-        (SELECT COUNT(*) FROM enrollments WHERE class_id = ?) AS students,
+        (SELECT COUNT(*) FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.archived_at IS NULL) AS students,
         (SELECT COUNT(*) FROM lectures WHERE class_id = ?) AS lectures`
     )
     .get(cls.id, cls.id) as { students: number; lectures: number };
@@ -173,6 +173,11 @@ router.delete(
     if (db.prepare('SELECT 1 FROM enrollments WHERE class_id = ? LIMIT 1').get(cls.id)) {
       throw new HttpError(409, 'CLASS_HAS_STUDENTS', 'Không thể xóa lớp đang có học viên; hãy chuyển hoặc xử lý học viên trước');
     }
+    if (db.prepare('SELECT 1 FROM student_home_class_history WHERE class_id = ? LIMIT 1').get(cls.id)
+      || db.prepare('SELECT 1 FROM attendance_sessions WHERE class_id = ? LIMIT 1').get(cls.id)
+      || db.prepare('SELECT 1 FROM grades WHERE class_id = ? LIMIT 1').get(cls.id)) {
+      throw new HttpError(409, 'CLASS_HAS_HISTORY', 'Lớp có lịch sử học viên hoặc kết quả học tập; hãy lưu trữ thay vì xóa');
+    }
     db.prepare('DELETE FROM classes WHERE id = ?').run(cls.id);
     res.json({ ok: true });
   })
@@ -186,7 +191,7 @@ router.get(
     const students = db
       .prepare(
         `SELECT u.id AS student_id, u.username, u.display_name, u.status, u.student_code, u.dob, u.gender, u.hometown FROM enrollments e
-         JOIN users u ON u.id = e.student_id WHERE e.class_id = ? ORDER BY u.display_name`
+         JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.archived_at IS NULL ORDER BY u.display_name`
       )
       .all(cls.id) as unknown as EnrollmentProfileRow[];
     res.json({
@@ -358,7 +363,7 @@ router.get(
     const cls = getClassOrThrow(String(req.params.id));
     if (!canViewClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
 
-    const studentCount = db.prepare('SELECT COUNT(*) AS c FROM enrollments WHERE class_id = ?').get(cls.id) as { c: number };
+    const studentCount = db.prepare('SELECT COUNT(*) AS c FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.archived_at IS NULL').get(cls.id) as { c: number };
     const lectureCount = db.prepare('SELECT COUNT(*) AS c FROM lectures WHERE class_id = ?').get(cls.id) as { c: number };
     const materialCount = db.prepare('SELECT COUNT(*) AS c FROM materials m JOIN lectures l ON l.id = m.lecture_id WHERE l.class_id = ?').get(cls.id) as { c: number };
     const examCount = db.prepare('SELECT COUNT(*) AS c FROM exams e WHERE e.config_json LIKE ?').get(`%"class_id":"${cls.id}"%`) as { c: number };
@@ -445,9 +450,12 @@ router.get(
     if (!canViewClass(cls, (req as AuthedRequest).user!)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền');
 
     const students = db.prepare(
-      `SELECT u.id AS student_id, u.username, u.display_name, u.status FROM enrollments e
-       JOIN users u ON u.id = e.student_id WHERE e.class_id = ? ORDER BY u.display_name`
-    ).all(cls.id) as unknown as EnrollmentRow[];
+      `SELECT u.id AS student_id, u.username, u.display_name, u.status FROM users u
+       WHERE (u.archived_at IS NULL AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = ? AND e.student_id = u.id))
+          OR EXISTS (SELECT 1 FROM grades g WHERE g.class_id = ? AND g.student_id = u.id)
+          OR EXISTS (SELECT 1 FROM attendance_records ar JOIN attendance_sessions s ON s.id = ar.session_id WHERE s.class_id = ? AND ar.student_id = u.id)
+       ORDER BY u.display_name`
+    ).all(cls.id, cls.id, cls.id) as unknown as EnrollmentRow[];
 
     const grades = db.prepare('SELECT * FROM grades WHERE class_id = ?').all(cls.id) as { student_id: string; kttx: number | null; process_1: number | null; final_exam: number | null; remark: string }[];
     const gradeMap = new Map(grades.map((g) => [g.student_id, g]));
@@ -685,7 +693,8 @@ router.get(
        FROM class_group_members cgm
        JOIN users u ON u.id = cgm.student_id
        JOIN class_groups cg ON cg.id = cgm.group_id
-       WHERE cg.class_id = ?`
+       WHERE cg.class_id = ? AND u.archived_at IS NULL
+         AND EXISTS (SELECT 1 FROM enrollments e WHERE e.class_id = cg.class_id AND e.student_id = u.id)`
     ).all(cls.id) as { group_id: string; student_id: string; display_name: string; username: string }[];
     const memberMap = new Map<string, { id: string; displayName: string; username: string }[]>();
     for (const m of members) {
@@ -798,7 +807,7 @@ router.post(
     const groups = db.prepare('SELECT id FROM class_groups WHERE class_id = ? ORDER BY name').all(cls.id) as { id: string }[];
     if (groups.length === 0) throw new HttpError(400, 'BAD_INPUT', 'Chưa có nhóm nào. Hãy tạo nhóm trước.');
     const students = db.prepare(
-      `SELECT u.id FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.role = 'student' ORDER BY u.display_name`
+      `SELECT u.id FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.role = 'student' AND u.archived_at IS NULL ORDER BY u.display_name`
     ).all(cls.id) as { id: string }[];
     tx(() => {
       db.prepare('DELETE FROM class_group_members WHERE group_id IN (SELECT id FROM class_groups WHERE class_id = ?)').run(cls.id);
@@ -952,7 +961,7 @@ router.post(
     const dataRows = rows.slice(headerRowIdx + 1).filter((r) => r.some((c) => String(c).trim()));
 
     const enrolled = db
-      .prepare(`SELECT u.id, u.username FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ?`)
+      .prepare(`SELECT u.id, u.username FROM enrollments e JOIN users u ON u.id = e.student_id WHERE e.class_id = ? AND u.archived_at IS NULL`)
       .all(cls.id) as { id: string; username: string }[];
     const byUsername = new Map(enrolled.map((s) => [s.username.toLowerCase(), s.id]));
 

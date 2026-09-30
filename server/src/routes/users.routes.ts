@@ -7,6 +7,8 @@ import { requireAuth, requireRole, type AuthedRequest } from '../middleware/auth
 import { HttpError, h } from '../utils/errors.js';
 import { generateTemporaryPassword, type OneTimeCredential } from '../auth/temporaryCredentials.js';
 import { createStudentAccount } from '../services/studentAccounts.js';
+import { previewStudentRemoval, removeStudent, transferStudent } from '../services/studentAccountLifecycle.js';
+import { disconnectUserSockets } from '../realtime/gameRoom.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -30,6 +32,7 @@ interface UserRowFull {
   home_class_id?: string | null;
   home_class_name?: string | null;
   home_class_count?: number;
+  archived_at?: string | null;
 }
 
 router.get(
@@ -39,15 +42,16 @@ router.get(
     const authed = req as AuthedRequest;
     const role = req.query.role as string | undefined;
     const q = ((req.query.q as string) ?? '').trim();
-    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts, student_code, dob, gender, hometown,
+    let sql = `SELECT id, username, display_name, role, status, created_by, failed_attempts, student_code, dob, gender, hometown, archived_at,
       (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = users.id) AS home_class_count,
       (SELECT e.class_id FROM enrollments e WHERE e.student_id = users.id LIMIT 1) AS home_class_id,
       (SELECT c.name FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.student_id = users.id LIMIT 1) AS home_class_name
       FROM users WHERE 1=1`;
     const params: (string | number | null)[] = [];
+    if (req.query.includeArchived !== '1') sql += ' AND archived_at IS NULL';
     if (authed.user?.role === 'teacher') {
-      sql += ` AND role = 'student' AND (created_by = ? OR id IN (SELECT student_id FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE c.teacher_id = ?))`;
-      params.push(authed.user.id, authed.user.id);
+      sql += ` AND role = 'student' AND created_by = ?`;
+      params.push(authed.user.id);
     } else if (role === 'teacher' || role === 'student' || role === 'admin') {
       sql += ' AND role = ?';
       params.push(role);
@@ -60,6 +64,7 @@ router.get(
     const rows = db.prepare(sql).all(...params) as unknown as UserRowFull[];
     res.json({ users: rows.map((r) => ({
       ...toPublicUser(r as never), failedAttempts: r.failed_attempts,
+      archivedAt: r.archived_at ?? null,
       homeClassId: r.home_class_count === 1 ? r.home_class_id : null,
       homeClassName: (r.home_class_count ?? 0) > 1 ? 'Nhiều lớp (dữ liệu cũ)' : r.home_class_name ?? null,
     })) });
@@ -177,9 +182,10 @@ router.patch(
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', parsed.error.issues[0]?.message ?? 'Dữ liệu không hợp lệ');
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
     if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
-    if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
+    if (authed.user?.role === 'teacher' && (target.role !== 'student' || target.created_by !== authed.user.id)) {
       throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
+    if (target.archived_at) throw new HttpError(409, 'STUDENT_ARCHIVED', 'Tài khoản đã lưu trữ');
     const studentCode = parsed.data.studentCode?.trim();
     if (target.role === 'student' && studentCode && db.prepare("SELECT 1 FROM users WHERE id <> ? AND role = 'student' AND upper(trim(student_code)) = upper(trim(?))").get(target.id, studentCode)) {
       throw new HttpError(409, 'STUDENT_CODE_EXISTS', `Mã học viên "${studentCode}" đã tồn tại`);
@@ -207,14 +213,16 @@ router.patch(
     const authed = req as AuthedRequest;
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
     if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
-    if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
+    if (authed.user?.role === 'teacher' && (target.role !== 'student' || target.created_by !== authed.user.id)) {
       throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
+    if (target.archived_at) throw new HttpError(409, 'STUDENT_ARCHIVED', 'Tài khoản đã lưu trữ');
     if (target.role === 'admin' && authed.user?.role !== 'admin') {
       throw new HttpError(403, 'FORBIDDEN', 'Không đủ quyền');
     }
     const status = target.status === 'locked' ? 'active' : 'locked';
     db.prepare('UPDATE users SET status = ?, failed_attempts = 0, session_version = session_version + 1 WHERE id = ?').run(status, target.id);
+    if (status === 'locked') disconnectUserSockets(target.id);
     res.json({ status });
   })
 );
@@ -230,23 +238,42 @@ router.post(
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Mật khẩu tối thiểu 6 ký tự');
     const target = db.prepare('SELECT * FROM users WHERE id = ?').get(String(req.params.id)) as UserRowFull | undefined;
     if (!target) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy người dùng');
-    if (authed.user?.role === 'teacher' && target.created_by !== authed.user.id && !isStudentOfTeacher(target.id, authed.user.id)) {
+    if (authed.user?.role === 'teacher' && (target.role !== 'student' || target.created_by !== authed.user.id)) {
       throw new HttpError(403, 'FORBIDDEN', 'Chỉ được quản lý học viên của mình');
     }
+    if (target.archived_at) throw new HttpError(409, 'STUDENT_ARCHIVED', 'Tài khoản đã lưu trữ');
     db.prepare(`UPDATE users
       SET password_hash = ?, failed_attempts = 0, must_change_password = 1, session_version = session_version + 1
       WHERE id = ?`).run(
       hashPassword(parsed.data.newPassword),
       target.id
     );
+    disconnectUserSockets(target.id);
     res.json({ ok: true });
   })
 );
 
-function isStudentOfTeacher(studentId: string, teacherId: string): boolean {
-  return !!db
-    .prepare('SELECT 1 FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.student_id = ? AND c.teacher_id = ?')
-    .get(studentId, teacherId);
-}
+router.get('/users/:id/removal-preview', requireRole('admin', 'teacher'), h(async (req, res) => {
+  res.set('Cache-Control', 'private, no-store');
+  res.json(previewStudentRemoval((req as AuthedRequest).user!, String(req.params.id)));
+}));
+
+router.post('/users/:id/transfer', requireRole('admin', 'teacher'), h(async (req, res) => {
+  const parsed = z.object({ classId: z.string().uuid() }).safeParse(req.body);
+  if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Cần chọn lớp đích hợp lệ');
+  const result = transferStudent((req as AuthedRequest).user!, String(req.params.id), parsed.data.classId);
+  disconnectUserSockets(String(req.params.id));
+  res.set('Cache-Control', 'private, no-store');
+  res.json(result);
+}));
+
+router.delete('/users/:id', requireRole('admin', 'teacher'), h(async (req, res) => {
+  const parsed = z.object({ expectedAction: z.enum(['delete', 'archive']) }).safeParse(req.body);
+  if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Cần xem trước và xác nhận cách xử lý tài khoản');
+  const result = removeStudent((req as AuthedRequest).user!, String(req.params.id), parsed.data.expectedAction);
+  disconnectUserSockets(String(req.params.id));
+  res.set('Cache-Control', 'private, no-store');
+  res.json(result);
+}));
 
 export default router;

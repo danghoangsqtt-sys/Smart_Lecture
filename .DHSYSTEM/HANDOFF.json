@@ -3,9 +3,9 @@
   "displayName": "SmartLecture",
   "version": "0.11.0-in-progress",
   "created": "2026-08-23",
-  "status": "phase-78-release-in-progress;phase-86-roster-preflight-complete",
-  "phase_current": "P87-home-class-in-progress",
-  "workflow_state": "P86-T-8601-complete;P87-T-8700-complete;P87-T-8701-complete;P87-T-8702-complete;P87-T-8703-complete;P87-T-8704-next;P78-T-7803-release-prerequisite",
+  "status": "phase-78-release-in-progress;phase-87-source-complete",
+  "phase_current": "P88-shared-curriculum-next",
+  "workflow_state": "P86-T-8601-complete;P87-T-8700-complete;P87-T-8701-complete;P87-T-8702-complete;P87-T-8703-complete;P87-T-8704-complete;P88-T-8801-next;P78-T-7803-release-prerequisite",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P87-T-8703 complete in source: Users and Class share Excel/CSV template, read-only per-row preview and idempotent import; Users list shows home class. Installed DB was not upgraded. Next T-8704 implements authorized transfer, safe account delete/archive and session revocation while preserving historical results. P78-T-7803 and P82 release gates still pending."
+  "next_action": "P87 complete in source: student creation/import, one home class, authorized transfer with history, safe delete/archive and REST/Socket revocation. Fixture lifecycle 17/17, focused/full E2E/Browser 9/9 passed; installed DB/app not upgraded. Next P88-T-8801 shared curriculum schema/legacy mapping, or finish P78-T-7803/P82 release prerequisites before shipping. P90 upgrade/restore rehearsal remains required."
 }

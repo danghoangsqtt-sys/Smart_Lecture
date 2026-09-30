@@ -717,6 +717,15 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
       `);
     },
   },
+  {
+    version: 28,
+    up: () => {
+      const columns = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
+      if (!columns.some((column) => column.name === 'archived_at')) {
+        db.exec('ALTER TABLE users ADD COLUMN archived_at TEXT');
+      }
+    },
+  },
 ];
 
 type SqlParam = string | number | bigint | null;

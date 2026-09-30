@@ -4,11 +4,14 @@ import type { PublicUser } from '../types';
 import { Badge, Button, Card, EmptyState, Input, Label, Modal, PageHeader, Select, Spinner } from '../components/ui';
 import { StudentProfileModal } from '../components/StudentProfileFields';
 import { StudentImportModal } from '../components/StudentImportModal';
+import { StudentLifecycleModal } from '../components/StudentLifecycleModal';
 import toast from '../stores/toastStore';
 
 interface UserRow extends PublicUser {
   failedAttempts?: number;
   homeClassName?: string | null;
+  homeClassId?: string | null;
+  archivedAt?: string | null;
 }
 
 export default function UsersPage() {
@@ -16,10 +19,12 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<UserRow | null>(null);
   const [resettingPassword, setResettingPassword] = useState<UserRow | null>(null);
+  const [lifecycle, setLifecycle] = useState<{ user: UserRow; mode: 'transfer' | 'remove' } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,6 +32,7 @@ export default function UsersPage() {
       const params = new URLSearchParams();
       if (q) params.set('q', q);
       if (roleFilter) params.set('role', roleFilter);
+      if (includeArchived) params.set('includeArchived', '1');
       const res = await api<{ users: UserRow[] }>(`/users?${params}`);
       setUsers(res.users);
     } catch (e) {
@@ -34,7 +40,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [q, roleFilter]);
+  }, [q, roleFilter, includeArchived]);
 
   useEffect(() => {
     void load();
@@ -55,6 +61,7 @@ export default function UsersPage() {
           <option value="teacher">Giáo viên</option>
           <option value="student">Học viên</option>
         </Select>
+        <label className="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />Hiện tài khoản đã lưu trữ</label>
       </Card>
       <Card className="overflow-hidden">
         {loading ? (
@@ -84,12 +91,12 @@ export default function UsersPage() {
                     <td className="px-4 py-2.5 text-xs text-slate-600">{u.role === 'student' ? u.homeClassName || 'Chưa có lớp (dữ liệu cũ)' : '—'}</td>
                     <td className="px-4 py-2.5">{u.role === 'admin' ? 'Quản trị' : u.role === 'teacher' ? 'GV' : 'HV'}</td>
                     <td className="px-4 py-2.5">
-                      <Badge tone={u.status === 'active' ? 'green' : 'red'}>
-                        {u.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
+                      <Badge tone={u.status === 'active' && !u.archivedAt ? 'green' : 'red'}>
+                        {u.archivedAt ? 'Đã lưu trữ' : u.status === 'active' ? 'Hoạt động' : 'Bị khóa'}
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      {u.role === 'student' && (
+                      {u.role === 'student' && !u.archivedAt && (
                         <button
                           onClick={() => setEditingProfile(u)}
                           className="rounded-sm px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-blue-900"
@@ -97,7 +104,9 @@ export default function UsersPage() {
                           Hồ sơ
                         </button>
                       )}
-                      {u.role !== 'admin' && (
+                      {u.role === 'student' && !u.archivedAt && u.homeClassId && <button onClick={() => setLifecycle({ user: u, mode: 'transfer' })} className="rounded-sm px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">Chuyển lớp</button>}
+                      {u.role === 'student' && !u.archivedAt && <button onClick={() => setLifecycle({ user: u, mode: 'remove' })} className="rounded-sm px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50">Xử lý</button>}
+                      {u.role !== 'admin' && !u.archivedAt && (
                         <button
                           onClick={() => toggleLock(u, load)}
                           className={`rounded-sm px-2 py-1 text-xs font-semibold ${u.status === 'active' ? 'text-slate-500 hover:bg-red-50 hover:text-red-600' : 'text-emerald-700 hover:bg-emerald-50'}`}
@@ -105,12 +114,12 @@ export default function UsersPage() {
                           {u.status === 'active' ? 'Khóa' : 'Mở khóa'}
                         </button>
                       )}
-                      <button
+                      {!u.archivedAt && <button
                         onClick={() => setResettingPassword(u)}
                         className="rounded-sm px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-blue-900"
                       >
                         Đặt lại MK
-                      </button>
+                      </button>}
                     </td>
                   </tr>
                 ))}
@@ -130,6 +139,7 @@ export default function UsersPage() {
           onSaved={() => { setEditingProfile(null); void load(); }}
         />
       )}
+      {lifecycle && <StudentLifecycleModal student={lifecycle.user} mode={lifecycle.mode} onClose={() => setLifecycle(null)} onChanged={load} />}
     </div>
   );
 }

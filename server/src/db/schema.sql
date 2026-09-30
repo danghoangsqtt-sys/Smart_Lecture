@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
   display_name TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'locked')),
+  archived_at TEXT,
   failed_attempts INTEGER NOT NULL DEFAULT 0,
   must_change_password INTEGER NOT NULL DEFAULT 0,
   session_version INTEGER NOT NULL DEFAULT 0 CHECK (session_version >= 0),

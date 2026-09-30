@@ -835,3 +835,48 @@ test('student can download authenticated learning media', async ({ page, request
   expect(response.headers()['cache-control']).toBe('private, no-store');
   expect(response.headers()['referrer-policy']).toBe('no-referrer');
 });
+
+test('Users UI transfers a student and previews safe deletion versus archive', async ({ page, request }) => {
+  const adminLogin = await request.post('/api/auth/login', { data: { username: 'admin', password: 'Admin@123456' } });
+  const adminToken = (await adminLogin.json() as { token: string }).token;
+  const headers = { Authorization: `Bearer ${adminToken}` };
+  const first = await request.post('/api/classes', { headers, data: { name: 'Life UI A', subject: 'Test', academicYear: '2026' } });
+  const second = await request.post('/api/classes', { headers, data: { name: 'Life UI B', subject: 'Test', academicYear: '2026' } });
+  const classA = (await first.json() as { class: { id: string } }).class.id;
+  const classB = (await second.json() as { class: { id: string } }).class.id;
+  const created = await request.post('/api/users', { headers, data: { username: 'browser.life.active', password: 'Student@123', role: 'student', displayName: 'Life Active', studentCode: 'BROWSER-LIFE-ACTIVE', classId: classA } });
+  const activeId = (await created.json() as { user: { id: string } }).user.id;
+  const empty = await request.post('/api/users', { headers, data: { username: 'browser.life.empty', password: 'Student@123', role: 'student', displayName: 'Life Empty', studentCode: 'BROWSER-LIFE-EMPTY', classId: classA } });
+  const emptyId = (await empty.json() as { user: { id: string } }).user.id;
+  await request.put(`/api/classes/${classA}/grades/${activeId}`, { headers, data: { kttx: 7 } });
+
+  await page.goto('/login');
+  await page.locator('#username').fill('admin');
+  await page.locator('#password').fill('Admin@123456');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await page.goto('/users');
+  await page.getByPlaceholder('Tìm theo tên / username…').fill('browser.life.active');
+  const activeRow = page.getByRole('row').filter({ hasText: 'browser.life.active' });
+  await expect(activeRow).toContainText('Life UI A');
+  await activeRow.getByRole('button', { name: 'Chuyển lớp' }).click();
+  const transfer = page.getByRole('dialog', { name: /Chuyển lớp/ });
+  await transfer.getByRole('combobox').selectOption(classB);
+  await transfer.getByRole('button', { name: 'Chuyển lớp' }).click();
+  await expect(activeRow).toContainText('Life UI B');
+  await activeRow.getByRole('button', { name: 'Xử lý' }).click();
+  const archive = page.getByRole('dialog', { name: /Xử lý tài khoản/ });
+  await expect(archive.getByText(/tham chiếu dữ liệu/)).toBeVisible();
+  await archive.getByRole('button', { name: 'Lưu trữ tài khoản' }).click();
+  await expect(activeRow).toHaveCount(0);
+  await page.getByLabel('Hiện tài khoản đã lưu trữ').check();
+  await expect(activeRow).toContainText('Đã lưu trữ');
+
+  await page.getByPlaceholder('Tìm theo tên / username…').fill('browser.life.empty');
+  const emptyRow = page.getByRole('row').filter({ hasText: 'browser.life.empty' });
+  await emptyRow.getByRole('button', { name: 'Xử lý' }).click();
+  const removal = page.getByRole('dialog', { name: /Xử lý tài khoản/ });
+  await expect(removal.getByText(/Xác nhận sẽ xóa vĩnh viễn/)).toBeVisible();
+  await removal.getByRole('button', { name: 'Xóa tài khoản' }).click();
+  await expect(emptyRow).toHaveCount(0);
+  expect((await request.get(`/api/users?includeArchived=1`, { headers }).then((response) => response.json()) as { users: { id: string }[] }).users.some((user) => user.id === emptyId)).toBe(false);
+});
