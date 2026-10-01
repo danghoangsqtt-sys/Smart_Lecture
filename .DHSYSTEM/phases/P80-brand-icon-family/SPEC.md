@@ -1,16 +1,16 @@
-﻿# Phase 78 â€” SmartLecture Brand Icon Family
+# Phase 80 — Biểu trưng SmartLecture trong giao diện
 
 ## Goal
 
-Replace the old and generic shell icons with a coherent family derived from the supplied SmartLecture artwork.
+Đồng bộ nhận diện trong ứng dụng với icon shortcut Windows đã có. Người dùng xác nhận icon bên ngoài hiển thị nhưng trang đăng nhập và sidebar vẫn dùng chữ `SL`; T-8001 dùng trực tiếp ảnh PNG đã cung cấp để sửa điểm thiếu này.
 
-## Asset contract
+## Scope
 
-- Keep a full lockup for large surfaces and a simplified mark without small text for favicon/shortcut sizes.
-- Generate PNG 16/32/48/180/192/512 and a multi-frame ICO containing 16/24/32/48/64/128/256.
-- Preserve transparency, square canvas, safe padding and recognizable contrast on light/dark Windows/browser backgrounds.
-- Package the same versioned assets into web, PWA, manual shortcut and Inno Setup output.
+- Biểu trưng trong đăng nhập, sidebar desktop và header mobile; có alt text và tải offline từ web bundle.
+- Giữ nguyên `docs/icon/Icon_sm.ico`, shortcut/installer, favicon/PWA hiện có; không tạo lại artwork khi người dùng chưa yêu cầu thay icon bên ngoài.
+- Không phụ thuộc API AI hoặc API key. API nội bộ chương trình đào tạo thuộc P88, không phải API AI.
 
 ## Quality gate
 
-- Automated dimension/frame validation plus manual browser, Desktop, Start Menu, installer and uninstall-list inspection.
+- Typecheck, lint, build và Browser E2E desktop/mobile trên dữ liệu cô lập đạt.
+- Asset được đóng gói cùng web, không thay đổi bản cài đang sử dụng trước release gate.

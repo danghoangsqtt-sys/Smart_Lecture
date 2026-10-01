@@ -32,11 +32,21 @@ test('admin can change the initial password and log in through the browser', asy
   expect(changed.ok()).toBeTruthy();
 
   await page.goto('/login');
+  const loginIcons = page.getByRole('img', { name: 'Biểu trưng SmartLecture' });
+  await expect(loginIcons).toHaveCount(2);
+  for (const icon of await loginIcons.all()) {
+    await expect(icon).toBeVisible();
+    await expect.poll(() => icon.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  }
+  await expect(page.getByText('SL', { exact: true })).toHaveCount(0);
   await page.locator('#username').fill('admin');
   await page.locator('#password').fill('Admin@123456');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByText('SmartLecture').first()).toBeVisible();
+  const sidebarIcon = page.locator('aside img[alt="Biểu trưng SmartLecture"]');
+  await expect(sidebarIcon).toBeVisible();
+  await expect.poll(() => sidebarIcon.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 
   const sessionCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'smartlecture_session');
   expect(sessionCookie?.httpOnly).toBe(true);
@@ -52,6 +62,10 @@ test('admin can change the initial password and log in through the browser', asy
   await page.reload();
   await expect(page.getByText('SmartLecture').first()).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileIcon = page.locator('header img[alt="Biểu trưng SmartLecture"]');
+  await expect(mobileIcon).toBeVisible();
+  await expect.poll(() => mobileIcon.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 });
 
 test('teacher can open Teaching Mode and minimize the persistent game dock', async ({ page, request }) => {

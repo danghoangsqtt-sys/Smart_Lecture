@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { api } from '../lib/api';
 import type { PublicUser } from '../types';
+import { BrandIcon } from '../components/BrandIcon';
 
 interface LoginResponse {
   user: PublicUser;
@@ -45,9 +46,7 @@ export default function LoginPage() {
         <div className="absolute top-1/2 left-1/2 h-[350px] w-[350px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5" />
 
         <div className="relative z-10 max-w-md space-y-8 text-center">
-          <div className="mb-2 inline-flex h-24 w-24 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-4xl font-black shadow-2xl backdrop-blur-sm">
-            SL
-          </div>
+          <BrandIcon className="mx-auto mb-2 h-36 w-36 object-contain drop-shadow-2xl" />
           <div>
             <h1 className="text-4xl font-black leading-tight tracking-tight">SmartLecture</h1>
             <div className="mx-auto mt-4 mb-6 h-1 w-16 rounded-full bg-yellow-400" />
@@ -82,7 +81,7 @@ export default function LoginPage() {
         <div className="relative z-10 w-full max-w-[420px] space-y-8">
           <div className="text-center lg:text-left">
             <div className="mb-6 flex items-center justify-center gap-3 lg:justify-start">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-900 text-lg font-black text-white shadow-lg">SL</div>
+              <BrandIcon className="h-11 w-11 shrink-0 object-contain" />
               <span className="text-xl font-black tracking-tight text-slate-800">SmartLecture</span>
             </div>
             <h2 className="text-2xl font-bold text-slate-800">Chào mừng trở lại!</h2>

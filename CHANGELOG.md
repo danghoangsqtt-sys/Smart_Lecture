@@ -20,6 +20,7 @@
 
 ## Unreleased — Recovery, security & release reliability v0.11.0
 
+- P80/T-8001: thay ba ô chữ `SL` ở đăng nhập và sidebar bằng ảnh SmartLecture đã cung cấp, thêm biểu trưng ở header mobile; ảnh được bundle offline. Icon shortcut Windows giữ nguyên, bản cài chưa cập nhật; Browser E2E 9/9, typecheck/lint/build đạt. Chưa triển khai thêm tích hợp AI/API key.
 - Giới hạn `TRUST_PROXY` vào IP/CIDR proxy được chỉ định; cấu hình `true`/số hop không an toàn bị từ chối. Kiểm thử chặn giả mạo header ở cả giới hạn đăng nhập và API chung, trong chế độ LAN trực tiếp lẫn proxy.
 - Nâng Multer lên 2.4.0, giới hạn tài nguyên multipart theo từng route và chuẩn hóa lỗi upload không lộ tên trường/tệp; bổ sung kiểm thử payload độc hại và dọn tệp khi ngắt upload.
 - mDNS hiện sở hữu Bonjour và đóng sạch khi server dừng; trùng tên/lỗi socket dùng URL IP LAN thay thế. Kiểm thử nâng cấp dừng tiến trình con qua IPC riêng, hết lỗi libuv Windows.

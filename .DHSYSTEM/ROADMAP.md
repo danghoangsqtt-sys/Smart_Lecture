@@ -84,7 +84,7 @@
 - P77: one-time imported credentials with forced first change. ✅
 - P78: multipart, direct-LAN perimeter and dependency advisory hardening.
 - P79: mDNS lifecycle and reliable isolated E2E. ✅
-- P80: normalized web/PWA/Windows icon family from the supplied assets.
+- P80: supplied icon now appears in login/sidebar/mobile (source complete 2026-10-01); existing Windows/web/PWA icon assets remain unchanged, installer update awaits release gate.
 - P81: maintainability decomposition with focused tests.
 - P82: documentation reconciliation and v0.11.0 release gate.
 

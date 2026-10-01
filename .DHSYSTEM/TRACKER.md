@@ -52,7 +52,7 @@
 | T-7803 | Remaining production advisory triage | P78 | todo | audit + risk record |
 | T-7901 | Bonjour ownership and graceful shutdown | P79 | done | mDNS + upgrade-path PASS; typecheck/lint/build PASS; full E2E later fails at smoke (T-7902) |
 | T-7902 | Focused and isolated E2E reliability | P79 | done | focused + repeated full E2E + Browser 6/6 + typecheck/lint/build PASS |
-| T-8001 | Generate, integrate and validate icon family | P80 | todo | web/PWA/Windows inspection |
+| T-8001 | Hiển thị icon đã cung cấp trong giao diện | P80 | done (source) | thay 3 chữ SL; Browser desktop/mobile 9/9, typecheck/lint/build pass; giữ icon Windows |
 | T-8101 | GamesPage decomposition | P81 | todo | React Doctor + game browser contracts |
 | T-8102 | Game player and circuit canvas decomposition | P81 | todo | React Doctor + circuit/game regression |
 | T-8103 | Teaching/classes decomposition and focused tests | P81 | todo | API/browser/focused suites |

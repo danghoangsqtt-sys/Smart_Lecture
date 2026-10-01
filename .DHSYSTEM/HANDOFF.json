@@ -5,7 +5,7 @@
   "created": "2026-08-23",
   "status": "phase-78-release-in-progress;phase-87-source-complete",
   "phase_current": "P88-shared-curriculum-in-progress",
-  "workflow_state": "P86-T-8601-complete;P87-complete;P88-T-8801-complete;P88-T-8802-next;P78-T-7803-release-prerequisite",
+  "workflow_state": "P80-T-8001-source-complete;P86-T-8601-complete;P87-complete;P88-T-8801-complete;P88-T-8802-next;P78-T-7803-release-prerequisite",
   "brainstorm_session": "docs/brainstorm/session-2026-08-23.md",
   "artifacts": [
     ".DHSYSTEM/PROJECT-META.md",
@@ -27,5 +27,5 @@
     "game_join": "authenticated-students",
     "user_model": "admin-teachers-students"
   },
-  "next_action": "P88-T-8801 complete in source: additive shared curriculum schema, explicit legacy-ID mapping, issue log and pending-copy file assets. Migration fixture 11/11, focused and full E2E pass. Next P88-T-8802 shared curriculum API/writers, safe media copy and game snapshot. Installed DB/app untouched; P78-T-7803, P82 and P90 release gates remain."
+  "next_action": "P80-T-8001 complete in source: supplied icon replaces SL in login/sidebar and appears on mobile; Browser E2E 9/9, typecheck/lint/build pass. Next P88-T-8802 curriculum API/media/game work, distinct from deferred AI/API key. Installed DB/app untouched; P78-T-7803, P82 and P90 release gates remain."
 }

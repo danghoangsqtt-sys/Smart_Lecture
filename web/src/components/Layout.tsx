@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { Modal, Label, Input, Button } from './ui';
 import toast from '../stores/toastStore';
 import { ContextGuide } from './ContextGuide';
+import { BrandIcon } from './BrandIcon';
 import type { PublicUser } from '../types';
 
 interface NavItemDef {
@@ -54,7 +55,7 @@ export default function Layout() {
     <div className="flex min-h-screen bg-slate-50 text-slate-800">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-100 bg-white md:flex">
         <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-6">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-blue-900 font-black text-white shadow-lg">SL</div>
+          <BrandIcon className="h-10 w-10 shrink-0 object-contain" />
           <div>
             <div className="text-base font-extrabold tracking-tight text-blue-900">SmartLecture</div>
             <div className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Hệ thống dạy học nội bộ</div>
@@ -84,6 +85,7 @@ export default function Layout() {
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 overflow-x-auto border-b border-slate-100 bg-white px-4 py-3 md:px-6">
+          <BrandIcon className="h-8 w-8 shrink-0 object-contain md:hidden" />
           <div className="flex gap-1 md:hidden">
             {visibleNav.slice(0, 6).map((n) => (
               <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `whitespace-nowrap rounded-sm px-2.5 py-1 text-xs font-semibold ${isActive ? 'bg-blue-50 text-blue-900' : 'text-slate-500'}`}>
