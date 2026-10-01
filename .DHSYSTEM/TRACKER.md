@@ -17,7 +17,7 @@
 | T-8801 | Schema kho môn/bài chung + map ID legacy | P88 | done (source) | fixture 11/11; rollback/retry/idempotency; focused + full E2E pass; installed DB untouched |
 | T-8802 | API kho môn/bài, media độc lập và snapshot game | P88 | done (source) | API 20/20, migration 11/11, focused + full E2E; installed app untouched |
 | T-8803 | UI chương trình và giảng dạy từ nguồn dùng chung | P88 | done (source) | typecheck/lint/build, API 21/21, focused/E2E, Browser 10/10; installed app untouched |
-| T-8804 | Hồi quy chương trình/game/legacy | P88 | todo | curriculum/game Browser tests pending |
+| T-8804 | Hồi quy chương trình/game/legacy; game mở lớn, dễ chọn khi giảng | P88 | done (source) | API 22/22, focused/full E2E, Browser 10/10; P88 source complete, installed app untouched |
 | T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
 | T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |
 
@@ -322,6 +322,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-10-01 (P88 T-8804 — teaching game stage and regression)
+- Replaced cramped game tabs with descriptive selection cards and a wider host console. Legacy teaching game opens full viewport with floating/minimized controls; shared teaching game opens full viewport, offers quick quiz from linked lesson questions or other class-scoped games, and preserves the same host room when returning to slides.
+- Browser 10/10 covers both teaching routes, real game-stage/host width and shared room continuity; isolated shared API 22/22 includes cross-teacher media read/write boundaries. Focused/full E2E, typecheck/lint/build pass. React Doctor changed 88/100 with three non-blocking complexity heuristics. Installed DB/app untouched; AI/API key deferred.
+- P88 source complete. P89 multi-class lifecycle and P90 migration/release rehearsal remain; no version bump or installed-app mutation.
+
 ### 2026-10-01 (P88 T-8803 — shared curriculum and teaching UI)
 - Wired `/curriculum` to the shared subject/lesson/material/question API and class assignment; `/teaching` now selects assigned shared content, launches PDF/video/game workspace and saves class-scoped progress. Preserved historical teaching at `/teaching/legacy` and original teaching workspace route.
 - Allowed assigned class teachers to read shared lessons/questions, record own class progress and launch linked-question games without editing the canonical library. API contract 21/21; typecheck/lint/build, focused, full E2E and Browser 10/10 pass on isolated data. React Doctor changed 69 (8 non-blocking heuristics: keyed form drafts, small class lookup, workspace complexity); installed app/DB untouched.

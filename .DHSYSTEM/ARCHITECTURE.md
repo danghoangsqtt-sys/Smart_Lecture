@@ -1,5 +1,12 @@
 # ARCHITECTURE — Smart_Lecture
 
+## P88 T-8804 — Sân khấu game trong giờ dạy (source only)
+
+- Bộ chọn game trong `GamesPage` dùng các thẻ có tên/mô tả, không dồn 11 mode vào dải tab; hướng dẫn cách chơi chỉ hiện sau khi chọn game, còn nút “Đổi trò chơi” trở về bộ chọn. Host console mở rộng theo viewport để mã phòng, danh sách học viên và trạng thái chơi không bị ép vào cột hẹp.
+- Workspace legacy `/classes/:id/teach/:subjectId` mở game toàn viewport theo mặc định. Giáo viên có thể thu về khung nổi để thấy slide/video, mở lại toàn màn hình hoặc thu nhỏ. Thu nhỏ/khôi phục giữ nguyên instance `GamesPage` và phòng game đang chạy; drag/checkpoint cũ vẫn dùng ở chế độ khung nổi/thu nhỏ.
+- Workspace shared `/shared-teach/:classId/:subjectId` có sân khấu game toàn viewport: game nhanh từ câu hỏi gắn bài, hoặc chọn game khác trong thư viện với lớp đang dạy bị khóa. Ẩn sân khấu để trở lại slide không unmount host hay tạo phòng mới; chọn bài khác trong cùng môn cũng không tự hủy host đã mở. Việc ghi nhật ký/điểm cho buổi nhiều lớp vẫn thuộc P89.
+- Browser/REST/Socket regression chạy trên DB/media cô lập; bản cài và DB đang dùng không thay đổi.
+
 ## P88 T-8803 — UI Chương trình/Giảng dạy dùng nguồn chung (source only)
 
 - `/curriculum` là nơi chủ môn/admin tạo/sửa môn→bài, tải học liệu một bản, gắn câu hỏi ngân hàng theo ID và phân công môn cho lớp. Học liệu legacy `pending_copy` có thao tác sao chép/kiểm tệp rõ ràng; chưa được stream khi còn pending.

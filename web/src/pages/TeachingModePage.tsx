@@ -712,8 +712,9 @@ function TeachingControls({
 
 function TeachingGameDock({ classId, subjectId, minimized, position, onPositionChange, onToggleMinimized, onClose, onGameLaunched }: { classId: string; subjectId: string; minimized: boolean; position: DockPosition; onPositionChange: (position: DockPosition) => void; onToggleMinimized: () => void; onClose: () => void; onGameLaunched: (gameId: string) => void }) {
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const [expanded, setExpanded] = useState(true);
   const dragStart = (event: PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest('button')) return;
+    if ((expanded && !minimized) || (event.target as HTMLElement).closest('button')) return;
     dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -722,15 +723,20 @@ function TeachingGameDock({ classId, subjectId, minimized, position, onPositionC
     onPositionChange(clampDockPosition({ x: event.clientX - drag.x, y: event.clientY - drag.y }, 48));
   };
   return (
-    <div style={{ left: position.x, top: position.y }} className={`fixed z-[60] overflow-hidden rounded-lg border border-blue-400 bg-slate-950 shadow-2xl transition-[height,width] duration-300 ${minimized ? 'h-12 w-64' : 'h-[min(78vh,720px)] w-[min(94vw,1100px)]'}`}>
-      <div aria-label="Kéo khung game" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className="flex h-12 cursor-move touch-none items-center justify-between bg-blue-900 px-3 text-white">
+    <div style={expanded && !minimized ? undefined : { left: position.x, top: position.y }}
+      data-game-stage={minimized ? 'minimized' : expanded ? 'expanded' : 'floating'}
+      className={`fixed z-[70] flex flex-col overflow-hidden border border-blue-400 bg-slate-950 shadow-2xl ${minimized ? 'h-12 w-64 rounded-lg' : expanded ? 'inset-0 h-dvh w-screen' : 'h-[min(90vh,900px)] w-[min(96vw,1500px)] rounded-lg'}`}>
+      <div aria-label="Kéo khung game" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }} className={`flex h-12 shrink-0 touch-none items-center justify-between bg-blue-900 px-3 text-white ${expanded && !minimized ? '' : 'cursor-move'}`}>
         <span className="text-sm font-black"><i className="fas fa-gamepad mr-2 text-amber-300" />Game đang chuẩn bị / điều hành</span>
         <div className="flex gap-1">
-          <button onClick={onToggleMinimized} className="rounded px-2 py-1 text-xs hover:bg-white/15" title={minimized ? 'Mở lại game' : 'Hạ game xuống'}><i className={`fas ${minimized ? 'fa-up-right-and-down-left-from-center' : 'fa-window-minimize'}`} /></button>
+          {!minimized && <button type="button" onClick={() => { if (expanded) onPositionChange({ x: 16, y: 16 }); setExpanded(!expanded); }}
+            className="rounded px-2 py-1 text-xs hover:bg-white/15" title={expanded ? 'Thu về khung nổi' : 'Mở toàn màn hình game'}
+            aria-label={expanded ? 'Thu về khung nổi' : 'Mở toàn màn hình game'}><i className={`fas ${expanded ? 'fa-window-restore' : 'fa-expand'}`} /></button>}
+          <button type="button" onClick={onToggleMinimized} className="rounded px-2 py-1 text-xs hover:bg-white/15" title={minimized ? 'Mở lại game' : 'Hạ game xuống'}><i className={`fas ${minimized ? 'fa-up-right-and-down-left-from-center' : 'fa-window-minimize'}`} /></button>
           <button onClick={() => { if (window.confirm('Đóng khung game? Phiên game trên máy chủ vẫn tiếp tục.')) onClose(); }} className="rounded px-2 py-1 text-xs hover:bg-white/15" title="Đóng game"><i className="fas fa-xmark" /></button>
         </div>
       </div>
-      <div className="h-[calc(100%-3rem)] overflow-y-auto bg-slate-50 p-3"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} autoShowGuides={false} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-3 sm:p-6"><Suspense fallback={<Spinner />}><EmbeddedGamesPage initialClassId={classId} initialSubjectId={subjectId} lockedClassId={classId} autoShowGuides={false} onGameLaunched={(game) => onGameLaunched(game.id)} /></Suspense></div>
     </div>
   );
 }

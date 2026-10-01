@@ -149,6 +149,13 @@ try {
   check(uploadResponse.status === 201 && uploadRow.asset_status === 'ready' && existsSync(path.join(MEDIA_DIR, uploadRow.file_path))
     && deniedUpload.status === 403 && !('file_path' in uploaded.material),
   'new file upload is independent, permission-checked and hides disk path');
+  const assignedTeacherMaterials = await api('GET', `/shared/lessons/${lessonId}/materials`, 'teacher-b');
+  const assignedTeacherStream = await fetch(`${base}/shared/materials/${uploadId}/stream`,
+    { headers: { Authorization: `Bearer ${auth['teacher-b']}`, Range: 'bytes=0-3' } });
+  const assignedTeacherDelete = await api('DELETE', `/shared/materials/${uploadId}`, 'teacher-b');
+  check(assignedTeacherMaterials.status === 200 && assignedTeacherMaterials.body.materials.some((item) => item.id === uploadId)
+    && assignedTeacherStream.status === 206 && await assignedTeacherStream.text() === '%PDF' && assignedTeacherDelete.status === 403,
+  'assigned class teacher can view shared media but cannot alter owner materials');
   const spoofedBody = new FormData();
   spoofedBody.set('file', new Blob([Buffer.from('not a PDF')], { type: 'application/pdf' }), 'spoofed.pdf');
   const spoofed = await fetch(`${base}/shared/lessons/${lessonId}/materials`,

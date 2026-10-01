@@ -125,10 +125,11 @@ export default function SharedTeachingPage() {
         <div className="mb-4 flex flex-wrap gap-2">{MODES.map((item) => <button key={item.id} type="button" onClick={() => setMode(item.id)}
           className={`rounded px-3 py-2 text-xs font-bold ${mode === item.id ? 'bg-blue-700 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}>
           <i className={`fas ${item.icon} mr-2`} />{item.label}</button>)}</div>
-        {contentLoading ? <Spinner /> : selected && <>
-          {mode !== 'game' && <SharedTeachingViewer materials={materials} mode={mode} />}
-          <div className={mode === 'game' ? '' : 'hidden'}><SharedGamePanel key={selected.id} classId={classId} lessonTitle={selected.title} questions={questions} /></div>
-        </>}
+        {contentLoading && mode !== 'game' ? <Spinner /> : selected && mode !== 'game' &&
+          <SharedTeachingViewer materials={materials} mode={mode} />}
+        {selected && <div className={mode === 'game' ? '' : 'hidden'}>
+          <SharedGamePanel classId={classId} lessonTitle={selected.title} questions={questions} onExit={() => setMode('slides')} />
+        </div>}
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-slate-700 pt-4">
           <span className="mr-2 text-xs text-slate-400">Tiến độ riêng của {className}</span>
           <Button variant="secondary" disabled={saving || !selected} onClick={() => void updateProgress('in_progress')}>Đánh dấu đang dạy</Button>

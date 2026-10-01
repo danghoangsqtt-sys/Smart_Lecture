@@ -515,9 +515,10 @@ export default function GamesPage({
   onGameLaunched?: (session: GameSessionInfo) => void;
 }) {
   const [tab, setTab] = useState<GameMode | 'picker' | 'saved'>('quick_quiz');
+  const [showChooser, setShowChooser] = useState(true);
   const [session, setSession] = useState<GameSessionInfo | null>(initialSession);
   const [recoveringSession, setRecoveringSession] = useState(() => !lockedClassId);
-  const [guideMode, setGuideMode] = useState<GameMode | null>(() => autoShowGuides && !shouldHideGameGuides() ? 'quick_quiz' : null);
+  const [guideMode, setGuideMode] = useState<GameMode | null>(null);
   const [recentDebriefs, setRecentDebriefs] = useState<RecentCircuitDebrief[]>([]);
   const [loadingRecentDebriefs, setLoadingRecentDebriefs] = useState(true);
 
@@ -559,6 +560,7 @@ export default function GamesPage({
 
   function selectGame(mode: GameMode) {
     setTab(mode);
+    setShowChooser(false);
     if (autoShowGuides && !shouldHideGameGuides()) setGuideMode(mode);
   }
 
@@ -576,23 +578,32 @@ export default function GamesPage({
   return (
     <div>
       <PageHeader title="Trò chơi" subtitle="Kiểm tra bài cũ ngay trên lớp — học viên tham gia bằng tài khoản" actions={
-        tab !== 'picker' && tab !== 'saved' ? <Button variant="secondary" onClick={() => setGuideMode(tab)}><i className="fas fa-circle-play" /> Cách chơi</Button> : undefined
+        !showChooser && tab !== 'picker' && tab !== 'saved' ? <Button variant="secondary" onClick={() => setGuideMode(tab)}><i className="fas fa-circle-play" /> Cách chơi</Button> : undefined
       } />
       <RecentCircuitDebriefs reports={recentDebriefs} loading={loadingRecentDebriefs} />
-      <div className="mb-5 flex w-fit flex-wrap gap-1 rounded-sm border border-slate-200 bg-white p-1">
-        {(Object.keys(MODE_META) as GameMode[]).map((k) => (
-          <button key={k} onClick={() => selectGame(k)} className={`flex items-center gap-1.5 rounded-sm px-4 py-2 text-sm font-semibold transition ${tab === k ? 'bg-blue-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
-            <i className={`fas ${MODE_META[k].icon}`} /> {MODE_META[k].label}
+      {showChooser ? <section aria-label="Chọn trò chơi" className="mb-5">
+        <h2 className="mb-3 text-base font-black text-blue-950">Chọn trò chơi cho buổi học</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(Object.keys(MODE_META) as GameMode[]).map((mode) => <button key={mode} type="button" onClick={() => selectGame(mode)}
+            className="flex min-h-28 items-start gap-3 rounded border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-600 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-600">
+            <i className={`fas ${MODE_META[mode].icon} mt-1 text-xl text-blue-800`} aria-hidden="true" />
+            <span><span className="block text-sm font-black text-blue-950">{MODE_META[mode].label}</span>
+              <span className="mt-1 block text-xs leading-relaxed text-slate-600">{MODE_META[mode].desc}</span></span>
+          </button>)}
+          <button type="button" onClick={() => { setTab('picker'); setShowChooser(false); }}
+            className="flex min-h-28 items-start gap-3 rounded border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-blue-600 hover:bg-blue-50">
+            <i className="fas fa-dice mt-1 text-xl text-blue-800" aria-hidden="true" /><span><span className="block text-sm font-black text-blue-950">Bốc thăm</span><span className="mt-1 block text-xs text-slate-600">Chọn ngẫu nhiên học viên tham gia.</span></span>
           </button>
-        ))}
-        <button onClick={() => setTab('picker')} className={`flex items-center gap-1.5 rounded-sm px-4 py-2 text-sm font-semibold transition ${tab === 'picker' ? 'bg-blue-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
-          <i className="fas fa-dice" /> Bốc thăm
-        </button>
-        <button onClick={() => setTab('saved')} className={`flex items-center gap-1.5 rounded-sm px-4 py-2 text-sm font-semibold transition ${tab === 'saved' ? 'bg-blue-900 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}>
-          <i className="fas fa-bookmark" /> Lưu sẵn
-        </button>
-      </div>
-      {tab === 'picker' ? (
+          <button type="button" onClick={() => { setTab('saved'); setShowChooser(false); }}
+            className="flex min-h-28 items-start gap-3 rounded border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-blue-600 hover:bg-blue-50">
+            <i className="fas fa-bookmark mt-1 text-xl text-blue-800" aria-hidden="true" /><span><span className="block text-sm font-black text-blue-950">Lưu sẵn</span><span className="mt-1 block text-xs text-slate-600">Mở một trò chơi đã chuẩn bị trước.</span></span>
+          </button>
+        </div>
+      </section> : <div className="mb-5 flex flex-wrap items-center gap-3 rounded border border-blue-100 bg-blue-50 p-3">
+        <Button variant="secondary" onClick={() => setShowChooser(true)}><i className="fas fa-table-cells" /> Đổi trò chơi</Button>
+        <span className="text-sm font-bold text-blue-950">{tab === 'picker' ? 'Bốc thăm' : tab === 'saved' ? 'Lưu sẵn' : MODE_META[tab].label}</span>
+      </div>}
+      {!showChooser && (tab === 'picker' ? (
         <RandomPickerTab />
       ) : tab === 'saved' ? (
         <PreparedGamesTab onLaunched={launchSession} initialClassId={lockedClassId || initialClassId} initialSubjectId={initialSubjectId} lockedClassId={lockedClassId} />
@@ -601,7 +612,7 @@ export default function GamesPage({
           <Card className="mb-4 p-4 text-sm text-slate-600">{MODE_META[tab].desc}</Card>
           <CreateGameTab key={tab} mode={tab} initialClassId={lockedClassId || initialClassId} initialSubjectId={initialSubjectId} lockedClassId={lockedClassId} onCreated={launchSession} />
         </>
-      )}
+      ))}
       {guideMode && <GameGuideModal mode={guideMode} onClose={closeGuide} />}
     </div>
   );
@@ -1517,7 +1528,7 @@ function HostConsole({ session }: { session: GameSessionInfo }) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl text-center">
+    <div data-game-host-console className="mx-auto w-full max-w-6xl text-center">
       <HostRoomHeader roomCode={session.roomCode} playerCount={players.length} joinQr={joinQr} />
       <HostLobbyView session={session} state={state} onStart={hostStart} onKick={hostKick} />
       <HandRaiseHostView session={session} state={state} onPick={hostPick} onRelease={hostRelease} onVerdict={hostVerdict} />

@@ -204,7 +204,17 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   })).toBe(73);
   await page.getByRole('button', { name: /Mở.*Game/ }).click();
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
+  const legacyGameStage = page.locator('[data-game-stage]');
+  await expect(legacyGameStage).toHaveAttribute('data-game-stage', 'expanded');
+  await expect(page.getByRole('button', { name: /Mô phỏng mạch/ })).toBeVisible();
+  const expandedGameBox = await legacyGameStage.boundingBox();
+  expect(expandedGameBox?.width).toBeGreaterThan((await page.evaluate(() => window.innerWidth)) * 0.9);
+  await page.getByRole('button', { name: 'Thu về khung nổi' }).click();
+  await expect(legacyGameStage).toHaveAttribute('data-game-stage', 'floating');
+  await page.getByRole('button', { name: 'Mở toàn màn hình game' }).click();
+  await expect(legacyGameStage).toHaveAttribute('data-game-stage', 'expanded');
   await page.getByTitle('Hạ game xuống').click();
+  await expect(legacyGameStage).toHaveAttribute('data-game-stage', 'minimized');
   await expect(page.getByText(/Game đang chuẩn bị/)).toBeVisible();
   const gameHandle = page.getByLabel('Kéo khung game');
   const initialGameBox = await gameHandle.boundingBox();
@@ -306,6 +316,16 @@ test('teacher prepares one shared lesson and opens it for an assigned class', as
   await page.getByLabel('Chọn học liệu').setInputFiles({ name: 'shared-browser.pdf', mimeType: 'application/pdf', buffer: createPdfFixture() });
   await page.getByRole('button', { name: 'Tải lên' }).click();
   await expect(page.getByText('shared-browser.pdf')).toBeVisible();
+  const gameLogin = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
+  const gameToken = (await gameLogin.json() as { token: string }).token;
+  const createdQuestion = await request.post('/api/questions', { headers: { Authorization: `Bearer ${gameToken}` },
+    data: { type: 'fill', content: 'Điện áp đo bằng đơn vị nào?', correctAnswer: 'V' } });
+  expect(createdQuestion.ok()).toBeTruthy();
+  const gameQuestionId = (await createdQuestion.json() as { question: { id: string } }).question.id;
+  await page.getByRole('tab', { name: 'Câu hỏi ôn tập' }).click();
+  await page.getByRole('combobox').selectOption(gameQuestionId);
+  await page.getByRole('button', { name: 'Gắn vào bài' }).click();
+  await expect(page.getByText('Điện áp đo bằng đơn vị nào?')).toBeVisible();
 
   await page.goto('/teaching');
   await expect(page.getByRole('heading', { name: 'Môn dùng chung browser' })).toBeVisible();
@@ -316,6 +336,28 @@ test('teacher prepares one shared lesson and opens it for an assigned class', as
   await expect(page.locator('canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Đánh dấu đang dạy' }).click();
   await expect(page.getByText(/Đang dạy/).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Trò chơi' }).click();
+  const sharedGameStage = page.locator('[data-shared-game-stage]');
+  await expect(sharedGameStage).toBeVisible();
+  expect((await sharedGameStage.boundingBox())?.width).toBeGreaterThan((await page.evaluate(() => window.innerWidth)) * 0.9);
+  await page.getByRole('button', { name: 'Chọn trò chơi khác' }).click();
+  await expect(page.getByRole('button', { name: /Mô phỏng mạch/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Trở về bài này' }).click();
+  const createGameResponse = page.waitForResponse((response) => response.url().endsWith('/api/games') && response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Tạo game nhanh từ bài này' }).click();
+  const gameId = (await (await createGameResponse).json() as { id: string }).id;
+  const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
+  expect(roomCode).toMatch(/^\d{6}$/);
+  expect((await page.locator('[data-game-host-console]').boundingBox())?.width).toBeGreaterThan(750);
+  await page.getByRole('button', { name: 'Thu về bài giảng' }).click();
+  await expect(sharedGameStage).toBeHidden();
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Trò chơi' }).click();
+  await expect(sharedGameStage).toBeVisible();
+  await expect(page.locator('div.font-mono').filter({ hasText: roomCode })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect((await sharedGameStage.boundingBox())?.width).toBeGreaterThanOrEqual(385);
+  await expect(page.getByRole('button', { name: 'Thu về bài giảng' })).toBeVisible();
 
   const login = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
   const token = (await login.json() as { token: string }).token;
@@ -327,6 +369,8 @@ test('teacher prepares one shared lesson and opens it for an assigned class', as
   expect(subjectId && classId).toBeTruthy();
   const progress = await request.get(`/api/shared/classes/${classId}/subjects/${subjectId}/progress`, { headers });
   expect((await progress.json() as { progress: { status: string }[] }).progress[0]?.status).toBe('in_progress');
+  const cancelled = await request.post(`/api/games/${gameId}/cancel`, { headers });
+  expect(cancelled.ok()).toBeTruthy();
 });
 
 test('teacher creates a student with code and home class from Users', async ({ page, request }) => {
@@ -392,9 +436,7 @@ test('teacher can review the six default circuit challenges before creating a ga
   await expect(page).toHaveURL(/\/$/);
 
   await page.goto('/games');
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Chọn trò chơi' })).toBeVisible();
   await page.getByRole('button', { name: /Mô phỏng mạch/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -469,9 +511,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/$/);
   await page.goto('/games');
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Chọn trò chơi' })).toBeVisible();
   await page.getByRole('button', { name: /Mô phỏng mạch/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -480,6 +520,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await page.getByRole('button', { name: 'Tạo phòng game' }).click();
   const roomCode = (await page.locator('div.font-mono').filter({ hasText: /^\d{6}$/ }).textContent())?.trim();
   expect(roomCode).toMatch(/^\d{6}$/);
+  expect((await page.locator('[data-game-host-console]').boundingBox())?.width).toBeGreaterThan(750);
   const baseURL = new URL(page.url()).origin;
 
   const studentContext = await browser.newContext({ baseURL });
@@ -751,10 +792,7 @@ test('default circuit room restores host and learners without duplicate grading'
   await expect(debriefRows.nth(2)).toContainText(/Circuit Peer.*1\/6.*1.*0.*100 đ/);
   await expect(debriefRows.nth(3)).toContainText(/Circuit Student.*1\/6.*3.*1.*100 đ/);
   await page.reload();
-  const guideAfterReload = page.getByRole('dialog');
-  await expect(guideAfterReload).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(guideAfterReload).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Chọn trò chơi' })).toBeVisible();
   const recentDebriefs = page.getByLabel('Tổng kết mạch gần đây');
   await expect(recentDebriefs).toBeVisible({ timeout: 10_000 });
   await expect(recentDebriefs).toContainText('Hoàn thành 17%');
