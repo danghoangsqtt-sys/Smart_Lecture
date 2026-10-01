@@ -24,6 +24,8 @@ interface TeachingLogRow {
   attendance_taken: number;
   kttx_awarded: string;
   notes: string;
+  shared_subject_id: string | null;
+  shared_lesson_id: string | null;
 }
 
 interface TeachingGameRow {
@@ -136,7 +138,7 @@ function buildPostLessonReport(cls: { id: string; name: string }, subjectId?: st
     FROM teaching_logs l
     LEFT JOIN curriculum_items ci ON ci.id = l.curriculum_item_id
     LEFT JOIN subjects s ON s.id = l.subject_id
-    WHERE l.class_id = ?`;
+    WHERE l.class_id = ? AND l.shared_subject_id IS NULL`;
   const params: string[] = [cls.id];
   if (subjectId) { sql += ' AND l.subject_id = ?'; params.push(subjectId); }
   sql += ' ORDER BY l.started_at DESC LIMIT 200';
@@ -209,7 +211,7 @@ router.get(
     const cls = getClassOrThrowLocal(String(req.params.classId));
     const user = (req as AuthedRequest).user!;
     if (!canManageLog(user, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem phiên dạy đang diễn ra');
-    const log = db.prepare('SELECT * FROM teaching_logs WHERE class_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(cls.id) as TeachingLogRow | undefined;
+    const log = db.prepare('SELECT * FROM teaching_logs WHERE class_id = ? AND shared_subject_id IS NULL AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(cls.id) as TeachingLogRow | undefined;
     res.json({ log: log ? serializeLog(log) : null });
   })
 );
@@ -246,7 +248,7 @@ router.get(
     const user = (req as AuthedRequest).user!;
     if (!canViewLog(user, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem nhật ký');
     const subjectId = req.query.subjectId as string | undefined;
-    let sql = 'SELECT * FROM teaching_logs WHERE class_id = ?';
+    let sql = 'SELECT * FROM teaching_logs WHERE class_id = ? AND shared_subject_id IS NULL';
     const params: (string | number)[] = [cls.id];
     if (subjectId) {
       sql += ' AND subject_id = ?';
@@ -266,6 +268,7 @@ router.get(
     const log = getLogOrThrow(String(req.params.logId));
     const cls = getClassOrThrowLocal(log.class_id);
     if (!canViewLog((req as AuthedRequest).user!, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem');
+    if (log.shared_subject_id) throw new HttpError(409, 'SHARED_SESSION', 'Hãy dùng API phiên dạy từ chương trình chung');
     res.json({ log: serializeLog(log) });
   })
 );
@@ -288,8 +291,11 @@ router.post(
     const cls = getClassOrThrowLocal(parsed.data.classId);
     if (!canManageLog(user, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền tạo nhật ký');
     assertLogReferencesBelongToClass(cls.id, parsed.data);
-    const active = db.prepare('SELECT * FROM teaching_logs WHERE class_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get(cls.id) as TeachingLogRow | undefined;
+    const active = db.prepare(`SELECT l.* FROM teaching_logs l WHERE l.ended_at IS NULL
+      AND (l.class_id = ? OR EXISTS (SELECT 1 FROM teaching_log_classes lc WHERE lc.teaching_log_id = l.id AND lc.class_id = ?))
+      ORDER BY l.started_at DESC LIMIT 1`).get(cls.id, cls.id) as TeachingLogRow | undefined;
     if (active) {
+      if (active.shared_subject_id) throw new HttpError(409, 'SESSION_CONFLICT', 'Lớp đang tham gia phiên dạy từ chương trình chung');
       res.json({ id: active.id, resumed: true, log: serializeLog(active) });
       return;
     }
@@ -327,6 +333,7 @@ router.patch(
     const cls = getClassOrThrowLocal(log.class_id);
     const user = (req as AuthedRequest).user!;
     if (!canManageLog(user, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền sửa');
+    if (log.shared_subject_id) throw new HttpError(409, 'SHARED_SESSION', 'Hãy dùng API phiên dạy từ chương trình chung');
     const parsed = updateLogSchema.partial().safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Dữ liệu không hợp lệ');
     const attendanceSessionId = parsed.data.attendanceSessionId !== undefined ? parsed.data.attendanceSessionId : log.attendance_session_id;
@@ -361,8 +368,9 @@ router.post(
   '/teaching-logs/:logId/actions',
   h(async (req, res) => {
     const log = getLogOrThrow(String(req.params.logId));
-    if (log.ended_at) throw new HttpError(409, 'SESSION_ENDED', 'Phiên dạy đã kết thúc');
     if (!canManageLog((req as AuthedRequest).user!, log.class_id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền ghi nhận hoạt động');
+    if (log.shared_subject_id) throw new HttpError(409, 'SHARED_SESSION', 'Hãy dùng API phiên dạy từ chương trình chung');
+    if (log.ended_at) throw new HttpError(409, 'SESSION_ENDED', 'Phiên dạy đã kết thúc');
     const parsed = actionSchema.safeParse(req.body);
     if (!parsed.success) throw new HttpError(400, 'BAD_INPUT', 'Hoạt động không hợp lệ');
     if (parsed.data.kind === 'game') assertGameBelongsToLog(parsed.data.id, log);
@@ -381,6 +389,7 @@ router.delete(
     if (!log) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy nhật ký');
     const cls = getClassOrThrowLocal(log.class_id);
     if (!canManageLog((req as AuthedRequest).user!, cls.id)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xóa');
+    if (log.shared_subject_id) throw new HttpError(409, 'SHARED_SESSION', 'Không thể xóa phiên dạy từ chương trình chung qua API cũ');
     db.prepare('DELETE FROM teaching_logs WHERE id = ?').run(log.id);
     res.json({ ok: true });
   })
@@ -399,7 +408,7 @@ router.get(
       FROM teaching_logs l
       LEFT JOIN subjects s ON s.id = l.subject_id
       LEFT JOIN curriculum_items ci ON ci.id = l.curriculum_item_id
-      WHERE l.class_id = ?`;
+      WHERE l.class_id = ? AND l.shared_subject_id IS NULL`;
     const params: (string | number)[] = [cls.id];
     if (subjectId) {
       sql += ' AND l.subject_id = ?';

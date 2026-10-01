@@ -18,7 +18,10 @@
 | T-8802 | API kho môn/bài, media độc lập và snapshot game | P88 | done (source) | API 20/20, migration 11/11, focused + full E2E; installed app untouched |
 | T-8803 | UI chương trình và giảng dạy từ nguồn dùng chung | P88 | done (source) | typecheck/lint/build, API 21/21, focused/E2E, Browser 10/10; installed app untouched |
 | T-8804 | Hồi quy chương trình/game/legacy; game mở lớn, dễ chọn khi giảng | P88 | done (source) | API 22/22, focused/full E2E, Browser 10/10; P88 source complete, installed app untouched |
-| T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
+| T-8901 | Vòng đời phiên dạy 1–4 lớp trên môn/bài chung | P89 | done (source) | v31; API 14/14, migration 12/12; focused/full E2E, typecheck/lint/build PASS; installed DB untouched |
+| T-8902 | Điểm danh, game và kết quả theo lớp tham gia | P89 | todo | một game chung; điểm danh/KTTX tách lớp |
+| T-8903 | Giao diện chọn 1–4 lớp và workspace phiên dạy | P89 | todo | dùng một bài/slide/video/game; UX Browser |
+| T-8904 | Báo cáo tổng/từng lớp và hồi quy đa lớp | P89 | todo | REST/Socket/Browser và legacy |
 | T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |
 
 ## Kế hoạch cũ P83–P85 — đã bị thay thế, giữ để truy vết
@@ -322,6 +325,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-10-01 (P89 T-8901 — shared teaching session lifecycle)
+- Added v31 shared subject/lesson references to `teaching_logs`, reused v26 participant relation; one log for 1–4 classes, transaction-scoped start, exact retry, active conflict and idempotent end. Teacher must manage every class, with assigned shared subject and matching lesson; admin may coordinate mixed-owner classes. Kept class list frozen and protected session history from class/lesson/assignment deletion.
+- Legacy log API cannot mutate shared sessions; legacy read/report remains legacy-only until T-8904 to avoid false aggregates. Added isolated REST 14/14 and migration 12/12 with old log preservation, updated old v24 test fixture; focused/full E2E, typecheck/lint/build pass. No React changes; Browser UX belongs T-8903. Installed DB/app untouched, AI/API key deferred.
+- T-8902 next: per-class attendance, shared game and learner-class result mapping. T-8903 UI and T-8904 reports/regression remain, as do P90/release gates.
+
 ### 2026-10-01 (P88 T-8804 — teaching game stage and regression)
 - Replaced cramped game tabs with descriptive selection cards and a wider host console. Legacy teaching game opens full viewport with floating/minimized controls; shared teaching game opens full viewport, offers quick quiz from linked lesson questions or other class-scoped games, and preserves the same host room when returning to slides.
 - Browser 10/10 covers both teaching routes, real game-stage/host width and shared room continuity; isolated shared API 22/22 includes cross-teacher media read/write boundaries. Focused/full E2E, typecheck/lint/build pass. React Doctor changed 88/100 with three non-blocking complexity heuristics. Installed DB/app untouched; AI/API key deferred.

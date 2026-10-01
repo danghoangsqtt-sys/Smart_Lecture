@@ -9,7 +9,7 @@
 | P86 — Roster preflight | Kiểm kê chỉ đọc trước ràng buộc dữ liệu | T-8601 CLI báo cáo xung đột trên DB chỉ định, fixture tests, không sửa DB |
 | P87 — Học viên và lớp biên chế ✅ source complete | Một mã SV/một lớp hiện tại, tạo/nhập/chuyển/xử lý tài khoản | T-8700..T-8704 hoàn tất trong source (2026-10-01); DB/bộ cài chưa nâng cấp, P90 rehearsal và release gate P78–P82 còn chờ |
 | P88 — Kho chương trình dùng chung ✅ source complete | Môn→bài→slide/video/câu hỏi, lớp–môn, tiến độ riêng | T-8801..T-8804 hoàn tất trong source (2026-10-01); game khi giảng mở lớn/dễ chọn; DB/bản cài chưa nâng cấp, P89/P90 còn chờ |
-| P89 — Giảng dạy 1–4 lớp | Một nội dung/workspace/game, kết quả tách lớp | T-8901 lifecycle/v26; T-8902 attendance/game/results; T-8903 UI; T-8904 reports/tests |
+| P89 — Giảng dạy 1–4 lớp 🔄 source in progress | Một nội dung/workspace/game, kết quả tách lớp | T-8901 lifecycle/v26+v31 đã xong trong source; T-8902 attendance/game/results; T-8903 UI; T-8904 reports/tests |
 | P90 — Rehearsal/release | Di trú trên bản sao, UX/E2E, rollback | T-9001 upgrade/restore; T-9002 Browser/Socket/REST; T-9003 docs/release gate |
 
 **Thứ tự thực thi:** P86 → P87 → P88 → P89 → P90. Không đổi phiên bản app/bộ cài khỏi v0.11.0 trước release. UI chưa có prototype; giữ cấu trúc hiện tại và nghiệm thu UX ở P90.
@@ -19,7 +19,7 @@
 | Phase | Nguồn mã | Bản cài/phát hành |
 |---|---|---|
 | P86–P88 | Hoàn tất, gồm hồi quy game P88 10/10 Browser | Chưa nâng cấp bản cài/DB cho P87–P88 |
-| P89 | Chưa triển khai buổi dạy 2–4 lớp | Chờ P90 và release gates |
+| P89 | API vòng đời phiên 1–4 lớp đã có trong source; chưa có điểm danh/game/kết quả và UI đa lớp | Chờ T-8902..04, P90 và release gates |
 | P90 | Chưa diễn tập phát hành bản mới | P78–P82 vẫn là điều kiện trước phát hành |
 
 ### Phase 86 — Kiểm kê và cổng di trú dữ liệu ✅

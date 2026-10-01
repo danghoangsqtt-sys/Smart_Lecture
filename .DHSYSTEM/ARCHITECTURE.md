@@ -1,5 +1,11 @@
 # ARCHITECTURE — Smart_Lecture
 
+## P89 T-8901 — Vòng đời phiên dạy 1–4 lớp (source only)
+
+- Migration v31 thêm `teaching_logs.shared_subject_id` và `shared_lesson_id` là FK riêng vào kho chương trình chung; hai cột legacy `subject_id`/`curriculum_item_id` không nhận ID mới. `teaching_log_classes` v26 giữ toàn bộ lớp tham gia, kể cả lớp đầu; `teaching_logs.class_id` chỉ là lớp đại diện để giữ tương thích schema cũ. Một phiên = một dòng nhật ký, không nhân bản slide/video/game hoặc học liệu. Bản ghi cũ không bị backfill/thay đổi; không áp migration lên DB bản cài trước P90.
+- `POST /api/shared/teaching-sessions/start {subjectId, lessonId, classIds}` nhận 1–4 lớp không trùng, cùng phân công môn; bài phải thuộc môn và giáo viên phải quản lý mọi lớp (admin được phép). Transaction tạo log+relations nguyên tử, chặn bất kỳ lớp nào đang có phiên khác, retry đúng cùng tập lớp/môn/bài trả `resumed: true`; tập lớp đóng băng sau khi bắt đầu. `GET /api/shared/teaching-sessions/active?classId=`, `GET /api/shared/teaching-sessions/:id`, `POST /api/shared/teaching-sessions/:id/end` dùng cùng kiểm quyền; kết thúc idempotent. Phiên legacy được tra như một lớp khi tìm xung đột.
+- API nhật ký cũ từ chối sửa/xóa/ghi action vào phiên shared; danh sách và báo cáo legacy tạm chỉ đọc log legacy, không đếm nhầm phiên shared. Xóa lớp/bài/gỡ liên kết lớp–môn có lịch sử phiên shared trả 409 rõ. Điểm danh, game, kết quả theo lớp, UI và báo cáo shared thuộc T-8902..04; chưa thể dùng phiên shared trọn vẹn từ giao diện.
+
 ## P88 T-8804 — Sân khấu game trong giờ dạy (source only)
 
 - Bộ chọn game trong `GamesPage` dùng các thẻ có tên/mô tả, không dồn 11 mode vào dải tab; hướng dẫn cách chơi chỉ hiện sau khi chọn game, còn nút “Đổi trò chơi” trở về bộ chọn. Host console mở rộng theo viewport để mã phòng, danh sách học viên và trạng thái chơi không bị ép vào cột hẹp.
@@ -270,6 +276,8 @@ Rate limit AI: bảng counters trong SQLite (feature, day, count) — quota guar
 - `game_sessions.class_id` là nguồn enrollment gate; mọi event điều khiển host so khớp `host_teacher_id` với JWT socket.
 
 ## 9. Thiết kế dự kiến v0.12.0 — một buổi dạy cho nhiều lớp (chưa triển khai)
+
+> Mục này là lịch sử P83–P85, đã bị thay thế bởi thiết kế 2026-09-30 và phần P89 T-8901 ở đầu tài liệu. Không áp giả định “lớp nguồn” hay học viên đa lớp vào mã mới.
 
 Một buổi có 2–4 lớp tham gia, cùng môn/bài, một luồng trình chiếu/video và một phòng game. Điểm danh, KTTX và kết quả học tập vẫn thuộc lớp cụ thể. Luồng một lớp hiện tại phải tiếp tục chạy không đổi. Đây là đích thiết kế P83–P85, không mô tả tính năng đã phát hành.
 

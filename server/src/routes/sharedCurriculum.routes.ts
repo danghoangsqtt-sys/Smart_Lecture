@@ -236,8 +236,9 @@ router.delete('/shared/lessons/:lessonId', requireRole('teacher', 'admin'), h(as
     EXISTS (SELECT 1 FROM shared_lesson_materials WHERE lesson_id = ?)
     OR EXISTS (SELECT 1 FROM shared_lesson_questions WHERE lesson_id = ?)
     OR EXISTS (SELECT 1 FROM class_lesson_progress WHERE lesson_id = ?)
+    OR EXISTS (SELECT 1 FROM teaching_logs WHERE shared_lesson_id = ?)
     OR EXISTS (SELECT 1 FROM shared_curriculum_legacy_map WHERE target_kind = 'lesson' AND target_id = ?)`)
-    .get(lesson.id, lesson.id, lesson.id, lesson.id);
+    .get(lesson.id, lesson.id, lesson.id, lesson.id, lesson.id);
   if (referenced) throw new HttpError(409, 'LESSON_IN_USE', 'Bài học đã có học liệu, câu hỏi, tiến độ hoặc dữ liệu cũ liên kết');
   db.prepare('DELETE FROM shared_lessons WHERE id = ?').run(lesson.id);
   res.json({ ok: true });
@@ -349,6 +350,10 @@ router.delete('/shared/subjects/:subjectId/classes/:classId', requireRole('teach
   if (!assignment) throw new HttpError(404, 'NOT_FOUND', 'Lớp chưa liên kết môn học');
   const hasProgress = db.prepare('SELECT 1 FROM class_lesson_progress WHERE assignment_id = ?').get(assignment.id);
   if (hasProgress) throw new HttpError(409, 'HAS_PROGRESS', 'Môn học đã có tiến độ lớp, không thể gỡ liên kết');
+  const hasSession = db.prepare(`SELECT 1 FROM teaching_logs l WHERE l.shared_subject_id = ?
+    AND (l.class_id = ? OR EXISTS (SELECT 1 FROM teaching_log_classes lc
+      WHERE lc.teaching_log_id = l.id AND lc.class_id = ?)) LIMIT 1`).get(subject.id, cls.id, cls.id);
+  if (hasSession) throw new HttpError(409, 'HAS_SESSION', 'Môn học đã có phiên dạy của lớp, không thể gỡ liên kết');
   const legacyMap = db.prepare("SELECT 1 FROM shared_curriculum_legacy_map WHERE target_kind = 'assignment' AND target_id = ?")
     .get(assignment.id);
   if (legacyMap) throw new HttpError(409, 'LEGACY_ASSIGNMENT', 'Liên kết môn học này thuộc dữ liệu cũ, không thể gỡ');

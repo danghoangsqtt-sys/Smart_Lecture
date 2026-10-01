@@ -34,12 +34,15 @@ try {
       created_at TEXT NOT NULL DEFAULT (datetime('now')));
     CREATE TABLE lesson_plans (id TEXT PRIMARY KEY, curriculum_item_id TEXT NOT NULL REFERENCES curriculum_items(id),
       title TEXT NOT NULL, script TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now')));
+    CREATE TABLE teaching_logs (id TEXT PRIMARY KEY, class_id TEXT NOT NULL,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT);
     INSERT INTO schema_migrations (version) VALUES (28);
   `);
   bootstrap.prepare("INSERT INTO users (id, username, password_hash, role, display_name) VALUES ('teacher', 'teacher', 'unused', 'teacher', 'Teacher')").run();
   const addClass = bootstrap.prepare('INSERT INTO classes (id, name, teacher_id) VALUES (?, ?, ?)');
   addClass.run('class-a', 'Class A', 'teacher');
   addClass.run('class-b', 'Class B', 'teacher');
+  bootstrap.prepare('INSERT INTO teaching_logs (id, class_id) VALUES (?, ?)').run('legacy-log', 'class-a');
   const addSubject = bootstrap.prepare('INSERT INTO subjects (id, class_id, name) VALUES (?, ?, ?)');
   addSubject.run('subject-a', 'class-a', 'Cùng tên');
   addSubject.run('subject-b', 'class-b', 'Cùng tên');
@@ -84,7 +87,10 @@ try {
   'migration failure rolls back all copied rows and leaves version at v28');
   db.exec('DROP TRIGGER test_shared_map_failure');
   connection.migrate();
-  check(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v === 30, 'retry applies v29 and v30');
+  check(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v === 31, 'retry applies v29 through v31');
+  check(db.prepare('SELECT class_id, shared_subject_id, shared_lesson_id FROM teaching_logs WHERE id = ?').get('legacy-log').class_id === 'class-a'
+    && db.prepare('SELECT shared_subject_id, shared_lesson_id FROM teaching_logs WHERE id = ?').get('legacy-log').shared_subject_id === null,
+  'v31 preserves legacy teaching log and leaves shared references empty');
 
   const subjectMaps = db.prepare("SELECT source_id, target_id FROM shared_curriculum_legacy_map WHERE source_kind = 'subject' ORDER BY source_id").all();
   check(subjectMaps.length === 2 && subjectMaps[0].target_id !== subjectMaps[1].target_id

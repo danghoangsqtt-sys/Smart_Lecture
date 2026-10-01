@@ -37,6 +37,16 @@ bootstrap.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')));
   CREATE TABLE lesson_plans (id TEXT PRIMARY KEY, curriculum_item_id TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')));
+  -- v16 teaching log exists in a real v24 installation; v31 extends it.
+  CREATE TABLE teaching_logs (
+    id TEXT PRIMARY KEY, class_id TEXT NOT NULL, subject_id TEXT,
+    curriculum_item_id TEXT, attendance_session_id TEXT, lesson_plan_id TEXT,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')), ended_at TEXT,
+    slides_shown TEXT NOT NULL DEFAULT '[]', videos_played TEXT NOT NULL DEFAULT '[]',
+    games_run TEXT NOT NULL DEFAULT '[]', attendance_taken INTEGER NOT NULL DEFAULT 0,
+    kttx_awarded TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
   INSERT INTO users (id, username, password_hash, role, display_name) VALUES ('admin-id', 'admin', 'unused', 'admin', 'Admin');
 `);
 bootstrap.close();

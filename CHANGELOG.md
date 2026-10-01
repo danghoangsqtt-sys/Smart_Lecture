@@ -2,6 +2,8 @@
 
 ## Planned — Lớp biên chế và chương trình đào tạo dùng chung v0.12.0 (replanned 2026-09-30)
 
+- P89/T-8901 hoàn tất trong source: vòng đời phiên dạy 1–4 lớp trên cùng môn/bài dùng chung, một nhật ký và quan hệ lớp đóng băng; migration v31 cộng thêm, quyền và xung đột/idempotency. API cũ không tiếp quản phiên shared; REST 14/14, migration 12/12, focused/full E2E và typecheck/lint/build đạt. Bản cài/DB chưa nâng cấp; điểm danh/game/kết quả, UI và báo cáo nhiều lớp còn ở T-8902..04.
+
 - Hoàn tất P88/T-8804 trong source theo phản hồi về game khi giảng: bộ chọn trò chơi thành thẻ dễ bấm, màn host rộng; game ở workspace cũ và mới có sân khấu toàn màn hình, thu nhỏ/quay lại slide vẫn giữ phòng. API 22/22, Browser 10/10, focused/full E2E đạt trên dữ liệu cô lập. P88 source complete, chưa nâng cấp bản cài/DB; P89 đa lớp và P90 release vẫn chờ.
 
 - P88/T-8803 hoàn tất trong source: Chương trình đào tạo soạn môn/bài/học liệu/câu hỏi một lần và gắn cho nhiều lớp; Giảng dạy chọn lớp–môn đã gắn, mở PDF/video/game và lưu tiến độ riêng lớp. Giảng viên lớp xem/dạy môn được phân công nhưng chỉ chủ môn/admin sửa nguồn. Route dạy cũ được giữ riêng. Browser E2E 10/10, focused/full E2E đạt; bản cài/DB đang dùng chưa nâng cấp, P89 đa lớp và T-8804 hồi quy còn chờ. AI/API key tiếp tục hoãn.

@@ -175,7 +175,9 @@ router.delete(
     }
     if (db.prepare('SELECT 1 FROM student_home_class_history WHERE class_id = ? LIMIT 1').get(cls.id)
       || db.prepare('SELECT 1 FROM attendance_sessions WHERE class_id = ? LIMIT 1').get(cls.id)
-      || db.prepare('SELECT 1 FROM grades WHERE class_id = ? LIMIT 1').get(cls.id)) {
+      || db.prepare('SELECT 1 FROM grades WHERE class_id = ? LIMIT 1').get(cls.id)
+      || db.prepare('SELECT 1 FROM teaching_logs WHERE class_id = ? LIMIT 1').get(cls.id)
+      || db.prepare('SELECT 1 FROM teaching_log_classes WHERE class_id = ? LIMIT 1').get(cls.id)) {
       throw new HttpError(409, 'CLASS_HAS_HISTORY', 'Lớp có lịch sử học viên hoặc kết quả học tập; hãy lưu trữ thay vì xóa');
     }
     db.prepare('DELETE FROM classes WHERE id = ?').run(cls.id);
