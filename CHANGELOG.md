@@ -2,6 +2,8 @@
 
 ## Planned — Lớp biên chế và chương trình đào tạo dùng chung v0.12.0 (replanned 2026-09-30)
 
+- P88/T-8802 hoàn tất trong source: API môn/bài chung, liên kết lớp–môn, tiến độ tách theo lớp, tham chiếu câu hỏi theo ID; upload và sao chép học liệu legacy sang tệp độc lập có kiểm tra chữ ký/SHA-256, stream có xác thực. Migration v30 đóng băng câu hỏi khi bắt đầu game và khôi phục từ snapshot; route cũ vẫn hoạt động. Kiểm thử isolated API 20/20, focused và E2E đạt. UI và bản cài chưa nâng cấp; tích hợp AI/API key tiếp tục để sau.
+
 - Thay kế hoạch P83–P85 dựa vào “lớp nguồn” bằng P86–P90: một lớp biên chế/học viên, kho môn/bài dùng chung, giảng dạy đa lớp và migration rehearsal. Chưa phát hành hay áp ràng buộc dữ liệu.
 - Thêm kiểm kê roster SQLite chỉ đọc, yêu cầu đường dẫn DB tường minh và báo cáo xung đột trước migration; bản cài hiện còn học viên thiếu mã/lớp, chưa được tự động sửa.
 - Theo xác nhận của người dùng, xóa đúng ba học viên thử thiếu mã trong DB bản cài sau khi kiểm tra tham chiếu và tạo backup SQLite nhất quán. Thêm CLI dọn dữ liệu có dry-run, khóa tập ID bằng SHA-256, chặn xóa nếu có lịch sử học tập và kiểm thử bằng fixture tạm; roster bản cài hiện không còn xung đột.

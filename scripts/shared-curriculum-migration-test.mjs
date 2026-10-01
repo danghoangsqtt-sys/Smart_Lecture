@@ -84,7 +84,7 @@ try {
   'migration failure rolls back all copied rows and leaves version at v28');
   db.exec('DROP TRIGGER test_shared_map_failure');
   connection.migrate();
-  check(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v === 29, 'retry applies v29');
+  check(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v === 30, 'retry applies v29 and v30');
 
   const subjectMaps = db.prepare("SELECT source_id, target_id FROM shared_curriculum_legacy_map WHERE source_kind = 'subject' ORDER BY source_id").all();
   check(subjectMaps.length === 2 && subjectMaps[0].target_id !== subjectMaps[1].target_id

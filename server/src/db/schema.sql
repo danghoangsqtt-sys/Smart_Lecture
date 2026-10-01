@@ -202,6 +202,7 @@ CREATE TABLE IF NOT EXISTS exams (
   title TEXT NOT NULL,
   duration_min INTEGER NOT NULL DEFAULT 45,
   question_ids_json TEXT NOT NULL DEFAULT '[]',
+  questions_snapshot_json TEXT,
   config_json TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'closed')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

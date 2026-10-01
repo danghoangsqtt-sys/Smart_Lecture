@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import classesRoutes, { ensureAllDropFolders } from './routes/classes.routes.js';
 import lecturesRoutes from './routes/lectures.routes.js';
+import sharedCurriculumRoutes from './routes/sharedCurriculum.routes.js';
 import materialIntakeRoutes from './routes/materialIntake.routes.js';
 import questionsRoutes from './routes/questions.routes.js';
 import examsRoutes from './routes/exams.routes.js';
@@ -67,6 +68,7 @@ app.use('/api/auth', authRoutes);
 // 401 those requests before this route is ever reached, since Express runs a path-less
 // router.use() for every request that enters that router, matching route or not.
 app.use('/api', lecturesRoutes);
+app.use('/api', sharedCurriculumRoutes);
 app.use('/api', materialIntakeRoutes);
 app.use('/api', usersRoutes);
 app.use('/api', classesRoutes);

@@ -25,7 +25,7 @@
     "test:spreadsheet-security": "node scripts/spreadsheet-formula-injection-test.mjs",
     "test:upload-security": "node scripts/curriculum-upload-security-test.mjs && node scripts/upload-security-test.mjs",
     "test:auth-focused": "node scripts/admin-recovery-test.mjs && node scripts/auth-session-revocation-test.mjs && node scripts/browser-auth-security-test.mjs && node scripts/temporary-credentials-test.mjs && node scripts/auth-rate-limit-test.mjs",
-    "test:focused": "npm run build -w server && npm run test:upgrade-path && npm run test:mdns && npm run test:spreadsheet-security && npm run test:upload-security && npm run test:auth-focused && npm run test:roster-account && npm run test:roster-excel && npm run test:roster-lifecycle && npm run test:shared-curriculum-migration && node scripts/backup-media-restore-test.mjs",
+    "test:focused": "npm run build -w server && npm run test:upgrade-path && npm run test:mdns && npm run test:spreadsheet-security && npm run test:upload-security && npm run test:auth-focused && npm run test:roster-account && npm run test:roster-excel && npm run test:roster-lifecycle && npm run test:shared-curriculum-migration && npm run test:shared-curriculum-api && node scripts/backup-media-restore-test.mjs",
     "test:browser": "npm run build && node scripts/e2e-browser-isolated.mjs",
     "test:backup-restore": "npm run build -w server && node scripts/backup-media-restore-test.mjs",
     "test:data-root": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/installed-data-migration-test.ps1",
@@ -36,6 +36,7 @@
     "test:roster-excel": "node scripts/roster-excel-test.mjs",
     "test:roster-lifecycle": "node scripts/roster-lifecycle-test.mjs",
     "test:shared-curriculum-migration": "node scripts/shared-curriculum-migration-test.mjs",
+    "test:shared-curriculum-api": "node scripts/shared-curriculum-api-test.mjs",
     "test:browser-auth": "npm run build -w server && node scripts/browser-auth-security-test.mjs",
     "test:temporary-credentials": "npm run build -w server && node scripts/temporary-credentials-test.mjs",
     "bench:lan": "npm run build -w server && node scripts/lan-benchmark.mjs"

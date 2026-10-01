@@ -274,6 +274,9 @@ router.delete(
     const existing = db.prepare('SELECT * FROM questions WHERE id = ?').get(String(req.params.id)) as QuestionRow | undefined;
     if (!existing) throw new HttpError(404, 'NOT_FOUND', 'Không tìm thấy câu hỏi');
     if (!canModifyQuestion(existing, authed.user!.id, authed.user!.role)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xóa câu hỏi này');
+    if (db.prepare('SELECT 1 FROM shared_lesson_questions WHERE question_id = ?').get(existing.id)) {
+      throw new HttpError(409, 'QUESTION_IN_USE', 'Câu hỏi đang liên kết bài học, hãy gỡ liên kết trước khi xóa');
+    }
     db.prepare('DELETE FROM questions WHERE id = ?').run(existing.id);
     res.json({ ok: true });
   })
@@ -291,6 +294,7 @@ router.post(
         const q = db.prepare('SELECT owner_id FROM questions WHERE id = ?').get(id) as { owner_id: string } | undefined;
         if (!q) continue;
         if (authed.user!.role === 'admin' || q.owner_id === authed.user!.id) {
+          if (db.prepare('SELECT 1 FROM shared_lesson_questions WHERE question_id = ?').get(id)) continue;
           db.prepare('DELETE FROM questions WHERE id = ?').run(id);
           deleted++;
         }

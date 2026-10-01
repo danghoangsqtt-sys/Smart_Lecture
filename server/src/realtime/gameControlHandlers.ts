@@ -1,6 +1,6 @@
 import type { Socket } from 'socket.io';
 
-import { db } from '../db/connection.js';
+import { startGameWithSnapshot } from '../services/gameQuestionSnapshot.js';
 import type { RoomState } from './gameTypes.js';
 
 type ClassicGameModes = {
@@ -44,8 +44,13 @@ export function registerGameControlHandlers(socket: Socket, {
   socket.on('game:host-start', () => {
     const room = getRoom();
     if (!isRoomHost(room, socket) || room.phase !== 'lobby') return;
+    try {
+      room.questions = startGameWithSnapshot(room.sessionId);
+    } catch (error) {
+      socket.emit('game:error', { message: error instanceof Error ? error.message : 'Không thể bắt đầu game' });
+      return;
+    }
     if (room.lockOnStart) room.locked = true;
-    db.prepare("UPDATE game_sessions SET status = 'running', started_at = datetime('now') WHERE id = ?").run(room.sessionId);
     if (room.gameType === 'math_race') return startRace(room);
     if (room.gameType === 'crossword' && room.puzzle) {
       room.phase = 'crossword';

@@ -15,7 +15,8 @@
 | T-8703 | Nhập Excel tại Người dùng, preview và một lớp biên chế | P87 | done | Excel contract 8/8; focused + full E2E + Browser 8/8; React Doctor 100 |
 | T-8704 | Chuyển lớp và xử lý tài khoản sai | P87 | done | lifecycle 17/17; focused/E2E/Browser 9/9, React Doctor 100; P87 source complete |
 | T-8801 | Schema kho môn/bài chung + map ID legacy | P88 | done (source) | fixture 11/11; rollback/retry/idempotency; focused + full E2E pass; installed DB untouched |
-| T-8802..04 | API/UI và hồi quy kho chương trình dùng chung | P88 | todo | media copy, curriculum/game tests pending |
+| T-8802 | API kho môn/bài, media độc lập và snapshot game | P88 | done (source) | API 20/20, migration 11/11, focused + full E2E; installed app untouched |
+| T-8803..04 | UI và hồi quy kho chương trình dùng chung | P88 | todo | curriculum/game Browser tests pending |
 | T-8901..04 | Phiên dạy đa lớp dùng môn/bài chung | P89 | todo | một lớp + 2–4 lớp, Socket/attendance/results |
 | T-9001..03 | Rehearsal nâng cấp, UX/E2E và release | P90 | todo | isolated DB upgrade/restore, Browser/REST/Socket |
 
@@ -320,6 +321,11 @@
 | T-7001 | Tách game engine Socket.IO theo lifecycle, game mode và circuit runtime | P70 | done | typecheck + build + REST 86/86 + Socket 10/10 + regression 22/22 + Browser 4/4 + restore/circuit restart PASS |
 
 ## Session log
+### 2026-10-01 (P88 T-8802 — shared curriculum API/media/game)
+- Added owner/class-scoped shared subject/lesson/material/question APIs, per-class assignment/progress and safe deletion guards; legacy routes remain available.
+- Copied legacy files to independent UUID assets only after size, signature and SHA-256 checks; added authenticated range streaming and upload signature checks. Migration v30 snapshots ordered question payloads atomically at game start and restores from snapshot.
+- Isolated API 20/20, migration 11/11, focused and full E2E, typecheck/lint/build passed. Installed database and app untouched; T-8803 UI and T-8804 Browser regression remain.
+
 ### 2026-09-29 (P77 T-7701 — one-time imported credentials)
 - Replaced shared/username-derived import passwords with unique crypto-random credentials and forced first replacement for all staff-created/reset/imported users.
 - Credential plaintext is request-local, returned once with `private, no-store`, omitted for existing accounts and exportable only from the in-memory class-import result through formula-safe CSV.

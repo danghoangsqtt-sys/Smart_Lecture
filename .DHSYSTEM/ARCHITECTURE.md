@@ -1,5 +1,11 @@
 # ARCHITECTURE — Smart_Lecture
 
+## P88 T-8802 — API kho môn/bài dùng chung (source only)
+
+- Router `/api/shared/*` đọc/ghi `shared_subjects`, `shared_lessons`, `class_subject_assignments`, `class_lesson_progress`, `shared_lesson_questions` và `shared_lesson_materials`. Giáo viên sửa môn do mình sở hữu và chỉ gắn vào lớp mình quản lý; admin quản lý toàn bộ; học viên chỉ đọc môn đã gắn lớp mình. Câu hỏi trả kèm đáp án chỉ ở endpoint dành cho giáo viên. Xóa môn/bài/liên kết có dữ liệu học tập hoặc legacy map trả 409; câu hỏi đã gắn bài không bị xóa âm thầm bởi API cũ.
+- Tệp legacy `pending_copy` chỉ thành `ready` sau khi xác nhận nguồn là file trong media dir, đúng kích thước/chữ ký, sao chép thành UUID riêng và đối chiếu SHA-256. Tệp thiếu/hỏng vẫn pending. Link HTTPS/HTTP có thể ready ngay; upload mới kiểm tra phần mở rộng, MIME và chữ ký, lưu tệp UUID riêng. Stream có xác thực, quyền theo môn/lớp và hỗ trợ HTTP Range; response metadata không lộ `file_path`. Xóa material legacy chỉ xóa tệp legacy, không ảnh hưởng bản sao shared.
+- Migration v30 thêm `game_sessions.questions_snapshot_json` nullable. Khi host bắt đầu game, server đọc câu hỏi ngân hàng theo thứ tự, lưu payload và chuyển trạng thái `running` trong một transaction; nếu câu hỏi thiếu thì giữ lobby. Khôi phục game đang chạy dùng snapshot, nên sửa/xóa ngân hàng sau đó không đổi phiên. Phiên cũ không có snapshot tiếp tục dùng fallback ngân hàng. UI hiện vẫn dùng route cũ đến T-8803; DB/bản cài đang dùng chưa nâng cấp.
+
 ## Thiết kế đích 2026-09-30 — lớp biên chế và nguồn chương trình dùng chung
 
 Nguồn chi tiết: `.DHSYSTEM/requests/REQ-20260930-013-roster-curriculum-teaching.md`. Schema phía dưới mô tả hiện trạng/legacy, không phải quan hệ nghiệp vụ đích. Không sửa dữ liệu legacy trước kiểm kê P86 và rehearsal trên bản sao.
@@ -144,6 +150,8 @@ erDiagram
 - **rag_chunks**(id, rag_doc_id, seq, heading_path, text, page, embedding BLOB float32[])
 
 ## 4. API sketch (REST, tiền tố /api)
+
+API P88 (source only): `GET/POST /shared/subjects`, `PATCH/DELETE /shared/subjects/:subjectId`, `GET/POST /shared/subjects/:subjectId/lessons`, `PATCH/DELETE /shared/lessons/:lessonId`; `POST/DELETE /shared/subjects/:subjectId/classes[/:classId]`, `GET /shared/classes/:classId/subjects`, `GET /shared/classes/:classId/subjects/:subjectId/progress`, `PUT /shared/classes/:classId/subjects/:subjectId/lessons/:lessonId/progress`; `GET/POST/DELETE /shared/lessons/:lessonId/questions[/:questionId]`; `GET/POST /shared/lessons/:lessonId/materials`, `POST /shared/lessons/:lessonId/materials/link`, `POST /shared/materials/:materialId/copy-legacy`, `GET /shared/materials/:materialId/stream`, `DELETE /shared/materials/:materialId`. Chỉ bản ghi media `ready` được stream; upload/ghi chỉ cho chủ môn/admin; đọc lớp/học viên luôn kiểm tra phân công. Các endpoint legacy vẫn hoạt động trong giai đoạn chuyển tiếp.
 
 | Nhóm | Endpoint chính | Role |
 |---|---|---|

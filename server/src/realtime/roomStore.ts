@@ -1,4 +1,5 @@
-import { db, queryAll } from '../db/connection.js';
+import { db } from '../db/connection.js';
+import { loadBankGameQuestions } from '../services/gameQuestionSnapshot.js';
 import type { GameQuestion, GameType, PuzzleDef, RoomState } from './gameTypes.js';
 
 type RoomStoreDeps = {
@@ -17,6 +18,7 @@ export function createRoomStore({ rooms, initCircuitSimulate, restoreCircuitSimu
           status: string;
           game_type: string;
           question_ids_json: string;
+          questions_snapshot_json: string | null;
           config_json: string;
           current_question_index: number;
           class_id: string | null;
@@ -47,26 +49,10 @@ export function createRoomStore({ rooms, initCircuitSimulate, restoreCircuitSimu
       ? (row.game_type as GameType)
       : 'quick_quiz';
 
-    let questions: GameQuestion[] = [];
     const ids = JSON.parse(row.question_ids_json) as string[];
-    if (ids.length > 0 && gameType !== 'math_race') {
-      const placeholders = ids.map(() => '?').join(',');
-      const bankRows = queryAll<{ id: string; type: string; content: string; options_json: string; correct_answer: string }>(
-        `SELECT id, type, content, options_json, correct_answer FROM questions WHERE id IN (${placeholders})`,
-        ...ids
-      );
-      const orderMap = new Map(ids.map((qid, i) => [qid, i]));
-      const sorted = [...bankRows].sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-      questions = sorted.map((q) => {
-        if (q.type === 'fill') {
-          return { id: q.id, type: 'fill' as const, content: q.content, correctText: q.correct_answer };
-        }
-        const rawOptions = (JSON.parse(q.options_json) as string[]).map((o) => o.replace(/^([A-D])[\.\:\)]\s+/, ''));
-        let correctIdx = /^[A-D]$/.test(q.correct_answer) ? q.correct_answer.charCodeAt(0) - 65 : 0;
-        if (correctIdx < 0 || correctIdx >= rawOptions.length) correctIdx = 0;
-        return { id: q.id, type: 'mcq' as const, content: q.content, options: rawOptions, correctIdx };
-      });
-    }
+    const questions: GameQuestion[] = row.status === 'running' && row.questions_snapshot_json !== null
+      ? JSON.parse(row.questions_snapshot_json) as GameQuestion[]
+      : gameType === 'math_race' ? [] : loadBankGameQuestions(ids, false);
 
     const existing = rooms.get(row.room_code);
     if (existing) return existing;
