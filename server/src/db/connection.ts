@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { BACKUP_DIR, DB_PATH, MEDIA_DIR, RESTORE_PENDING_MEDIA_DIR, RESTORE_PENDING_PATH } from '../config.js';
+import { migrateSharedCurriculum } from './migrations/029-shared-curriculum.js';
 
 function applyPendingRestore(): void {
   if (!existsSync(RESTORE_PENDING_PATH)) return;
@@ -725,6 +726,10 @@ const MIGRATIONS: { version: number; up: () => void }[] = [
         db.exec('ALTER TABLE users ADD COLUMN archived_at TEXT');
       }
     },
+  },
+  {
+    version: 29,
+    up: () => migrateSharedCurriculum(db),
   },
 ];
 

@@ -53,6 +53,95 @@ CREATE TABLE IF NOT EXISTS student_home_class_history (
 CREATE INDEX IF NOT EXISTS idx_student_home_history_student ON student_home_class_history(student_id, started_at);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_student_home_open ON student_home_class_history(student_id) WHERE ended_at IS NULL;
 
+-- P88: canonical curriculum library. Legacy class-scoped tables remain intact.
+CREATE TABLE IF NOT EXISTS shared_subjects (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_shared_subjects_owner ON shared_subjects(owner_id, name);
+
+CREATE TABLE IF NOT EXISTS class_subject_assignments (
+  id TEXT PRIMARY KEY,
+  class_id TEXT NOT NULL REFERENCES classes(id),
+  subject_id TEXT NOT NULL REFERENCES shared_subjects(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (class_id, subject_id)
+);
+CREATE INDEX IF NOT EXISTS idx_class_subject_assignments_subject ON class_subject_assignments(subject_id, class_id);
+
+CREATE TABLE IF NOT EXISTS shared_lessons (
+  id TEXT PRIMARY KEY,
+  subject_id TEXT NOT NULL REFERENCES shared_subjects(id),
+  chapter TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_shared_lessons_subject ON shared_lessons(subject_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS shared_lesson_materials (
+  id TEXT PRIMARY KEY,
+  lesson_id TEXT NOT NULL REFERENCES shared_lessons(id),
+  type TEXT NOT NULL CHECK (type IN ('pdf', 'docx', 'pptx', 'video', 'image', 'link')),
+  title TEXT NOT NULL,
+  file_path TEXT,
+  link_url TEXT,
+  original_name TEXT NOT NULL DEFAULT '',
+  mime_type TEXT NOT NULL DEFAULT '',
+  size_bytes INTEGER NOT NULL DEFAULT 0,
+  page_count INTEGER NOT NULL DEFAULT 0,
+  asset_status TEXT NOT NULL DEFAULT 'pending_copy' CHECK (asset_status IN ('pending_copy', 'ready')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_shared_lesson_materials_lesson ON shared_lesson_materials(lesson_id, asset_status);
+
+CREATE TABLE IF NOT EXISTS shared_lesson_questions (
+  id TEXT PRIMARY KEY,
+  lesson_id TEXT NOT NULL REFERENCES shared_lessons(id),
+  question_id TEXT NOT NULL REFERENCES questions(id),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (lesson_id, question_id)
+);
+CREATE INDEX IF NOT EXISTS idx_shared_lesson_questions_lesson ON shared_lesson_questions(lesson_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS class_lesson_progress (
+  id TEXT PRIMARY KEY,
+  assignment_id TEXT NOT NULL REFERENCES class_subject_assignments(id),
+  lesson_id TEXT NOT NULL REFERENCES shared_lessons(id),
+  planned_periods INTEGER NOT NULL DEFAULT 1,
+  completed_periods INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (assignment_id, lesson_id)
+);
+CREATE INDEX IF NOT EXISTS idx_class_lesson_progress_assignment ON class_lesson_progress(assignment_id, lesson_id);
+
+CREATE TABLE IF NOT EXISTS shared_curriculum_legacy_map (
+  id TEXT PRIMARY KEY,
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('subject', 'lecture', 'material', 'teaching_plan', 'curriculum_item', 'lesson_plan')),
+  source_id TEXT NOT NULL,
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('subject', 'lesson', 'material', 'assignment', 'progress')),
+  target_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (source_kind, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_shared_curriculum_legacy_target ON shared_curriculum_legacy_map(target_kind, target_id);
+
+CREATE TABLE IF NOT EXISTS shared_curriculum_mapping_issues (
+  id TEXT PRIMARY KEY,
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('lecture', 'material', 'teaching_plan', 'curriculum_item', 'lesson_plan')),
+  source_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (source_kind, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_shared_curriculum_mapping_reason ON shared_curriculum_mapping_issues(source_kind, reason);
+
 CREATE TABLE IF NOT EXISTS lectures (
   id TEXT PRIMARY KEY,
   class_id TEXT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,

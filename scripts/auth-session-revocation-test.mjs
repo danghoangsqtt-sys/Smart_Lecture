@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 
 const dataDir = mkdtempSync(path.join(tmpdir(), 'smartlecture-session-version-'));
 const dbPath = path.join(dataDir, 'smart-lecture.db');
+let openedDb;
 const bootstrap = new DatabaseSync(dbPath);
 bootstrap.exec(`
   CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')));
@@ -20,6 +21,22 @@ bootstrap.exec(`
     created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')),
     student_code TEXT, dob TEXT, gender TEXT, hometown TEXT
   );
+  -- A v24 database already contains the curriculum tables introduced in
+  -- v11/v13/v15; the upgrade fixture must not omit them.
+  CREATE TABLE subjects (id TEXT PRIMARY KEY, class_id TEXT NOT NULL, name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE lectures (id TEXT PRIMARY KEY, class_id TEXT NOT NULL,
+    subject_id TEXT, chapter TEXT NOT NULL DEFAULT '', title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '', sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE teaching_plans (id TEXT PRIMARY KEY, class_id TEXT NOT NULL,
+    subject_id TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE curriculum_items (id TEXT PRIMARY KEY, teaching_plan_id TEXT NOT NULL,
+    lecture_id TEXT, planned_periods INTEGER NOT NULL DEFAULT 1,
+    completed_periods INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE lesson_plans (id TEXT PRIMARY KEY, curriculum_item_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')));
   INSERT INTO users (id, username, password_hash, role, display_name) VALUES ('admin-id', 'admin', 'unused', 'admin', 'Admin');
 `);
 bootstrap.close();
@@ -48,6 +65,7 @@ try {
     import('../server/dist/middleware/auth.js'),
     import('../server/dist/realtime/socketAuth.js'),
   ]);
+  openedDb = db;
   migrate();
   const columns = db.prepare('PRAGMA table_info(users)').all();
   check(columns.some((column) => column.name === 'session_version'), 'upgrades a pre-v25 users table');
@@ -77,7 +95,7 @@ try {
   const renewed = jwt.sign({ sub: updated.id, sv: updated.session_version }, JWT_SECRET, { expiresIn: '5m' });
   check(authenticateSocket({ handshake: { auth: { token: renewed } } })?.userId === user.id, 'accepts a newly versioned Socket.IO token');
   console.log('Session revocation: 7/7 passed');
-  db.close();
 } finally {
+  if (openedDb) openedDb.close();
   rmSync(dataDir, { recursive: true, force: true });
 }

@@ -8,7 +8,7 @@
 |---|---|---|
 | P86 — Roster preflight | Kiểm kê chỉ đọc trước ràng buộc dữ liệu | T-8601 CLI báo cáo xung đột trên DB chỉ định, fixture tests, không sửa DB |
 | P87 — Học viên và lớp biên chế ✅ source complete | Một mã SV/một lớp hiện tại, tạo/nhập/chuyển/xử lý tài khoản | T-8700..T-8704 hoàn tất trong source (2026-10-01); DB/bộ cài chưa nâng cấp, P90 rehearsal và release gate P78–P82 còn chờ |
-| P88 — Kho chương trình dùng chung | Môn→bài→slide/video/câu hỏi, lớp–môn, tiến độ riêng | T-8801 schema/mapping legacy; T-8802 API/snapshot; T-8803 UI; T-8804 tests |
+| P88 — Kho chương trình dùng chung (đang triển khai) | Môn→bài→slide/video/câu hỏi, lớp–môn, tiến độ riêng | T-8801 schema/mapping legacy hoàn tất trong source (2026-10-01); T-8802 API/media/snapshot, T-8803 UI, T-8804 tests còn chờ |
 | P89 — Giảng dạy 1–4 lớp | Một nội dung/workspace/game, kết quả tách lớp | T-8901 lifecycle/v26; T-8902 attendance/game/results; T-8903 UI; T-8904 reports/tests |
 | P90 — Rehearsal/release | Di trú trên bản sao, UX/E2E, rollback | T-9001 upgrade/restore; T-9002 Browser/Socket/REST; T-9003 docs/release gate |
 
