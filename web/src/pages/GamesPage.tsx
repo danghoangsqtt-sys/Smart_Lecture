@@ -500,12 +500,14 @@ function guideFor(mode: GameMode): GameGuide {
 }
 
 export default function GamesPage({
+  initialSession = null,
   initialClassId = '',
   initialSubjectId = '',
   lockedClassId = '',
   autoShowGuides = true,
   onGameLaunched,
 }: {
+  initialSession?: GameSessionInfo | null;
   initialClassId?: string;
   initialSubjectId?: string;
   lockedClassId?: string;
@@ -513,7 +515,7 @@ export default function GamesPage({
   onGameLaunched?: (session: GameSessionInfo) => void;
 }) {
   const [tab, setTab] = useState<GameMode | 'picker' | 'saved'>('quick_quiz');
-  const [session, setSession] = useState<GameSessionInfo | null>(null);
+  const [session, setSession] = useState<GameSessionInfo | null>(initialSession);
   const [recoveringSession, setRecoveringSession] = useState(() => !lockedClassId);
   const [guideMode, setGuideMode] = useState<GameMode | null>(() => autoShowGuides && !shouldHideGameGuides() ? 'quick_quiz' : null);
   const [recentDebriefs, setRecentDebriefs] = useState<RecentCircuitDebrief[]>([]);

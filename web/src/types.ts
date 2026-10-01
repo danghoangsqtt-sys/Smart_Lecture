@@ -44,3 +44,56 @@ export interface ScheduleEvent {
   note: string;
   recurrenceId: string | null;
 }
+
+export interface SharedSubject {
+  id: string;
+  owner_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface SharedLesson {
+  id: string;
+  subject_id: string;
+  chapter: string;
+  title: string;
+  description: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface SharedClassSubject extends SharedSubject {
+  assignment_id: string;
+}
+
+export interface SharedMaterial {
+  id: string;
+  lesson_id: string;
+  type: 'pdf' | 'docx' | 'pptx' | 'video' | 'image' | 'link';
+  title: string;
+  link_url: string | null;
+  original_name: string;
+  mime_type: string;
+  size_bytes: number;
+  asset_status: 'pending_copy' | 'ready';
+}
+
+export interface SharedQuestion {
+  link_id: string;
+  id: string;
+  content: string;
+  type: 'mcq' | 'essay' | 'fill';
+  sort_order: number;
+}
+
+export interface SharedLessonProgress {
+  lesson_id: string;
+  title: string;
+  chapter: string;
+  sort_order: number;
+  progress_id: string | null;
+  planned_periods: number | null;
+  completed_periods: number | null;
+  status: 'pending' | 'in_progress' | 'completed' | null;
+}

@@ -17,10 +17,11 @@ function check(ok, label) {
 
 try {
   const [{ default: express }, { default: jwt }, connection, { JWT_SECRET, MEDIA_DIR }, { default: sharedRoutes },
-    { default: lecturesRoutes }, { default: questionsRoutes }, { errorHandler }, { startGameWithSnapshot }, { createRoomStore }] = await Promise.all([
+    { default: lecturesRoutes }, { default: questionsRoutes }, { default: gamesRoutes }, { errorHandler }, { startGameWithSnapshot }, { createRoomStore }] = await Promise.all([
     import('express'), import('jsonwebtoken'), import('../server/dist/db/connection.js'),
     import('../server/dist/config.js'), import('../server/dist/routes/sharedCurriculum.routes.js'),
     import('../server/dist/routes/lectures.routes.js'), import('../server/dist/routes/questions.routes.js'),
+    import('../server/dist/routes/games.routes.js'),
     import('../server/dist/utils/errors.js'),
     import('../server/dist/services/gameQuestionSnapshot.js'), import('../server/dist/realtime/roomStore.js'),
   ]);
@@ -45,6 +46,7 @@ try {
   app.use('/api', lecturesRoutes);
   app.use('/api', sharedRoutes);
   app.use('/api', questionsRoutes);
+  app.use('/api', gamesRoutes);
   app.use(errorHandler);
   server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
@@ -103,6 +105,20 @@ try {
   check(linked.status === 200 && linkedAgain.status === 200 && foreignQuestion.status === 404 && studentQuestion.status === 403
     && db.prepare('SELECT COUNT(*) AS n FROM shared_lesson_questions WHERE lesson_id = ?').get(lessonId).n === 1,
   'question links are idempotent, permission-checked and hide answers from students');
+  const assignCrossTeacher = await api('POST', `/shared/subjects/${subjectId}/classes`, 'admin-a', { classId: 'class-c' });
+  const crossTeacherLessons = await api('GET', `/shared/subjects/${subjectId}/lessons`, 'teacher-b');
+  const crossTeacherQuestions = await api('GET', `/shared/lessons/${lessonId}/questions`, 'teacher-b');
+  const crossTeacherProgress = await api('PUT', `/shared/classes/class-c/subjects/${subjectId}/lessons/${lessonId}/progress`, 'teacher-b',
+    { plannedPeriods: 2, completedPeriods: 1, status: 'in_progress' });
+  const crossTeacherEdit = await api('PATCH', `/shared/lessons/${lessonId}`, 'teacher-b', { title: 'Không được sửa' });
+  const crossTeacherGame = await api('POST', '/games', 'teacher-b', {
+    gameType: 'quick_quiz', classId: 'class-c', title: 'Ôn tập Bài 1', questionIds: ['question-a'],
+  });
+  check(assignCrossTeacher.status === 200 && crossTeacherLessons.status === 200
+    && crossTeacherQuestions.body.questions.some((question) => question.id === 'question-a')
+    && crossTeacherProgress.status === 200 && crossTeacherEdit.status === 403
+    && crossTeacherGame.status === 201 && crossTeacherGame.body.id,
+  'assigned class teacher can teach, record own progress and play linked questions without editing canonical lesson');
   const deleteLinkedQuestion = await api('DELETE', '/questions/question-a', 'teacher-a');
   const bulkDeleteLinked = await api('POST', '/questions/bulk-delete', 'teacher-a', { ids: ['question-a'] });
   check(deleteLinkedQuestion.status === 409 && bulkDeleteLinked.status === 200 && bulkDeleteLinked.body.deleted === 0,

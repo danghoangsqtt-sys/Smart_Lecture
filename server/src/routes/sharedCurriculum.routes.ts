@@ -149,9 +149,16 @@ function assertManageSubject(subject: Subject, user: User): void {
 
 function assertViewSubject(subject: Subject, user: User): void {
   if (canManageSubject(subject, user)) return;
+  if (user.role === 'teacher' && db.prepare(`SELECT 1 FROM class_subject_assignments a
+    JOIN classes c ON c.id = a.class_id WHERE a.subject_id = ? AND c.teacher_id = ?`).get(subject.id, user.id)) return;
   if (user.role === 'student' && db.prepare(`SELECT 1 FROM class_subject_assignments a
     JOIN enrollments e ON e.class_id = a.class_id WHERE a.subject_id = ? AND e.student_id = ?`).get(subject.id, user.id)) return;
   throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem môn học');
+}
+
+function assertTeachSubject(subject: Subject, user: User): void {
+  if (user.role === 'student') throw new HttpError(403, 'FORBIDDEN', 'Không có quyền xem câu hỏi');
+  assertViewSubject(subject, user);
 }
 
 router.get('/shared/subjects', h(async (req, res) => {
@@ -376,7 +383,6 @@ router.put('/shared/classes/:classId/subjects/:subjectId/lessons/:lessonId/progr
   const cls = getClassOrThrow(String(req.params.classId));
   if (!canManageClass(cls, user)) throw new HttpError(403, 'FORBIDDEN', 'Không có quyền với lớp học');
   const subject = subjectOrThrow(String(req.params.subjectId));
-  assertManageSubject(subject, user);
   const lesson = lessonOrThrow(String(req.params.lessonId));
   if (lesson.subject_id !== subject.id) throw new HttpError(400, 'BAD_INPUT', 'Bài học không thuộc môn học');
   const assignment = db.prepare('SELECT id FROM class_subject_assignments WHERE class_id = ? AND subject_id = ?')
@@ -396,7 +402,7 @@ router.put('/shared/classes/:classId/subjects/:subjectId/lessons/:lessonId/progr
 
 router.get('/shared/lessons/:lessonId/questions', requireRole('teacher', 'admin'), h(async (req, res) => {
   const lesson = lessonOrThrow(String(req.params.lessonId));
-  assertManageSubject(subjectOrThrow(lesson.subject_id), (req as AuthedRequest).user!);
+  assertTeachSubject(subjectOrThrow(lesson.subject_id), (req as AuthedRequest).user!);
   const questions = db.prepare(`SELECT l.id AS link_id, l.sort_order, q.* FROM shared_lesson_questions l
     JOIN questions q ON q.id = l.question_id WHERE l.lesson_id = ? ORDER BY l.sort_order, l.created_at`).all(lesson.id);
   res.json({ questions });

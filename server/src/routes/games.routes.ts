@@ -225,8 +225,13 @@ router.post(
     if (d.questionIds?.length) {
       if (new Set(d.questionIds).size !== d.questionIds.length) throw new HttpError(400, 'BAD_QUESTIONS', 'Không được chọn trùng câu hỏi');
       const accessible = db
-        .prepare(`SELECT COUNT(*) AS c FROM questions WHERE id IN (${d.questionIds.map(() => '?').join(',')}) AND (owner_id = ? OR is_public_bank = 1)`)
-        .get(...d.questionIds, authed.user.id) as { c: number };
+        .prepare(`SELECT COUNT(*) AS c FROM questions q WHERE q.id IN (${d.questionIds.map(() => '?').join(',')})
+          AND (q.owner_id = ? OR q.is_public_bank = 1 OR (? IS NOT NULL AND EXISTS (
+            SELECT 1 FROM shared_lesson_questions lq
+            JOIN shared_lessons l ON l.id = lq.lesson_id
+            JOIN class_subject_assignments a ON a.subject_id = l.subject_id
+            WHERE lq.question_id = q.id AND a.class_id = ?)))`)
+        .get(...d.questionIds, authed.user.id, d.classId ?? null, d.classId ?? null) as { c: number };
       if (accessible.c !== d.questionIds.length) {
         throw new HttpError(400, 'BAD_QUESTIONS', 'Một số câu hỏi không tồn tại hoặc bạn không có quyền sử dụng');
       }

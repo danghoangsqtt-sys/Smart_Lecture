@@ -123,7 +123,7 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await page.locator('#password').fill('Teacher@1234');
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).toHaveURL(/\/$/);
-  await page.goto('/teaching');
+  await page.goto('/teaching/legacy');
   await expect(page.getByText(/Sẵn sàng trước giờ dạy/)).toBeVisible();
   await expect(page.getByRole('button', { name: /XLSX/ })).toBeVisible();
   const reportDownload = page.waitForEvent('download');
@@ -280,6 +280,53 @@ test('teacher can open Teaching Mode and minimize the persistent game dock', asy
   await expect(restoredSurface.locator('polyline')).toHaveCount(1);
   await page.getByRole('button', { name: 'Làm lại', exact: true }).click();
   await expect(restoredSurface.locator('polyline')).toHaveCount(0);
+});
+
+test('teacher prepares one shared lesson and opens it for an assigned class', async ({ page, request }) => {
+  await page.goto('/login');
+  await page.locator('#username').fill('browser.teacher');
+  await page.locator('#password').fill('Teacher@1234');
+  await page.getByRole('button', { name: 'Đăng nhập' }).click();
+  await expect(page).toHaveURL(/\/$/);
+
+  await page.goto('/curriculum');
+  await expect(page.getByRole('heading', { name: 'Chương trình đào tạo' })).toBeVisible();
+  await page.getByRole('button', { name: 'Tạo môn học' }).click();
+  const subjectDialog = page.getByRole('dialog', { name: 'Tạo môn học dùng chung' });
+  await subjectDialog.locator('input').fill('Môn dùng chung browser');
+  await subjectDialog.getByRole('button', { name: 'Tạo môn', exact: true }).click();
+  await expect(subjectDialog).toHaveCount(0);
+  await page.getByRole('checkbox').click();
+  await expect(page.getByRole('checkbox')).toBeChecked();
+  await page.getByRole('button', { name: 'Thêm bài' }).click();
+  const lessonDialog = page.getByRole('dialog', { name: 'Thêm bài học' });
+  await lessonDialog.locator('input').nth(1).fill('Bài nguồn dùng chung');
+  await lessonDialog.getByRole('button', { name: 'Tạo bài' }).click();
+  await expect(lessonDialog).toHaveCount(0);
+  await page.getByLabel('Chọn học liệu').setInputFiles({ name: 'shared-browser.pdf', mimeType: 'application/pdf', buffer: createPdfFixture() });
+  await page.getByRole('button', { name: 'Tải lên' }).click();
+  await expect(page.getByText('shared-browser.pdf')).toBeVisible();
+
+  await page.goto('/teaching');
+  await expect(page.getByRole('heading', { name: 'Môn dùng chung browser' })).toBeVisible();
+  await expect(page.getByText(/1 bài · 1 học liệu sẵn sàng/)).toBeVisible();
+  await page.getByRole('button', { name: 'Mở workspace' }).click();
+  await expect(page).toHaveURL(/\/shared-teach\//);
+  await expect(page.getByRole('heading', { name: 'Bài nguồn dùng chung' })).toBeVisible();
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Đánh dấu đang dạy' }).click();
+  await expect(page.getByText(/Đang dạy/).first()).toBeVisible();
+
+  const login = await request.post('/api/auth/login', { data: { username: 'browser.teacher', password: 'Teacher@1234' } });
+  const token = (await login.json() as { token: string }).token;
+  const headers = { Authorization: `Bearer ${token}` };
+  const subjects = await request.get('/api/shared/subjects', { headers });
+  const subjectId = (await subjects.json() as { subjects: { id: string; name: string }[] }).subjects.find((item) => item.name === 'Môn dùng chung browser')?.id;
+  const classes = await request.get('/api/classes/mine', { headers });
+  const classId = (await classes.json() as { classes: { id: string; name: string }[] }).classes.find((item) => item.name === 'Browser Class')?.id;
+  expect(subjectId && classId).toBeTruthy();
+  const progress = await request.get(`/api/shared/classes/${classId}/subjects/${subjectId}/progress`, { headers });
+  expect((await progress.json() as { progress: { status: string }[] }).progress[0]?.status).toBe('in_progress');
 });
 
 test('teacher creates a student with code and home class from Users', async ({ page, request }) => {

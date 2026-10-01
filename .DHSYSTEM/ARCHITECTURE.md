@@ -1,10 +1,17 @@
 # ARCHITECTURE — Smart_Lecture
 
+## P88 T-8803 — UI Chương trình/Giảng dạy dùng nguồn chung (source only)
+
+- `/curriculum` là nơi chủ môn/admin tạo/sửa môn→bài, tải học liệu một bản, gắn câu hỏi ngân hàng theo ID và phân công môn cho lớp. Học liệu legacy `pending_copy` có thao tác sao chép/kiểm tệp rõ ràng; chưa được stream khi còn pending.
+- `/teaching` chọn lớp, chỉ liệt kê môn đã phân công và chỉ mở `/shared-teach/:classId/:subjectId` khi có học liệu `ready` hoặc câu hỏi chơi được. Workspace đọc PDF qua canvas, video/tài liệu/liên kết, tạo quick quiz từ câu hỏi gắn bài; `class_lesson_progress` lưu riêng từng lớp. PPTX gốc hiện cần mở bằng PowerPoint hoặc tải thêm PDF để trình chiếu trong canvas; không giả định trình duyệt tự chuyển đổi.
+- Giảng viên phụ trách lớp có thể đọc nội dung môn đã phân công, tạo game từ câu hỏi của bài và ghi tiến độ lớp mình dù không phải chủ biên; không được sửa kho môn/bài. Game shared không gửi ID môn mới vào `game_sessions.subject_id` legacy. Nhật ký/điểm danh/kết quả cho buổi nhiều lớp vẫn thuộc P89.
+- Dashboard/teaching workspace cũ còn ở `/teaching/legacy` và `/classes/:id/teach/:subjectId` để đọc/tiếp tục lịch sử; không tự hợp nhất ID cùng tên. DB/bản cài v0.11.0 đang dùng chưa nâng cấp.
+
 ## P88 T-8802 — API kho môn/bài dùng chung (source only)
 
 - Router `/api/shared/*` đọc/ghi `shared_subjects`, `shared_lessons`, `class_subject_assignments`, `class_lesson_progress`, `shared_lesson_questions` và `shared_lesson_materials`. Giáo viên sửa môn do mình sở hữu và chỉ gắn vào lớp mình quản lý; admin quản lý toàn bộ; học viên chỉ đọc môn đã gắn lớp mình. Câu hỏi trả kèm đáp án chỉ ở endpoint dành cho giáo viên. Xóa môn/bài/liên kết có dữ liệu học tập hoặc legacy map trả 409; câu hỏi đã gắn bài không bị xóa âm thầm bởi API cũ.
 - Tệp legacy `pending_copy` chỉ thành `ready` sau khi xác nhận nguồn là file trong media dir, đúng kích thước/chữ ký, sao chép thành UUID riêng và đối chiếu SHA-256. Tệp thiếu/hỏng vẫn pending. Link HTTPS/HTTP có thể ready ngay; upload mới kiểm tra phần mở rộng, MIME và chữ ký, lưu tệp UUID riêng. Stream có xác thực, quyền theo môn/lớp và hỗ trợ HTTP Range; response metadata không lộ `file_path`. Xóa material legacy chỉ xóa tệp legacy, không ảnh hưởng bản sao shared.
-- Migration v30 thêm `game_sessions.questions_snapshot_json` nullable. Khi host bắt đầu game, server đọc câu hỏi ngân hàng theo thứ tự, lưu payload và chuyển trạng thái `running` trong một transaction; nếu câu hỏi thiếu thì giữ lobby. Khôi phục game đang chạy dùng snapshot, nên sửa/xóa ngân hàng sau đó không đổi phiên. Phiên cũ không có snapshot tiếp tục dùng fallback ngân hàng. UI hiện vẫn dùng route cũ đến T-8803; DB/bản cài đang dùng chưa nâng cấp.
+- Migration v30 thêm `game_sessions.questions_snapshot_json` nullable. Khi host bắt đầu game, server đọc câu hỏi ngân hàng theo thứ tự, lưu payload và chuyển trạng thái `running` trong một transaction; nếu câu hỏi thiếu thì giữ lobby. Khôi phục game đang chạy dùng snapshot, nên sửa/xóa ngân hàng sau đó không đổi phiên. Phiên cũ không có snapshot tiếp tục dùng fallback ngân hàng. UI nguồn chung được nối ở T-8803; DB/bản cài đang dùng chưa nâng cấp.
 
 ## Thiết kế đích 2026-09-30 — lớp biên chế và nguồn chương trình dùng chung
 

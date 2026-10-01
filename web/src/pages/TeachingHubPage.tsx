@@ -114,7 +114,7 @@ export default function TeachingHubPage() {
   if (loading) return <Spinner />;
 
   return <div>
-    <PageHeader title="Giảng dạy" subtitle="Chuẩn bị nội dung theo môn học và điều khiển buổi dạy liên tục" actions={<Button onClick={() => setCreateOpen(true)} disabled={!classId}><i className="fas fa-plus" /> Tạo môn học</Button>} />
+    <PageHeader title="Giảng dạy · dữ liệu cũ" subtitle="Khu vực chuyển tiếp cho môn và phiên dạy đã tạo trước đây. Môn mới hãy soạn trong Chương trình đào tạo." actions={<Button onClick={() => navigate('/curriculum')}><i className="fas fa-book-open" /> Chương trình đào tạo</Button>} />
     {classes.length === 0 ? <Card><EmptyState message="Hãy tạo lớp học trước để bắt đầu chuẩn bị môn học và bài giảng." /></Card> : <>
       <Card className="mb-5 overflow-hidden">
         <div className="bg-blue-950 px-5 py-5 text-white">

@@ -13,6 +13,9 @@ const ClassesPage = lazy(() => import('./pages/ClassesPage'));
 const ClassDetailPage = lazy(() => import('./pages/ClassDetailPage'));
 const TeachingModePage = lazy(() => import('./pages/TeachingModePage'));
 const TeachingHubPage = lazy(() => import('./pages/TeachingHubPage'));
+const SharedTeachingHubPage = lazy(() => import('./pages/SharedTeachingHubPage'));
+const CurriculumPage = lazy(() => import('./pages/CurriculumPage'));
+const SharedTeachingPage = lazy(() => import('./pages/SharedTeachingPage'));
 const LecturesPage = lazy(() => import('./pages/LecturesPage'));
 const MyLearningPage = lazy(() => import('./pages/MyLearningPage'));
 const QuestionsPage = lazy(() => import('./pages/QuestionsPage'));
@@ -59,6 +62,7 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route path="/shared-teach/:classId/:subjectId" element={<RequireAuth><SharedTeachingPage /></RequireAuth>} />
         <Route
           element={
             <RequireAuth>
@@ -71,7 +75,9 @@ export default function App() {
           <Route path="/classes" element={<ClassesPage />} />
           <Route path="/classes/:id" element={<ClassDetailPage />} />
           <Route path="/lectures" element={<LecturesPage />} />
-<Route path="/teaching" element={<TeachingHubPage />} />
+          <Route path="/teaching" element={<SharedTeachingHubPage />} />
+          <Route path="/teaching/legacy" element={<TeachingHubPage />} />
+          <Route path="/curriculum" element={<CurriculumPage />} />
           <Route path="/learning" element={<MyLearningPage />} />
           <Route path="/questions" element={<QuestionsPage />} />
           <Route path="/rag" element={<RagPage />} />
